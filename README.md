@@ -16,6 +16,7 @@
 - Eclipse Paho MQTT C 库
 - Eclipse Paho MQTT C++ 库
 - SQLite3 库（用于配置存储）
+- nlohmann/json 库（用于JSON解析）
 
 ### 安装依赖库
 
@@ -35,8 +36,11 @@ sudo apt install libpaho-mqttpp-dev
 # 安装 SQLite3 库
 sudo apt install libsqlite3-dev
 
-# 安装 glog 日志库（从源码编译）
+# 安装 glog 日志库
 sudo apt install libgoogle-glog-dev
+
+# 安装 nlohmann-json 库
+sudo apt install nlohmann-json3-dev
 ```
 
 ## 编译方法
@@ -72,13 +76,13 @@ make
 | keepalive | 60 | 心跳间隔（秒） |
 | publish_interval | 1 | 发布消息间隔（秒） |
 | default_duration | 30 | 默认运行时长（秒） |
-| publish_topic | application/.../device/{robot_id}/command/up | 发布主题模板 |
+| publish_topic | application/.../device/{robot_id}/event/up | 发布主题模板 |
 | subscribe_topic | application/.../device/{robot_id}/command/down | 订阅主题模板 |
 
 **说明**：
 - 主题模板中的 `{robot_id}` 会在运行时自动替换为实际的机器人 ID
 - 每个机器人只有一个发布主题和一个订阅主题
-- 发布主题用于向服务器发送数据（command/up）
+- 发布主题用于向服务器发送数据（event/up）
 - 订阅主题用于接收服务器指令（command/down）
 
 #### 2. robots 表
@@ -111,7 +115,7 @@ SELECT * FROM mqtt_config;
 UPDATE mqtt_config SET value = 'tcp://localhost:1883' WHERE key = 'broker';
 
 # 修改发布主题模板
-UPDATE mqtt_config SET value = 'application/your-app-id/device/{robot_id}/command/up' WHERE key = 'publish_topic';
+UPDATE mqtt_config SET value = 'application/your-app-id/device/{robot_id}/event/up' WHERE key = 'publish_topic';
 
 # 修改订阅主题模板
 UPDATE mqtt_config SET value = 'application/your-app-id/device/{robot_id}/command/down' WHERE key = 'subscribe_topic';
@@ -207,7 +211,7 @@ Duration: 30 seconds
 启用的机器人 (1):
   - 303930306350729d (当前使用)
 
-发布主题: application/.../device/303930306350729d/command/up
+发布主题: application/.../device/303930306350729d/event/up
 订阅主题: application/.../device/303930306350729d/command/down
 ==================
 
@@ -271,6 +275,17 @@ sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
 dpkg -l | grep paho
 ```
 
+### 找不到 nlohmann_json 库
+
+如果 CMake 提示找不到 nlohmann_json：
+
+```bash
+sudo apt install nlohmann-json3-dev
+
+# 检查库是否正确安装
+dpkg -l | grep nlohmann
+```
+
 ### 数据库权限问题
 
 如果程序无法创建或访问 config.db：
@@ -289,6 +304,8 @@ rm config.db
 - `libpaho-mqtt-dev`（Paho MQTT C 库）
 - `libpaho-mqttpp-dev`（Paho MQTT C++ 库）
 - `libsqlite3-dev`（SQLite3 库）
+- `libgoogle-glog-dev`（glog 日志库）
+- `nlohmann-json3-dev`（nlohmann/json 库）
 
 ### 运行时连接问题
 
