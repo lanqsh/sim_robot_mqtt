@@ -19,7 +19,8 @@ find_package(glog REQUIRED)
 add_executable(robot
     src/main.cpp
     src/config_db.cpp
-    src/mqtt_callback.cpp
+    src/mqtt_manager.cpp
+    src/robot.cpp
 )
 
 target_link_libraries(robot PRIVATE
