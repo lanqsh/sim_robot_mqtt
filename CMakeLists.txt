@@ -4,14 +4,19 @@ project(sim_robot_mqtt LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(FetchContent)
+# 查找系统安装的 Paho MQTT C++ 库
+find_package(PahoMqttCpp REQUIRED)
 
-FetchContent_Declare(paho_mqtt_cpp
-  GIT_REPOSITORY https://github.com/eclipse/paho.mqtt.cpp.git
-  GIT_TAG v1.3.1
+# 查找 SQLite3 库
+find_package(SQLite3 REQUIRED)
+
+add_executable(sim_robot
+    src/main.cpp
+    src/config_db.cpp
+    src/mqtt_callback.cpp
 )
-FetchContent_MakeAvailable(paho_mqtt_cpp)
 
-add_executable(sim_robot src/main.cpp)
-
-target_link_libraries(sim_robot PRIVATE paho-mqttpp3)
+target_link_libraries(sim_robot PRIVATE
+    PahoMqttCpp::paho-mqttpp3
+    SQLite::SQLite3
+)
