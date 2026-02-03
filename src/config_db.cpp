@@ -64,14 +64,14 @@ void ConfigDb::InsertDefaultConfig() {
     ('client_id_prefix', 'sim_robot_cpp'),
     ('qos', '1'),
     ('keepalive', '60'),
-    ('publish_interval', '1'),
+    ('publish_interval', '10'),
     ('default_duration', '60'),
     ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/event/up'),
     ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down');
 
     INSERT OR IGNORE INTO robots (robot_id, enabled) VALUES
     ('303930306350729d', 1),
-    ('303930306350729e', 1),
+    ('303930306350729e', 0),
     ('303930306350729f', 1);
   )";
 

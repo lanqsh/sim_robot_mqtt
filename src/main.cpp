@@ -1,11 +1,12 @@
+#include <glog/logging.h>
+#include <sys/stat.h>
+
 #include <chrono>
 #include <memory>
 #include <string>
-#include <sys/stat.h>
 #include <thread>
 #include <vector>
 
-#include <glog/logging.h>
 #include "config_db.h"
 #include "mqtt_manager.h"
 #include "robot.h"
@@ -20,10 +21,10 @@ int main(int argc, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   // 配置日志输出到文件和终端
-  FLAGS_alsologtostderr = true;        // 同时输出到文件和终端
-  FLAGS_colorlogtostderr = true;       // 终端输出带颜色
-  FLAGS_log_dir = "./logs";            // 日志文件目录
-  FLAGS_max_log_size = 100;            // 单个日志文件最大100MB
+  FLAGS_alsologtostderr = true;            // 同时输出到文件和终端
+  FLAGS_colorlogtostderr = true;           // 终端输出带颜色
+  FLAGS_log_dir = "./logs";                // 日志文件目录
+  FLAGS_max_log_size = 100;                // 单个日志文件最大100MB
   FLAGS_stop_logging_if_full_disk = true;  // 磁盘满时停止日志
 
   // 打印版本信息
@@ -43,7 +44,7 @@ int main(int argc, char* argv[]) {
       config_db.GetValue("client_id_prefix", "sim_robot_cpp");
   int qos = config_db.GetIntValue("qos", 1);
   int keepalive = config_db.GetIntValue("keepalive", 60);
-  int publish_interval = config_db.GetIntValue("publish_interval", 1);
+  int publish_interval = config_db.GetIntValue("publish_interval", 10);
   int duration = config_db.GetIntValue("default_duration", 30);
 
   // 获取启用的机器人列表
