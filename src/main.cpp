@@ -53,6 +53,8 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // 使用第一个启用的机器人
+  std::string robot_id = enabled_robots[0];
   const std::string client_id = client_id_prefix + "_" + robot_id;
 
   // 命令行参数可以覆盖配置
@@ -97,9 +99,7 @@ int main(int argc, char* argv[]) {
   }
 
   LOG(INFO) << "发布完成";
-  mqtt_manager.Disconnect(); LOG(ERROR) << "MQTT 错误: " << exc.what();
-    return 1;
-  }
+  mqtt_manager.Disconnect();
 
   google::ShutdownGoogleLogging();
   return 0;
