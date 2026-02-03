@@ -136,10 +136,11 @@ std::string ConfigDb::GetSubscribeTopic(const std::string& robot_id) {
 std::string ConfigDb::ReplacePlaceholder(const std::string& topic_template,
                                           const std::string& robot_id) {
   std::string topic = topic_template;
-  size_t pos = topic.find("{robot_id}");
+  const std::string placeholder = "{robot_id}";
+  size_t pos = topic.find(placeholder);
   while (pos != std::string::npos) {
-    topic.replace(pos, 11, robot_id);
-    pos = topic.find("{robot_id}");
+    topic.replace(pos, placeholder.length(), robot_id);
+    pos = topic.find(placeholder, pos + robot_id.length());
   }
   return topic;
 }
