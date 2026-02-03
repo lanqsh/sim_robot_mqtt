@@ -1,6 +1,7 @@
 #include <chrono>
 #include <string>
 #include <thread>
+#include <sys/stat.h>
 
 #include <glog/logging.h>
 #include "config_db.h"
@@ -10,6 +11,9 @@
 using namespace std::chrono_literals;
 
 int main(int argc, char* argv[]) {
+  // 创建日志目录
+  mkdir("./logs", 0755);
+
   // 初始化glog
   google::InitGoogleLogging(argv[0]);
 
