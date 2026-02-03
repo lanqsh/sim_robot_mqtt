@@ -16,6 +16,7 @@
 - Eclipse Paho MQTT C 库
 - Eclipse Paho MQTT C++ 库
 - SQLite3 库（用于配置存储）
+- nlohmann/json 库（用于JSON解析）
 
 ### 安装依赖库
 
@@ -35,8 +36,11 @@ sudo apt install libpaho-mqttpp-dev
 # 安装 SQLite3 库
 sudo apt install libsqlite3-dev
 
-# 安装 glog 日志库（从源码编译）
+# 安装 glog 日志库
 sudo apt install libgoogle-glog-dev
+
+# 安装 nlohmann-json 库
+sudo apt install nlohmann-json3-dev
 ```
 
 ## 编译方法
@@ -271,6 +275,17 @@ sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
 dpkg -l | grep paho
 ```
 
+### 找不到 nlohmann_json 库
+
+如果 CMake 提示找不到 nlohmann_json：
+
+```bash
+sudo apt install nlohmann-json3-dev
+
+# 检查库是否正确安装
+dpkg -l | grep nlohmann
+```
+
 ### 数据库权限问题
 
 如果程序无法创建或访问 config.db：
@@ -289,6 +304,8 @@ rm config.db
 - `libpaho-mqtt-dev`（Paho MQTT C 库）
 - `libpaho-mqttpp-dev`（Paho MQTT C++ 库）
 - `libsqlite3-dev`（SQLite3 库）
+- `libgoogle-glog-dev`（glog 日志库）
+- `nlohmann-json3-dev`（nlohmann/json 库）
 
 ### 运行时连接问题
 

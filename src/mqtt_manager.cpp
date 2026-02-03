@@ -1,6 +1,9 @@
 #include "mqtt_manager.h"
 
 #include <glog/logging.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 MqttManager::MqttManager(const std::string& broker,
                          const std::string& client_id, int qos,
@@ -98,17 +101,28 @@ void MqttManager::message_arrived(mqtt::const_message_ptr msg) {
   std::string topic = msg->get_topic();
   std::string payload = msg->to_string();
 
-  // 根据主题找到对应的机器人
-  auto it = topic_to_robot_.find(topic);
-  if (it != topic_to_robot_.end()) {
-    std::string robot_id = it->second;
-    auto robot_it = robots_.find(robot_id);
-    if (robot_it != robots_.end()) {
-      robot_it->second->HandleMessage(topic, payload);
-    }
-  } else {
-    LOG(WARNING) << "收到未知主题的消息: " << topic;
-  }
-}
+  LOG(INFO) << "收到消息 - 主题: " << topic;
 
-void MqttManager::delivery_complete(mqtt::delivery_token_ptr token) {}
+  try {
+    // 解析下行JSON数据
+    json j = json::parse(payload);
+
+    // 提取devEui和data字段
+    if (!j.contains("devEui") || !j.contains("data")) {
+      LOG(WARNING) << "消息缺少必需字段 devEui 或 data";
+      return;
+    }
+
+    std::string dev_eui = j["devEui"].get<std::string>();
+    std::string data = j["data"].get<std::string>();
+
+    // 根据devEui查找对应的机器人
+    auto robot_it = robots_.find(dev_eui);
+    if (robot_it != robots_.end()) {
+      LOG(INFO) << "将消息路由到机器人: " << dev_eui;
+      robot_it->second->HandleMessage(data);
+    } else {
+      LOG(WARNING) << "未找到devEui对应的机器人: " << dev_eui;
+    }
+  } catch (const json::exception& e) {
+    LOG(ERROR) << "JSON解析失败: " << e.what();

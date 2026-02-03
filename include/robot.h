@@ -176,8 +176,11 @@ class Robot {
   // 生成要发布的消息负载
   std::string GeneratePayload();
 
+  // 生成上行数据（使用模板）
+  std::string GenerateUplinkPayload(const std::string& data);
+
   // 处理接收到的订阅消息
-  void HandleMessage(const std::string& topic, const std::string& payload);
+  void HandleMessage(const std::string& data);
 
   // 获取和设置机器人数据
   RobotData& GetData() { return data_; }
@@ -189,6 +192,10 @@ class Robot {
   std::string subscribe_topic_;
   std::atomic<int> sequence_;
   RobotData data_;  // 机器人完整数据
+
+  // 读取上行数据模板
+  static std::string LoadUplinkTemplate();
+  static std::string uplink_template_;  // 静态模板缓存
 };
 
 #endif  // ROBOT_H_
