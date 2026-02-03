@@ -34,16 +34,9 @@ sudo apt install libpaho-mqttpp-dev
 
 # 安装 SQLite3 库
 sudo apt install libsqlite3-dev
-sudo apt install libgoogle-glog-dev
 
 # 安装 glog 日志库（从源码编译）
-cd /tmp
-git clone https://github.com/google/glog.git
-cd glog
-cmake -S . -B build -G "Unix Makefiles" -DBUILD_SHARED_LIBS=ON
-cmake --build build
-sudo cmake --build build --target install
-sudo ldconfig
+sudo apt install libgoogle-glog-dev
 ```
 
 ## 编译方法
@@ -79,12 +72,14 @@ make
 | keepalive | 60 | 心跳间隔（秒） |
 | publish_interval | 1 | 发布消息间隔（秒） |
 | default_duration | 30 | 默认运行时长（秒） |
-| publish_topic_template1 | application/.../device/{robot_id}/command/down | 发布主题模板 1 |
-| publish_topic_template2 | application/.../device/{robot_id}/telemetry | 发布主题模板 2 |
-| subscribe_topic_template1 | application/.../device/{robot_id}/command/up | 订阅主题模板 1 |
-| subscribe_topic_template2 | application/.../device/{robot_id}/control | 订阅主题模板 2 |
+| publish_topic | application/.../device/{robot_id}/command/up | 发布主题模板 |
+| subscribe_topic | application/.../device/{robot_id}/command/down | 订阅主题模板 |
 
-**说明**：主题模板中的 `{robot_id}` 会在运行时自动替换为实际的机器人 ID。可以添加更多主题模板，命名格式为 `publish_topic_template*` 或 `subscribe_topic_template*`。
+**说明**：
+- 主题模板中的 `{robot_id}` 会在运行时自动替换为实际的机器人 ID
+- 每个机器人只有一个发布主题和一个订阅主题
+- 发布主题用于向服务器发送数据（command/up）
+- 订阅主题用于接收服务器指令（command/down）
 
 #### 2. robots 表
 存储机器人列表：
@@ -115,8 +110,11 @@ SELECT * FROM mqtt_config;
 # 修改 broker 地址
 UPDATE mqtt_config SET value = 'tcp://localhost:1883' WHERE key = 'broker';
 
-# 添加新的发布主题模板
-INSERT INTO mqtt_config (key, value) VALUES ('publish_topic_template3', 'my/robot/{robot_id}/status');
+# 修改发布主题模板
+UPDATE mqtt_config SET value = 'application/your-app-id/device/{robot_id}/command/up' WHERE key = 'publish_topic';
+
+# 修改订阅主题模板
+UPDATE mqtt_config SET value = 'application/your-app-id/device/{robot_id}/command/down' WHERE key = 'subscribe_topic';
 
 # 查看所有机器人
 SELECT * FROM robots;
@@ -154,28 +152,28 @@ DELETE FROM robots WHERE robot_id = 'robot_new_001';
 
 ## 运行方法
 
-编译成功后，可执行文件 `sim_robot` 会生成在 `build` 目录下。
+编译成功后，可执行文件 `robot` 会生成在 `build` 目录下。
 
 ### 基本用法
 
 ```bash
 # 使用默认配置（自动使用 config.db）
-./sim_robot
+./robot
 
 # 指定运行时长（秒）
-./sim_robot 60
+./robot 60
 
 # 指定 broker 地址
-./sim_robot tcp://localhost:1883
+./robot tcp://localhost:1883
 
 # 同时指定 broker 和运行时长
-./sim_robot tcp://localhost:1883 120
+./robot tcp://localhost:1883 120
 ```
 
 ### 参数说明
 
 ```
-./sim_robot [broker_url] [duration]
+./robot [broker_url] [duration]
 ```
 
 - `broker_url`：MQTT broker 地址（可选，覆盖数据库配置）
@@ -185,13 +183,13 @@ DELETE FROM robots WHERE robot_id = 'robot_new_001';
 
 ```bash
 # 使用数据库配置运行 60 秒
-./sim_robot 60
+./robot 60
 
 # 连接到本地 broker
-./sim_robot tcp://localhost:1883 60
+./robot tcp://localhost:1883 60
 
 # 连接到自定义 broker
-./sim_robot tcp://192.168.1.100:1883 120
+./robot tcp://192.168.1.100:1883 120
 ```
 
 ### 程序输出示例
@@ -207,21 +205,14 @@ Duration: 30 seconds
 启用的机器人 (1):
   - 303930306350729d (当前使用)
 
-发布主题 (2):
-  - application/.../device/303930306350729d/command/down
-  - application/.../device/303930306350729d/telemetry
-
-订阅主题 (2):
-  - application/.../device/303930306350729d/command/up
-  - application/.../device/303930306350729d/control
+发布主题: application/.../device/303930306350729d/command/up
+订阅主题: application/.../device/303930306350729d/command/down
 ==================
 
 正在连接到 broker: tcp://lanq.top:10043
 连接成功!
 
-正在订阅主题...
-  已订阅: application/.../device/303930306350729d/command/up
-  已订阅: application/.../device/303930306350729d/control
+正在订阅主题: application/.../device/303930306350729d/command/down
 订阅完成! 等待消息...
 
 开始发布消息 (运行 30 秒)...
@@ -287,7 +278,7 @@ ls -la config.db
 
 # 删除并重新创建数据库
 rm config.db
-./sim_robot
+./robot
 ```
 
 ### 编译时链接错误

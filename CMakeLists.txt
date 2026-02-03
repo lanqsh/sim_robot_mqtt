@@ -13,13 +13,13 @@ find_package(SQLite3 REQUIRED)
 # 查找 glog 库
 find_package(glog REQUIRED)
 
-add_executable(sim_robot
+add_executable(robot
     src/main.cpp
     src/config_db.cpp
     src/mqtt_callback.cpp
 )
 
-target_link_libraries(sim_robot PRIVATE
+target_link_libraries(robot PRIVATE
     PahoMqttCpp::paho-mqttpp3
     SQLite::SQLite3
     glog::glog
