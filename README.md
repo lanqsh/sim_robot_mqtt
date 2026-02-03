@@ -154,6 +154,8 @@ DELETE FROM robots WHERE robot_id = 'robot_new_001';
 
 编译成功后，可执行文件 `robot` 会生成在 `build` 目录下。
 
+**注意**：程序会在当前目录下创建 `logs` 目录用于存储日志文件。日志同时输出到终端和文件系统。
+
 ### 基本用法
 
 ```bash

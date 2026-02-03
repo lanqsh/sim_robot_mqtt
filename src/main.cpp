@@ -12,8 +12,16 @@ using namespace std::chrono_literals;
 int main(int argc, char* argv[]) {
   // 初始化glog
   google::InitGoogleLogging(argv[0]);
-  FLAGS_logtostderr = true;
-  FLAGS_colorlogtostderr = true;
+
+  // 配置日志输出到文件和终端
+  FLAGS_alsologtostderr = true;        // 同时输出到文件和终端
+  FLAGS_colorlogtostderr = true;       // 终端输出带颜色
+  FLAGS_log_dir = "./logs";            // 日志文件目录
+  FLAGS_max_log_size = 100;            // 单个日志文件最大100MB
+  FLAGS_stop_logging_if_full_disk = true;  // 磁盘满时停止日志
+
+  // 打印版本信息
+  LOG(INFO) << "Robot MQTT Simulator v" << PROJECT_VERSION;
 
   // 初始化数据库
   ConfigDb config_db("config.db");
