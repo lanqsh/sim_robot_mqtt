@@ -1,8 +1,8 @@
 #include <chrono>
-#include <iostream>
 #include <string>
 #include <thread>
 
+#include <glog/logging.h>
 #include "config_db.h"
 #include "mqtt/async_client.h"
 #include "mqtt_callback.h"
@@ -10,10 +10,15 @@
 using namespace std::chrono_literals;
 
 int main(int argc, char* argv[]) {
+  // 初始化glog
+  google::InitGoogleLogging(argv[0]);
+  FLAGS_logtostderr = true;
+  FLAGS_colorlogtostderr = true;
+
   // 初始化数据库
   ConfigDb config_db("config.db");
   if (!config_db.Init()) {
-    std::cerr << "Failed to initialize database" << std::endl;
+    LOG(ERROR) << "Failed to initialize database";
     return 1;
   }
 
@@ -30,7 +35,7 @@ int main(int argc, char* argv[]) {
   // 获取启用的机器人列表
   auto enabled_robots = config_db.GetEnabledRobots();
   if (enabled_robots.empty()) {
-    std::cerr << "没有启用的机器人" << std::endl;
+    LOG(ERROR) << "没有启用的机器人";
     return 1;
   }
 
@@ -53,20 +58,19 @@ int main(int argc, char* argv[]) {
 
   const std::string client_id = client_id_prefix + "_" + robot_id;
 
-  std::cout << "=== 配置信息 ===" << std::endl;
-  std::cout << "Broker: " << broker << std::endl;
-  std::cout << "Robot ID: " << robot_id << std::endl;
-  std::cout << "Client ID: " << client_id << std::endl;
-  std::cout << "QoS: " << qos << std::endl;
-  std::cout << "Duration: " << duration << " seconds" << std::endl;
-  std::cout << "\n启用的机器人 (" << enabled_robots.size() << "):" << std::endl;
+  LOG(INFO) << "=== 配置信息 ===";
+  LOG(INFO) << "Broker: " << broker;
+  LOG(INFO) << "Robot ID: " << robot_id;
+  LOG(INFO) << "Client ID: " << client_id;
+  LOG(INFO) << "QoS: " << qos;
+  LOG(INFO) << "Duration: " << duration << " seconds";
+  LOG(INFO) << "启用的机器人 (" << enabled_robots.size() << "):";
   for (const auto& id : enabled_robots) {
-    std::cout << "  - " << id << (id == robot_id ? " (当前使用)" : "")
-              << std::endl;
+    LOG(INFO) << "  - " << id << (id == robot_id ? " (当前使用)" : "");
   }
-  std::cout << "\n发布主题: " << publish_topic << std::endl;
-  std::cout << "订阅主题: " << subscribe_topic << std::endl;
-  std::cout << "==================\n" << std::endl;
+  LOG(INFO) << "发布主题: " << publish_topic;
+  LOG(INFO) << "订阅主题: " << subscribe_topic;
+  LOG(INFO) << "==================";
 
   mqtt::async_client client(broker, client_id);
   MqttCallback cb;
@@ -76,17 +80,17 @@ int main(int argc, char* argv[]) {
   conn_opts.set_keep_alive_interval(keepalive);
 
   try {
-    std::cout << "正在连接到 broker: " << broker << std::endl;
+    LOG(INFO) << "正在连接到 broker: " << broker;
     client.connect(conn_opts)->wait();
-    std::cout << "连接成功!" << std::endl;
+    LOG(INFO) << "连接成功!";
 
     // 订阅主题
-    std::cout << "\n正在订阅主题: " << subscribe_topic << std::endl;
+    LOG(INFO) << "正在订阅主题: " << subscribe_topic;
     client.subscribe(subscribe_topic, qos)->wait();
-    std::cout << "订阅完成! 等待消息...\n" << std::endl;
+    LOG(INFO) << "订阅完成! 等待消息...";
 
     // 发布消息循环
-    std::cout << "开始发布消息 (运行 " << duration << " 秒)..." << std::endl;
+    LOG(INFO) << "开始发布消息 (运行 " << duration << " 秒)...";
     for (int i = 0; i < duration; ++i) {
       std::string payload = "{\"seq\": " + std::to_string(i) +
                             ", \"battery\": " + std::to_string(100 - i % 100) +
@@ -97,18 +101,18 @@ int main(int argc, char* argv[]) {
       msg->set_qos(qos);
       client.publish(msg);
 
-      std::cout << "[" << (i + 1) << "/" << duration << "] 已发布: " << payload
-                << std::endl;
+      LOG(INFO) << "[" << (i + 1) << "/" << duration << "] 已发布: " << payload;
       std::this_thread::sleep_for(std::chrono::seconds(publish_interval));
     }
 
-    std::cout << "\n发布完成，正在断开连接..." << std::endl;
+    LOG(INFO) << "发布完成，正在断开连接...";
     client.disconnect()->wait();
-    std::cout << "已断开连接" << std::endl;
+    LOG(INFO) << "已断开连接";
   } catch (const mqtt::exception& exc) {
-    std::cerr << "MQTT 错误: " << exc.what() << std::endl;
+    LOG(ERROR) << "MQTT 错误: " << exc.what();
     return 1;
   }
 
+  google::ShutdownGoogleLogging();
   return 0;
 }

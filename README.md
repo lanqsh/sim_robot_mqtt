@@ -34,6 +34,15 @@ sudo apt install libpaho-mqttpp-dev
 
 # 安装 SQLite3 库
 sudo apt install libsqlite3-dev
+
+# 安装 glog 日志库（从源码编译）
+cd /tmp
+git clone https://github.com/google/glog.git
+cd glog
+cmake -S . -B build -G "Unix Makefiles" -DBUILD_SHARED_LIBS=ON
+cmake --build build
+sudo cmake --build build --target install
+sudo ldconfig
 ```
 
 ## 编译方法

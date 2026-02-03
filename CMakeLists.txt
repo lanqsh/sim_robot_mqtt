@@ -10,6 +10,9 @@ find_package(PahoMqttCpp REQUIRED)
 # 查找 SQLite3 库
 find_package(SQLite3 REQUIRED)
 
+# 查找 glog 库
+find_package(glog REQUIRED)
+
 add_executable(sim_robot
     src/main.cpp
     src/config_db.cpp
@@ -19,4 +22,5 @@ add_executable(sim_robot
 target_link_libraries(sim_robot PRIVATE
     PahoMqttCpp::paho-mqttpp3
     SQLite::SQLite3
+    glog::glog
 )

@@ -1,6 +1,6 @@
 #include "config_db.h"
 
-#include <iostream>
+#include <glog/logging.h>
 
 ConfigDb::ConfigDb(const std::string& path) : db_(nullptr), db_path_(path) {}
 
@@ -13,7 +13,7 @@ ConfigDb::~ConfigDb() {
 bool ConfigDb::Init() {
   int rc = sqlite3_open(db_path_.c_str(), &db_);
   if (rc != SQLITE_OK) {
-    std::cerr << "Cannot open database: " << sqlite3_errmsg(db_) << std::endl;
+    LOG(ERROR) << "Cannot open database: " << sqlite3_errmsg(db_);
     return false;
   }
 
@@ -34,7 +34,7 @@ bool ConfigDb::Init() {
   char* err_msg = nullptr;
   rc = sqlite3_exec(db_, sql, nullptr, nullptr, &err_msg);
   if (rc != SQLITE_OK) {
-    std::cerr << "SQL error: " << err_msg << std::endl;
+    LOG(ERROR) << "SQL error: " << err_msg;
     sqlite3_free(err_msg);
     return false;
   }
