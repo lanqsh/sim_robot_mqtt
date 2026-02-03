@@ -80,7 +80,9 @@ void MqttManager::Publish(const std::string& robot_id) {
   }
 
   auto robot = it->second;
-  std::string payload = robot->GeneratePayload();
+  // TODO: 生成实际的通信数据
+  std::string data = "aIIACwAB8ugW";  // 示例数据
+  std::string payload = robot->GenerateUplinkPayload(data);
   std::string publish_topic = robot->GetPublishTopic();
 
   try {

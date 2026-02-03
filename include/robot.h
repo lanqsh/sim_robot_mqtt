@@ -173,9 +173,6 @@ class Robot {
   // 获取订阅主题
   std::string GetSubscribeTopic() const { return subscribe_topic_; }
 
-  // 生成要发布的消息负载
-  std::string GeneratePayload();
-
   // 生成上行数据（使用模板）
   std::string GenerateUplinkPayload(const std::string& data);
 

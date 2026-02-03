@@ -52,14 +52,6 @@ void Robot::SetTopics(const std::string& publish_topic,
   subscribe_topic_ = subscribe_topic;
 }
 
-std::string Robot::GeneratePayload() {
-  int seq = sequence_.fetch_add(1);
-
-  std::ostringstream oss;
-  oss << "{\"seq\": " << seq << ", \"robot_id\": \"" << robot_id_ << "\"}";
-  return oss.str();
-}
-
 std::string Robot::GenerateUplinkPayload(const std::string& data) {
   if (uplink_template_.empty()) {
     LOG(ERROR) << "上行数据模板为空";
