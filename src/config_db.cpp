@@ -65,14 +65,14 @@ void ConfigDb::InsertDefaultConfig() {
     ('qos', '1'),
     ('keepalive', '60'),
     ('publish_interval', '1'),
-    ('default_duration', '30'),
-    ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/up'),
+    ('default_duration', '60'),
+    ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/event/up'),
     ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down');
 
     INSERT OR IGNORE INTO robots (robot_id, enabled) VALUES
     ('303930306350729d', 1),
-    ('303930306350729e', 0),
-    ('303930306350729f', 0);
+    ('303930306350729e', 1),
+    ('303930306350729f', 1);
   )";
 
   char* err_msg = nullptr;
@@ -83,7 +83,7 @@ void ConfigDb::InsertDefaultConfig() {
 }
 
 std::string ConfigDb::GetValue(const std::string& key,
-                                const std::string& default_value) {
+                               const std::string& default_value) {
   std::string sql = "SELECT value FROM mqtt_config WHERE key = ?";
   sqlite3_stmt* stmt;
   std::string result = default_value;
@@ -134,7 +134,7 @@ std::string ConfigDb::GetSubscribeTopic(const std::string& robot_id) {
 }
 
 std::string ConfigDb::ReplacePlaceholder(const std::string& topic_template,
-                                          const std::string& robot_id) {
+                                         const std::string& robot_id) {
   std::string topic = topic_template;
   const std::string placeholder = "{robot_id}";
   size_t pos = topic.find(placeholder);
