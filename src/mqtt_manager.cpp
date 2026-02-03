@@ -126,3 +126,7 @@ void MqttManager::message_arrived(mqtt::const_message_ptr msg) {
     }
   } catch (const json::exception& e) {
     LOG(ERROR) << "JSON解析失败: " << e.what();
+  }
+}
+
+void MqttManager::delivery_complete(mqtt::delivery_token_ptr token) {}
