@@ -53,19 +53,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // 使用第一个启用的机器人
-  std::string robot_id = enabled_robots[0];
-  const std::string client_id = client_id_prefix + "_" + robot_id;
-
-  // 命令行参数可以覆盖配置
-  for (int i = 1; i < argc; i++) {
-    std::string arg = argv[i];
-    if (arg.find("tcp://") == 0 || arg.find("ssl://") == 0) {
-      broker = arg;
-    } else if (std::isdigit(arg[0])) {
-      duration = std::stoi(arg);
-    }
-  }
+  const std::string client_id = client_id_prefix;
 
   LOG(INFO) << "=== 配置信息 ===";
   LOG(INFO) << "Broker: " << broker;
@@ -74,7 +62,7 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "Duration: " << duration << " seconds";
   LOG(INFO) << "启用的机器人 (" << enabled_robots.size() << "):";
   for (const auto& id : enabled_robots) {
-    LOG(INFO) << "  - " << id << (id == robot_id ? " (当前使用)" : "");
+    LOG(INFO) << "  - " << id;
   }
   LOG(INFO) << "==================";
 
@@ -87,14 +75,19 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // 创建机器人并添加到管理器
-  auto robot = std::make_shared<Robot>(robot_id);
-  mqtt_manager.AddRobot(robot);
+  // 创建所有启用的机器人并添加到管理器
+  for (const auto& robot_id : enabled_robots) {
+    auto robot = std::make_shared<Robot>(robot_id);
+    mqtt_manager.AddRobot(robot);
+  }
 
   // 发布消息循环
   LOG(INFO) << "开始发布消息 (运行 " << duration << " 秒)...";
   for (int i = 0; i < duration; ++i) {
-    mqtt_manager.Publish(robot_id);
+    // 为所有启用的机器人发布消息
+    for (const auto& robot_id : enabled_robots) {
+      mqtt_manager.Publish(robot_id);
+    }
     std::this_thread::sleep_for(std::chrono::seconds(publish_interval));
   }
 
