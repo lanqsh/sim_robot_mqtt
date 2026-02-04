@@ -37,6 +37,7 @@ class ConfigDb {
   };
   bool AddRobot(const std::string& robot_id, const std::string& robot_name, bool enabled = true);
   bool RemoveRobot(const std::string& robot_id);
+  bool UpdateRobotStatus(const std::string& robot_id, bool enabled);  // 更新机器人启用状态
   std::vector<RobotInfo> GetAllRobots();  // 获取所有机器人（包括禁用的）
 };
 

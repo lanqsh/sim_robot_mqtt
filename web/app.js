@@ -34,6 +34,10 @@ async function loadRobots() {
                 </div>
                 <div class="robot-id">ID: ${robot.robot_id}</div>
                 <div class="robot-actions">
+                    <button class="btn ${robot.enabled ? 'btn-warning' : 'btn-success'}"
+                            onclick="toggleRobotStatus('${robot.robot_id}', ${robot.enabled})">
+                        ${robot.enabled ? '🔕 禁用' : '✅ 启用'}
+                    </button>
                     <button class="btn btn-primary" onclick="viewRobotData('${robot.robot_id}')">
                         📊 查看数据
                     </button>
@@ -49,6 +53,40 @@ async function loadRobots() {
         document.getElementById('robotsList').innerHTML = `
             <div class="error-message">加载机器人列表失败: ${error.message}</div>
         `;
+    }
+}
+
+// 切换机器人启用状态
+async function toggleRobotStatus(robotId, currentStatus) {
+    const newStatus = !currentStatus;
+    const action = newStatus ? '启用' : '禁用';
+
+    if (!confirm(`确定要${action}该机器人吗？`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/robots/${robotId}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                enabled: newStatus
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(result.message);
+            loadRobots(); // 重新加载列表
+        } else {
+            alert('操作失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('切换状态失败:', error);
+        alert('切换状态失败: ' + error.message);
     }
 }
 

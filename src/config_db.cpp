@@ -247,6 +247,25 @@ bool ConfigDb::RemoveRobot(const std::string& robot_id) {
   return success;
 }
 
+bool ConfigDb::UpdateRobotStatus(const std::string& robot_id, bool enabled) {
+  if (!initialized_) return false;
+
+  const char* sql = "UPDATE robots SET enabled = ? WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, enabled ? 1 : 0);
+  sqlite3_bind_text(stmt, 2, robot_id.c_str(), -1, SQLITE_STATIC);
+
+  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  sqlite3_finalize(stmt);
+
+  return success;
+}
+
 std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
   std::vector<RobotInfo> robots;
   if (!initialized_) return robots;

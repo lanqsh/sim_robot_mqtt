@@ -51,13 +51,13 @@ void HttpServer::ServerThreadFunc() {
 
   // CORS支持
   svr.set_default_headers({{"Access-Control-Allow-Origin", "*"},
-                           {"Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS"},
+                           {"Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS"},
                            {"Access-Control-Allow-Headers", "Content-Type"}});
 
   // OPTIONS请求处理（预检请求）
   svr.Options(".*", [](const httplib::Request&, httplib::Response& res) {
     res.set_header("Access-Control-Allow-Origin", "*");
-    res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS");
     res.set_header("Access-Control-Allow-Headers", "Content-Type");
     res.status = 204;
   });
@@ -196,6 +196,57 @@ void HttpServer::ServerThreadFunc() {
       }
     } catch (const std::exception& e) {
       LOG(ERROR) << "删除机器人失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // API: 更新机器人状态（启用/禁用）
+  svr.Patch(R"(/api/robots/([^/]+)/status)", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.matches[1];
+      json body = json::parse(req.body);
+
+      if (!body.contains("enabled")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少enabled参数";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      bool enabled = body["enabled"];
+
+      // 更新数据库中的状态
+      bool success = config_db_->UpdateRobotStatus(robot_id, enabled);
+      if (success) {
+        // 根据状态添加或移除机器人
+        if (enabled) {
+          // 启用：添加到MQTT管理器
+          mqtt_manager_->AddRobot(robot_id);
+        } else {
+          // 禁用：从MQTT管理器移除
+          mqtt_manager_->RemoveRobot(robot_id);
+        }
+
+        json response;
+        response["success"] = true;
+        response["message"] = enabled ? "机器人已启用" : "机器人已禁用";
+        res.set_content(response.dump(), "application/json");
+        LOG(INFO) << "API: 更新机器人状态 - " << robot_id << " (" << (enabled ? "启用" : "禁用") << ")";
+      } else {
+        json error;
+        error["success"] = false;
+        error["error"] = "更新机器人状态失败";
+        res.status = 500;
+        res.set_content(error.dump(), "application/json");
+      }
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "更新机器人状态失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();
