@@ -269,6 +269,28 @@ bool ConfigDb::UpdateRobotStatus(const std::string& robot_id, bool enabled) {
   return success;
 }
 
+bool ConfigDb::IsSerialNumberExists(int serial_number) {
+  if (!initialized_) return false;
+
+  const char* sql = "SELECT COUNT(*) FROM robots WHERE serial_number = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, serial_number);
+
+  bool exists = false;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    int count = sqlite3_column_int(stmt, 0);
+    exists = (count > 0);
+  }
+
+  sqlite3_finalize(stmt);
+  return exists;
+}
+
 std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
   std::vector<RobotInfo> robots;
   if (!initialized_) return robots;

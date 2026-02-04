@@ -8,6 +8,7 @@
 #include <sstream>
 #include <random>
 #include <iomanip>
+#include <set>
 
 #include "config_db.h"
 #include "mqtt_manager.h"
@@ -18,34 +19,17 @@
 
 using json = nlohmann::json;
 
-// 生成UUID v4
+// 生成16位十六进制ID
 static std::string GenerateUUID() {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_int_distribution<> dis(0, 15);
-  std::uniform_int_distribution<> dis2(8, 11);
 
   std::stringstream ss;
   ss << std::hex;
 
-  for (int i = 0; i < 8; i++) {
-    ss << dis(gen);
-  }
-  ss << "-";
-  for (int i = 0; i < 4; i++) {
-    ss << dis(gen);
-  }
-  ss << "-4";
-  for (int i = 0; i < 3; i++) {
-    ss << dis(gen);
-  }
-  ss << "-";
-  ss << dis2(gen);
-  for (int i = 0; i < 3; i++) {
-    ss << dis(gen);
-  }
-  ss << "-";
-  for (int i = 0; i < 12; i++) {
+  // 生成16位十六进制字符串
+  for (int i = 0; i < 16; i++) {
     ss << dis(gen);
   }
 
@@ -175,6 +159,16 @@ void HttpServer::ServerThreadFunc() {
         json error;
         error["success"] = false;
         error["error"] = "序号必须大于0";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 检查序号是否已存在
+      if (config_db_->IsSerialNumberExists(serial_number)) {
+        json error;
+        error["success"] = false;
+        error["error"] = "序号 " + std::to_string(serial_number) + " 已存在，请使用其他序号";
         res.status = 400;
         res.set_content(error.dump(), "application/json");
         return;
@@ -318,6 +312,31 @@ void HttpServer::ServerThreadFunc() {
         info.serial_number = robot_json.value("serial_number", 0);
         info.enabled = robot_json.value("enabled", true);
         robots.push_back(info);
+      }
+
+      // 检查序号是否有重复或已存在
+      std::set<int> serial_numbers;
+      for (const auto& robot : robots) {
+        // 检查批量数据内部是否有重复序号
+        if (serial_numbers.count(robot.serial_number) > 0) {
+          json error;
+          error["success"] = false;
+          error["error"] = "批量数据中序号 " + std::to_string(robot.serial_number) + " 重复";
+          res.status = 400;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+        serial_numbers.insert(robot.serial_number);
+
+        // 检查数据库中是否已存在该序号
+        if (config_db_->IsSerialNumberExists(robot.serial_number)) {
+          json error;
+          error["success"] = false;
+          error["error"] = "序号 " + std::to_string(robot.serial_number) + " 已存在，请使用其他序号";
+          res.status = 400;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
       }
 
       // 批量添加到数据库

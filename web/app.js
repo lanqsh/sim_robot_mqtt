@@ -11,7 +11,6 @@ async function loadRobots() {
         if (robots.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <div>📭</div>
                     <h3>暂无机器人</h3>
                     <p>请添加新机器人开始管理</p>
                 </div>
@@ -32,20 +31,20 @@ async function loadRobots() {
                         ${robot.robot_name || '未命名'}
                     </div>
                     <div class="robot-status ${robot.enabled ? 'enabled' : 'disabled'}">
-                        ${robot.enabled ? '✓ 已启用' : '✗ 已禁用'}
+                        ${robot.enabled ? '已启用' : '已禁用'}
                     </div>
                 </div>
                 <div class="robot-id">ID: ${robot.robot_id}</div>
                 <div class="robot-actions">
                     <button class="btn ${robot.enabled ? 'btn-warning' : 'btn-success'}"
                             onclick="toggleRobotStatus('${robot.robot_id}', ${robot.enabled})">
-                        ${robot.enabled ? '🔕 禁用' : '✅ 启用'}
+                        ${robot.enabled ? '禁用' : '启用'}
                     </button>
                     <button class="btn btn-primary" onclick="viewRobotData('${robot.robot_id}')">
-                        📊 查看数据
+                        查看数据
                     </button>
                     <button class="btn btn-danger" onclick="deleteRobot('${robot.robot_id}')">
-                        🗑️ 删除
+                        删除
                     </button>
                 </div>
             `;
@@ -122,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (result.success) {
-                messageDiv.innerHTML = '<div class="success-message">✓ 机器人添加成功!</div>';
+                messageDiv.innerHTML = '<div class="success-message">机器人添加成功!</div>';
                 document.getElementById('addRobotForm').reset();
                 setTimeout(() => {
                     messageDiv.innerHTML = '';
@@ -165,7 +164,7 @@ async function deleteRobot(robotId) {
         const result = await response.json();
 
         if (result.success) {
-            alert('✓ 机器人删除成功!');
+            alert('机器人删除成功!');
             loadRobots();
         } else {
             alert(`删除失败: ${result.error}`);
