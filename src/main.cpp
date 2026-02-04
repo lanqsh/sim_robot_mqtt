@@ -13,6 +13,46 @@
 
 using namespace std::chrono_literals;
 
+// 测试函数：动态添加和删除机器人
+void TestAddRemoveRobot(std::shared_ptr<MqttManager> mqtt_manager,
+                        ConfigDb& config_db) {
+  const std::string test_robot_id = "303930306350729g";
+
+  // 等待30秒后新增机器人
+  LOG(INFO) << "等待30秒后进行测试...";
+  std::this_thread::sleep_for(std::chrono::seconds(30));
+
+  LOG(INFO) << "=== 测试：新增机器人 " << test_robot_id << " ===";
+  // 添加到数据库
+  if (config_db.AddRobot(test_robot_id, true)) {
+    LOG(INFO) << "数据库中已添加机器人";
+
+    // 创建并添加到MqttManager
+    auto test_robot = std::make_shared<Robot>(test_robot_id);
+    mqtt_manager->AddRobot(test_robot);
+    LOG(INFO) << "MqttManager中已添加机器人";
+  } else {
+    LOG(ERROR) << "添加机器人到数据库失败";
+  }
+
+  // 再等待30秒后删除机器人
+  std::this_thread::sleep_for(std::chrono::seconds(30));
+
+  LOG(INFO) << "=== 测试：删除机器人 " << test_robot_id << " ===";
+  // 从MqttManager删除
+  mqtt_manager->RemoveRobot(test_robot_id);
+  LOG(INFO) << "MqttManager中已删除机器人";
+
+  // 从数据库删除
+  if (config_db.RemoveRobot(test_robot_id)) {
+    LOG(INFO) << "数据库中已删除机器人";
+  } else {
+    LOG(ERROR) << "从数据库删除机器人失败";
+  }
+
+  LOG(INFO) << "测试完成";
+}
+
 int main(int argc, char* argv[]) {
   // 创建日志目录
   mkdir("./logs", 0755);
@@ -66,7 +106,8 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "==================";
 
   // 创建并运行 MQTT 管理器（内部会负责加载机器人、订阅与定期刷新）
-  auto mqtt_manager = std::make_shared<MqttManager>(broker, client_id, qos, config_db);
+  auto mqtt_manager =
+      std::make_shared<MqttManager>(broker, client_id, qos, config_db);
   if (!mqtt_manager->Run(keepalive)) {
     LOG(ERROR) << "MQTT 管理器运行失败";
     return 1;
@@ -75,53 +116,15 @@ int main(int argc, char* argv[]) {
   // 保持程序运行，不退出
   LOG(INFO) << "程序运行中，按 Ctrl+C 退出...";
 
-  // 测试逻辑：30秒后新增机器人，再过30秒后删除
-  const std::string test_robot_id = "0000000000000099";
-  bool test_robot_added = false;
-  auto start_time = std::chrono::steady_clock::now();
+  // 启动测试：动态添加和删除机器人
+  std::thread test_thread([&mqtt_manager, &config_db]() {
+    TestAddRemoveRobot(mqtt_manager, config_db);
+  });
+  test_thread.detach();
 
+  // 主循环保持程序运行
   while (true) {
     std::this_thread::sleep_for(1s);
-
-    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::steady_clock::now() - start_time).count();
-
-    // 30秒后新增机器人
-    if (elapsed >= 30 && !test_robot_added) {
-      LOG(INFO) << "=== 测试：新增机器人 " << test_robot_id << " ===";
-
-      // 添加到数据库
-      if (config_db.AddRobot(test_robot_id, true)) {
-        LOG(INFO) << "数据库中已添加机器人";
-
-        // 创建并添加到MqttManager
-        auto test_robot = std::make_shared<Robot>(test_robot_id);
-        mqtt_manager->AddRobot(test_robot);
-        LOG(INFO) << "MqttManager中已添加机器人";
-
-        test_robot_added = true;
-      } else {
-        LOG(ERROR) << "添加机器人到数据库失败";
-      }
-    }
-
-    // 60秒后删除机器人
-    if (elapsed >= 60 && test_robot_added) {
-      LOG(INFO) << "=== 测试：删除机器人 " << test_robot_id << " ===";
-
-      // 从MqttManager删除
-      mqtt_manager->RemoveRobot(test_robot_id);
-      LOG(INFO) << "MqttManager中已删除机器人";
-
-      // 从数据库删除
-      if (config_db.RemoveRobot(test_robot_id)) {
-        LOG(INFO) << "数据库中已删除机器人";
-      } else {
-        LOG(ERROR) << "从数据库删除机器人失败";
-      }
-
-      test_robot_added = false;
-    }
   }
 
   return 0;

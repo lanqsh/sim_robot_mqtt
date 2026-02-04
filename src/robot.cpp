@@ -1,9 +1,11 @@
 #include "robot.h"
-#include "mqtt_manager.h"
 
 #include <glog/logging.h>
-#include <sstream>
+
 #include <fstream>
+#include <sstream>
+
+#include "mqtt_manager.h"
 
 // 上行数据模板占位符
 #define PLACEHOLDER_DEV_EUI "{{DEV_EUI}}"
@@ -16,8 +18,7 @@
 // 静态成员初始化
 std::string Robot::uplink_template_ = "";
 
-Robot::Robot(const std::string& robot_id)
-    : robot_id_(robot_id), sequence_(0) {
+Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
   // 初始化机器人数据
   data_.battery_level = 100;
   data_.battery_voltage = 0;
@@ -67,8 +68,8 @@ std::string Robot::GenerateUplinkPayload(const std::string& data) {
 
   // 获取devAddr（机器人ID的后8个字符）
   std::string dev_addr = robot_id_.length() >= 8
-    ? robot_id_.substr(robot_id_.length() - 8)
-    : robot_id_;
+                             ? robot_id_.substr(robot_id_.length() - 8)
+                             : robot_id_;
 
   // 替换模板中的占位符
   std::string result = uplink_template_;

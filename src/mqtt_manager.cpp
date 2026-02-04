@@ -1,6 +1,7 @@
 #include "mqtt_manager.h"
 
 #include <glog/logging.h>
+
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -8,8 +9,7 @@ using json = nlohmann::json;
 MqttManager::MqttManager(const std::string& broker,
                          const std::string& client_id, int qos,
                          ConfigDb& config_db)
-    : broker_(broker), client_id_(client_id), qos_(qos),
-      config_db_(config_db) {
+    : broker_(broker), client_id_(client_id), qos_(qos), config_db_(config_db) {
   client_ = std::make_unique<mqtt::async_client>(broker_, client_id_);
   client_->set_callback(*this);
 }
@@ -141,29 +141,6 @@ void MqttManager::Publish(const std::string& robot_id) {
   }
 }
 
-void MqttManager::PublishRaw(const std::string& topic, const std::string& payload) {
-  try {
-    auto msg = mqtt::make_message(topic, payload);
-    msg->set_qos(qos_);
-    client_->publish(msg)->wait();
-    LOG(INFO) << "已向主题发布原始消息: " << topic << " -> " << payload;
-  } catch (const mqtt::exception& exc) {
-    LOG(ERROR) << "原始发布失败: " << exc.what();
-  }
-}
-
-void MqttManager::PublishAll() {
-  std::vector<std::shared_ptr<Robot>> copy;
-  {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
-    for (const auto& kv : robots_) copy.push_back(kv.second);
-  }
-
-  for (const auto& robot : copy) {
-    Publish(robot->GetId());
-  }
-}
-
 void MqttManager::RefreshRobots() {
   auto enabled = config_db_.GetEnabledRobots();
   std::vector<std::string> to_add;
@@ -222,7 +199,8 @@ void MqttManager::Stop() {
   Disconnect();
 }
 
-void MqttManager::EnqueueMessage(const std::string& topic, const std::string& payload, int qos) {
+void MqttManager::EnqueueMessage(const std::string& topic,
+                                 const std::string& payload, int qos) {
   {
     std::lock_guard<std::mutex> lock(queue_mutex_);
     message_queue_.push({topic, payload, qos});

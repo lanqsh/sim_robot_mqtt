@@ -154,7 +154,8 @@ std::string ConfigDb::ReplacePlaceholder(const std::string& topic_template,
 bool ConfigDb::AddRobot(const std::string& robot_id, bool enabled) {
   if (!initialized_) return false;
 
-  const char* sql = "INSERT OR REPLACE INTO robots (robot_id, enabled) VALUES (?, ?)";
+  const char* sql =
+      "INSERT OR REPLACE INTO robots (robot_id, enabled) VALUES (?, ?)";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
