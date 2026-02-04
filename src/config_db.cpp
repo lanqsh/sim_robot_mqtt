@@ -72,47 +72,74 @@ bool ConfigDb::Init() {
 }
 
 void ConfigDb::InsertDefaultConfig() {
-  const char* check_sql = "SELECT COUNT(*) FROM mqtt_config";
   sqlite3_stmt* stmt;
 
-  if (sqlite3_prepare_v2(db_, check_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+  // 检查mqtt_config表
+  const char* check_config_sql = "SELECT COUNT(*) FROM mqtt_config";
+  bool has_config = false;
+
+  if (sqlite3_prepare_v2(db_, check_config_sql, -1, &stmt, nullptr) == SQLITE_OK) {
     if (sqlite3_step(stmt) == SQLITE_ROW) {
       int count = sqlite3_column_int(stmt, 0);
-      sqlite3_finalize(stmt);
-
-      if (count > 0) {
-        LOG(INFO) << "数据库已有配置，跳过默认配置插入";
-        return;  // 已有配置
-      }
+      has_config = (count > 0);
     }
+    sqlite3_finalize(stmt);
   }
 
-  LOG(INFO) << "插入默认配置数据...";
+  if (!has_config) {
+    LOG(INFO) << "插入默认MQTT配置...";
+    const char* config_sql = R"(
+      INSERT OR IGNORE INTO mqtt_config (key, value) VALUES
+      ('broker', 'tcp://lanq.top:10043'),
+      ('client_id_prefix', 'sim_robot_cpp'),
+      ('qos', '1'),
+      ('keepalive', '60'),
+      ('publish_interval', '10'),
+      ('http_port', '8080'),
+      ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/event/up'),
+      ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down')
+    )";
 
-  // 插入默认配置
-  const char* insert_sql = R"(
-    INSERT OR IGNORE INTO mqtt_config (key, value) VALUES
-    ('broker', 'tcp://lanq.top:10043'),
-    ('client_id_prefix', 'sim_robot_cpp'),
-    ('qos', '1'),
-    ('keepalive', '60'),
-    ('publish_interval', '10'),
-    ('http_port', '8080'),
-    ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/event/up'),
-    ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down');
-
-    INSERT OR IGNORE INTO robots (robot_id, robot_name, enabled) VALUES
-    ('303930306350729d', 'Robot 1', 1),
-    ('303930306350729e', 'Robot 2', 0);
-  )";
-
-  char* err_msg = nullptr;
-  sqlite3_exec(db_, insert_sql, nullptr, nullptr, &err_msg);
-  if (err_msg) {
-    LOG(ERROR) << "插入默认配置失败: " << err_msg;
-    sqlite3_free(err_msg);
+    char* err_msg = nullptr;
+    if (sqlite3_exec(db_, config_sql, nullptr, nullptr, &err_msg) != SQLITE_OK) {
+      LOG(ERROR) << "插入默认配置失败: " << err_msg;
+      sqlite3_free(err_msg);
+    } else {
+      LOG(INFO) << "默认MQTT配置插入成功";
+    }
   } else {
-    LOG(INFO) << "默认配置插入成功";
+    LOG(INFO) << "mqtt_config表已有配置，跳过配置插入";
+  }
+
+  // 检查robots表
+  const char* check_robots_sql = "SELECT COUNT(*) FROM robots";
+  bool has_robots = false;
+
+  if (sqlite3_prepare_v2(db_, check_robots_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+      int count = sqlite3_column_int(stmt, 0);
+      has_robots = (count > 0);
+    }
+    sqlite3_finalize(stmt);
+  }
+
+  if (!has_robots) {
+    LOG(INFO) << "插入默认机器人...";
+    const char* robots_sql = R"(
+      INSERT OR IGNORE INTO robots (robot_id, robot_name, enabled) VALUES
+      ('303930306350729d', 'Robot 1', 1),
+      ('303930306350729e', 'Robot 2', 0)
+    )";
+
+    char* err_msg = nullptr;
+    if (sqlite3_exec(db_, robots_sql, nullptr, nullptr, &err_msg) != SQLITE_OK) {
+      LOG(ERROR) << "插入默认机器人失败: " << err_msg;
+      sqlite3_free(err_msg);
+    } else {
+      LOG(INFO) << "默认机器人插入成功";
+    }
+  } else {
+    LOG(INFO) << "robots表已有机器人，跳过机器人插入";
   }
 }
 
