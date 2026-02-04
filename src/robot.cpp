@@ -1,7 +1,7 @@
 #include "robot.h"
 
 #include <glog/logging.h>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 
 #include <fstream>
 #include <sstream>
