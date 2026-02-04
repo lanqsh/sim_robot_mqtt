@@ -1,6 +1,7 @@
 #include "config_db.h"
 
 #include <glog/logging.h>
+#include <fstream>
 
 ConfigDb::ConfigDb(const std::string& path)
     : db_(nullptr), db_path_(path), initialized_(false) {
@@ -17,11 +18,26 @@ ConfigDb::~ConfigDb() {
 }
 
 bool ConfigDb::Init() {
+  // 检查数据库文件是否存在
+  bool db_exists = false;
+  {
+    std::ifstream file(db_path_);
+    db_exists = file.good();
+  }
+
+  if (!db_exists) {
+    LOG(INFO) << "数据库文件不存在，将创建新数据库: " << db_path_;
+  } else {
+    LOG(INFO) << "正在打开数据库: " << db_path_;
+  }
+
   int rc = sqlite3_open(db_path_.c_str(), &db_);
   if (rc != SQLITE_OK) {
     LOG(ERROR) << "Cannot open database: " << sqlite3_errmsg(db_);
     return false;
   }
+
+  LOG(INFO) << "数据库已打开，正在创建表结构...";
 
   // 创建配置表
   const char* sql = R"(
@@ -46,8 +62,12 @@ bool ConfigDb::Init() {
     return false;
   }
 
+  LOG(INFO) << "表结构创建成功";
+
   // 插入默认配置（如果不存在）
   InsertDefaultConfig();
+
+  LOG(INFO) << "数据库初始化完成";
   return true;
 }
 
@@ -60,9 +80,14 @@ void ConfigDb::InsertDefaultConfig() {
       int count = sqlite3_column_int(stmt, 0);
       sqlite3_finalize(stmt);
 
-      if (count > 0) return;  // 已有配置
+      if (count > 0) {
+        LOG(INFO) << "数据库已有配置，跳过默认配置插入";
+        return;  // 已有配置
+      }
     }
   }
+
+  LOG(INFO) << "插入默认配置数据...";
 
   // 插入默认配置
   const char* insert_sql = R"(
@@ -78,14 +103,16 @@ void ConfigDb::InsertDefaultConfig() {
 
     INSERT OR IGNORE INTO robots (robot_id, robot_name, enabled) VALUES
     ('303930306350729d', 'Robot 1', 1),
-    ('303930306350729e', 'Robot 2', 0),
-    ('303930306350729f', 1);
+    ('303930306350729e', 'Robot 2', 0);
   )";
 
   char* err_msg = nullptr;
   sqlite3_exec(db_, insert_sql, nullptr, nullptr, &err_msg);
   if (err_msg) {
+    LOG(ERROR) << "插入默认配置失败: " << err_msg;
     sqlite3_free(err_msg);
+  } else {
+    LOG(INFO) << "默认配置插入成功";
   }
 }
 
