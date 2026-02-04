@@ -1,27 +1,70 @@
 const API_BASE = window.location.origin;
 
+// 分页状态
+let currentPage = 1;
+let pageSize = 20;
+let allRobots = [];
+
 // 加载所有机器人
 async function loadRobots() {
     try {
         const response = await fetch(`${API_BASE}/api/robots`);
-        const robots = await response.json();
+        allRobots = await response.json();
 
         const container = document.getElementById('robotsList');
 
-        if (robots.length === 0) {
+        if (allRobots.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <h3>暂无机器人</h3>
                     <p>请添加新机器人开始管理</p>
                 </div>
             `;
+            document.getElementById('pagination').innerHTML = '';
+            document.getElementById('totalCount').textContent = '';
+            updateStatistics();
             return;
         }
 
-        container.innerHTML = '<div class="robots-grid"></div>';
-        const grid = container.querySelector('.robots-grid');
+        // 显示总数
+        document.getElementById('totalCount').textContent = `共 ${allRobots.length} 个机器人`;
 
-        robots.forEach(robot => {
+        // 更新统计信息
+        updateStatistics();
+
+        // 渲染当前页
+        renderPage();
+    } catch (error) {
+        console.error('加载机器人失败:', error);
+        document.getElementById('robotsList').innerHTML = `
+            <div class="error-message">加载机器人列表失败: ${error.message}</div>
+        `;
+    }
+}
+
+// 更新统计信息
+function updateStatistics() {
+    const total = allRobots.length;
+    const enabled = allRobots.filter(robot => robot.enabled).length;
+    const disabled = total - enabled;
+
+    document.getElementById('statTotal').textContent = total;
+    document.getElementById('statEnabled').textContent = enabled;
+    document.getElementById('statDisabled').textContent = disabled;
+}
+
+// 渲染当前页的机器人
+function renderPage() {
+    const container = document.getElementById('robotsList');
+    container.innerHTML = '<div class="robots-grid"></div>';
+    const grid = container.querySelector('.robots-grid');
+
+    // 计算当前页的机器人
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const pageRobots = allRobots.slice(startIndex, endIndex);
+
+    pageRobots.forEach(robot => {
             const card = document.createElement('div');
             card.className = 'robot-card';
             card.innerHTML = `
@@ -50,12 +93,85 @@ async function loadRobots() {
             `;
             grid.appendChild(card);
         });
-    } catch (error) {
-        console.error('加载机器人失败:', error);
-        document.getElementById('robotsList').innerHTML = `
-            <div class="error-message">加载机器人列表失败: ${error.message}</div>
-        `;
+
+    // 渲染分页控件
+    renderPagination();
+}
+
+// 渲染分页控件
+function renderPagination() {
+    const totalPages = Math.ceil(allRobots.length / pageSize);
+    const pagination = document.getElementById('pagination');
+
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
     }
+
+    let html = '<div class="pagination-buttons">';
+
+    // 上一页按钮
+    if (currentPage > 1) {
+        html += `<button class="page-btn" onclick="goToPage(${currentPage - 1})">上一页</button>`;
+    } else {
+        html += '<button class="page-btn" disabled>上一页</button>';
+    }
+
+    // 页码按钮
+    const maxButtons = 7;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+    if (endPage - startPage < maxButtons - 1) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    if (startPage > 1) {
+        html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+        if (startPage > 2) {
+            html += '<span class="page-ellipsis">...</span>';
+        }
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        if (i === currentPage) {
+            html += `<button class="page-btn active">${i}</button>`;
+        } else {
+            html += `<button class="page-btn" onclick="goToPage(${i})">${i}</button>`;
+        }
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += '<span class="page-ellipsis">...</span>';
+        }
+        html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    }
+
+    // 下一页按钮
+    if (currentPage < totalPages) {
+        html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})">下一页</button>`;
+    } else {
+        html += '<button class="page-btn" disabled>下一页</button>';
+    }
+
+    html += '</div>';
+    pagination.innerHTML = html;
+}
+
+// 跳转到指定页
+function goToPage(page) {
+    currentPage = page;
+    renderPage();
+    // 滚动到顶部
+    document.querySelector('.robots-container').scrollIntoView({ behavior: 'smooth' });
+}
+
+// 改变每页显示数量
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    renderPage();
 }
 
 // 切换机器人启用状态
