@@ -34,6 +34,40 @@ h1 {
     margin-bottom: 30px;
 }
 
+.batch-operations {
+    background: #e3f2fd;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.batch-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: end;
+}
+
+.batch-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.batch-buttons .btn {
+    flex: 1;
+}
+
+.serial-badge {
+    display: inline-block;
+    background: #667eea;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: bold;
+    margin-right: 8px;
+}
+
 .form-group {
     margin-bottom: 15px;
 }

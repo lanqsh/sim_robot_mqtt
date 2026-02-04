@@ -27,7 +27,10 @@ async function loadRobots() {
             card.className = `robot-card ${robot.enabled ? 'enabled' : 'disabled'}`;
             card.innerHTML = `
                 <div class="robot-header">
-                    <div class="robot-name">${robot.robot_name || '未命名'}</div>
+                    <div class="robot-name">
+                        <span class="serial-badge">#${robot.serial_number}</span>
+                        ${robot.robot_name || '未命名'}
+                    </div>
                     <div class="robot-status ${robot.enabled ? 'enabled' : 'disabled'}">
                         ${robot.enabled ? '✓ 已启用' : '✗ 已禁用'}
                     </div>
@@ -97,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const robotId = document.getElementById('robotId').value.trim();
         const robotName = document.getElementById('robotName').value.trim();
+        const serialNumber = parseInt(document.getElementById('serialNumber').value) || 0;
         const messageDiv = document.getElementById('message');
 
         if (!robotId) {
@@ -112,7 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     robot_id: robotId,
-                    robot_name: robotName || robotId
+                    robot_name: robotName || robotId,
+                    serial_number: serialNumber
                 })
             });
 
@@ -256,6 +261,113 @@ async function viewRobotData(robotId) {
     } catch (error) {
         console.error('获取机器人数据失败:', error);
         details.innerHTML = `<div class="error-message">获取数据失败: ${error.message}</div>`;
+    }
+}
+
+// 批量添加机器人
+async function batchAddRobots() {
+    const startSerial = parseInt(document.getElementById('batchStartSerial').value);
+    const endSerial = parseInt(document.getElementById('batchEndSerial').value);
+    const idPrefix = document.getElementById('batchIdPrefix').value.trim();
+
+    if (!startSerial || !endSerial || !idPrefix) {
+        alert('请填写完整的批量添加信息');
+        return;
+    }
+
+    if (startSerial > endSerial) {
+        alert('起始序号不能大于结束序号');
+        return;
+    }
+
+    const count = endSerial - startSerial + 1;
+    if (!confirm(`确定要批量添加 ${count} 个机器人吗？`)) {
+        return;
+    }
+
+    const robots = [];
+    for (let i = startSerial; i <= endSerial; i++) {
+        robots.push({
+            robot_id: `${idPrefix}${i.toString().padStart(3, '0')}`,
+            robot_name: `Robot ${i}`,
+            serial_number: i,
+            enabled: true
+        });
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/robots/batch`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ robots })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`批量添加成功！共添加 ${result.count} 个机器人`);
+            loadRobots();
+            // 清空输入框
+            document.getElementById('batchStartSerial').value = '';
+            document.getElementById('batchEndSerial').value = '';
+            document.getElementById('batchIdPrefix').value = '';
+        } else {
+            alert('批量添加失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('批量添加机器人失败:', error);
+        alert('批量添加失败: ' + error.message);
+    }
+}
+
+// 批量删除机器人
+async function batchDeleteRobots() {
+    const startSerial = parseInt(document.getElementById('batchStartSerial').value);
+    const endSerial = parseInt(document.getElementById('batchEndSerial').value);
+    const idPrefix = document.getElementById('batchIdPrefix').value.trim();
+
+    if (!startSerial || !endSerial || !idPrefix) {
+        alert('请填写完整的批量删除信息');
+        return;
+    }
+
+    if (startSerial > endSerial) {
+        alert('起始序号不能大于结束序号');
+        return;
+    }
+
+    const count = endSerial - startSerial + 1;
+    if (!confirm(`确定要批量删除 ${count} 个机器人吗？此操作不可恢复！`)) {
+        return;
+    }
+
+    const robot_ids = [];
+    for (let i = startSerial; i <= endSerial; i++) {
+        robot_ids.push(`${idPrefix}${i.toString().padStart(3, '0')}`);
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/robots/batch-delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ robot_ids })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`批量删除成功！共删除 ${result.count} 个机器人`);
+            loadRobots();
+        } else {
+            alert('批量删除失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('批量删除机器人失败:', error);
+        alert('批量删除失败: ' + error.message);
     }
 }
 

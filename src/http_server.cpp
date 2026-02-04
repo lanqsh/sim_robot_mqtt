@@ -111,6 +111,7 @@ void HttpServer::ServerThreadFunc() {
         json robot_json;
         robot_json["robot_id"] = robot.robot_id;
         robot_json["robot_name"] = robot.robot_name;
+        robot_json["serial_number"] = robot.serial_number;
         robot_json["enabled"] = robot.enabled;
         j.push_back(robot_json);
       }
@@ -133,6 +134,7 @@ void HttpServer::ServerThreadFunc() {
       json body = json::parse(req.body);
       std::string robot_id = body["robot_id"];
       std::string robot_name = body.value("robot_name", "");
+      int serial_number = body.value("serial_number", 0);
 
       if (robot_id.empty()) {
         json error;
@@ -144,7 +146,7 @@ void HttpServer::ServerThreadFunc() {
       }
 
       // 添加到数据库
-      bool success = config_db_->AddRobot(robot_id, robot_name, true);
+      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, true);
       if (success) {
         // 添加到MQTT管理器
         mqtt_manager_->AddRobot(robot_id);
@@ -251,6 +253,113 @@ void HttpServer::ServerThreadFunc() {
       error["success"] = false;
       error["error"] = e.what();
       res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // API: 批量添加机器人
+  svr.Post("/api/robots/batch", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      json body = json::parse(req.body);
+
+      if (!body.contains("robots") || !body["robots"].is_array()) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少robots数组参数";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      std::vector<ConfigDb::RobotInfo> robots;
+      for (const auto& robot_json : body["robots"]) {
+        ConfigDb::RobotInfo info;
+        info.robot_id = robot_json["robot_id"];
+        info.robot_name = robot_json.value("robot_name", "");
+        info.serial_number = robot_json.value("serial_number", 0);
+        info.enabled = robot_json.value("enabled", true);
+        robots.push_back(info);
+      }
+
+      // 批量添加到数据库
+      bool success = config_db_->AddRobotsBatch(robots);
+      if (success) {
+        // 将启用的机器人添加到MQTT管理器
+        for (const auto& robot : robots) {
+          if (robot.enabled) {
+            mqtt_manager_->AddRobot(robot.robot_id);
+          }
+        }
+
+        json response;
+        response["success"] = true;
+        response["message"] = "批量添加成功";
+        response["count"] = robots.size();
+        res.set_content(response.dump(), "application/json");
+        LOG(INFO) << "API: 批量添加机器人成功, 数量: " << robots.size();
+      } else {
+        json error;
+        error["success"] = false;
+        error["error"] = "批量添加机器人失败";
+        res.status = 500;
+        res.set_content(error.dump(), "application/json");
+      }
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "批量添加机器人失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 400;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // API: 批量删除机器人
+  svr.Post("/api/robots/batch-delete", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      json body = json::parse(req.body);
+
+      if (!body.contains("robot_ids") || !body["robot_ids"].is_array()) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少robot_ids数组参数";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      std::vector<std::string> robot_ids;
+      for (const auto& id : body["robot_ids"]) {
+        robot_ids.push_back(id.get<std::string>());
+      }
+
+      // 从MQTT管理器批量移除
+      for (const auto& robot_id : robot_ids) {
+        mqtt_manager_->RemoveRobot(robot_id);
+      }
+
+      // 从数据库批量删除
+      bool success = config_db_->RemoveRobotsBatch(robot_ids);
+      if (success) {
+        json response;
+        response["success"] = true;
+        response["message"] = "批量删除成功";
+        response["count"] = robot_ids.size();
+        res.set_content(response.dump(), "application/json");
+        LOG(INFO) << "API: 批量删除机器人成功, 数量: " << robot_ids.size();
+      } else {
+        json error;
+        error["success"] = false;
+        error["error"] = "批量删除机器人失败";
+        res.status = 500;
+        res.set_content(error.dump(), "application/json");
+      }
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "批量删除机器人失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 400;
       res.set_content(error.dump(), "application/json");
     }
   });
