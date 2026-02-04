@@ -2,6 +2,7 @@
 
 #include <glog/logging.h>
 #include <fstream>
+#include <string>
 
 ConfigDb::ConfigDb(const std::string& path)
     : db_(nullptr), db_path_(path), initialized_(false) {
@@ -50,6 +51,7 @@ bool ConfigDb::Init() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       robot_id TEXT UNIQUE NOT NULL,
       robot_name TEXT,
+      serial_number INTEGER UNIQUE NOT NULL DEFAULT 0,
       enabled INTEGER DEFAULT 1
     );
   )";
@@ -126,9 +128,9 @@ void ConfigDb::InsertDefaultConfig() {
   if (!has_robots) {
     LOG(INFO) << "插入默认机器人...";
     const char* robots_sql = R"(
-      INSERT OR IGNORE INTO robots (robot_id, robot_name, enabled) VALUES
-      ('303930306350729d', 'Robot 1', 1),
-      ('303930306350729e', 'Robot 2', 0)
+      INSERT OR IGNORE INTO robots (robot_id, robot_name, serial_number, enabled) VALUES
+      ('303930306350729d', 'Robot 1', 1, 1),
+      ('303930306350729e', 'Robot 2', 2, 0)
     )";
 
     char* err_msg = nullptr;
@@ -207,12 +209,12 @@ std::string ConfigDb::ReplacePlaceholder(const std::string& topic_template,
 }
 
 bool ConfigDb::AddRobot(const std::string& robot_id,
-                        const std::string& robot_name, bool enabled) {
+                        const std::string& robot_name, int serial_number, bool enabled) {
   if (!initialized_) return false;
 
   const char* sql =
-      "INSERT OR REPLACE INTO robots (robot_id, robot_name, enabled) VALUES "
-      "(?, ?, ?)";
+      "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled) VALUES "
+      "(?, ?, ?, ?)";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -221,7 +223,8 @@ bool ConfigDb::AddRobot(const std::string& robot_id,
 
   sqlite3_bind_text(stmt, 1, robot_id.c_str(), -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+  sqlite3_bind_int(stmt, 3, serial_number);
+  sqlite3_bind_int(stmt, 4, enabled ? 1 : 0);
 
   bool success = sqlite3_step(stmt) == SQLITE_DONE;
   sqlite3_finalize(stmt);
@@ -247,11 +250,52 @@ bool ConfigDb::RemoveRobot(const std::string& robot_id) {
   return success;
 }
 
+bool ConfigDb::UpdateRobotStatus(const std::string& robot_id, bool enabled) {
+  if (!initialized_) return false;
+
+  const char* sql = "UPDATE robots SET enabled = ? WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, enabled ? 1 : 0);
+  sqlite3_bind_text(stmt, 2, robot_id.c_str(), -1, SQLITE_STATIC);
+
+  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  sqlite3_finalize(stmt);
+
+  return success;
+}
+
+bool ConfigDb::IsSerialNumberExists(int serial_number) {
+  if (!initialized_) return false;
+
+  const char* sql = "SELECT COUNT(*) FROM robots WHERE serial_number = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, serial_number);
+
+  bool exists = false;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    int count = sqlite3_column_int(stmt, 0);
+    exists = (count > 0);
+  }
+
+  sqlite3_finalize(stmt);
+  return exists;
+}
+
 std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
   std::vector<RobotInfo> robots;
   if (!initialized_) return robots;
 
-  const char* sql = "SELECT robot_id, robot_name, enabled FROM robots";
+  const char* sql = "SELECT robot_id, robot_name, serial_number, enabled FROM robots ORDER BY serial_number ASC";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -263,10 +307,104 @@ std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
     info.robot_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
     info.robot_name = name ? name : "";
-    info.enabled = sqlite3_column_int(stmt, 2) != 0;
+    info.serial_number = sqlite3_column_int(stmt, 2);
+    info.enabled = sqlite3_column_int(stmt, 3) != 0;
     robots.push_back(info);
   }
 
   sqlite3_finalize(stmt);
   return robots;
+}
+
+bool ConfigDb::AddRobotsBatch(const std::vector<RobotInfo>& robots) {
+  if (!initialized_ || robots.empty()) return false;
+
+  // 开始事务
+  char* err_msg = nullptr;
+  if (sqlite3_exec(db_, "BEGIN TRANSACTION", nullptr, nullptr, &err_msg) != SQLITE_OK) {
+    LOG(ERROR) << "开始事务失败: " << err_msg;
+    sqlite3_free(err_msg);
+    return false;
+  }
+
+  const char* sql = "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled) VALUES (?, ?, ?, ?)";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    sqlite3_exec(db_, "ROLLBACK", nullptr, nullptr, nullptr);
+    return false;
+  }
+
+  for (const auto& robot : robots) {
+    sqlite3_bind_text(stmt, 1, robot.robot_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, robot.robot_name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, robot.serial_number);
+    sqlite3_bind_int(stmt, 4, robot.enabled ? 1 : 0);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+      LOG(ERROR) << "批量添加机器人失败: " << robot.robot_id;
+      sqlite3_finalize(stmt);
+      sqlite3_exec(db_, "ROLLBACK", nullptr, nullptr, nullptr);
+      return false;
+    }
+
+    sqlite3_reset(stmt);
+  }
+
+  sqlite3_finalize(stmt);
+
+  // 提交事务
+  if (sqlite3_exec(db_, "COMMIT", nullptr, nullptr, &err_msg) != SQLITE_OK) {
+    LOG(ERROR) << "提交事务失败: " << err_msg;
+    sqlite3_free(err_msg);
+    sqlite3_exec(db_, "ROLLBACK", nullptr, nullptr, nullptr);
+    return false;
+  }
+
+  return true;
+}
+
+bool ConfigDb::RemoveRobotsBatch(const std::vector<std::string>& robot_ids) {
+  if (!initialized_ || robot_ids.empty()) return false;
+
+  // 开始事务
+  char* err_msg = nullptr;
+  if (sqlite3_exec(db_, "BEGIN TRANSACTION", nullptr, nullptr, &err_msg) != SQLITE_OK) {
+    LOG(ERROR) << "开始事务失败: " << err_msg;
+    sqlite3_free(err_msg);
+    return false;
+  }
+
+  const char* sql = "DELETE FROM robots WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    sqlite3_exec(db_, "ROLLBACK", nullptr, nullptr, nullptr);
+    return false;
+  }
+
+  for (const auto& robot_id : robot_ids) {
+    sqlite3_bind_text(stmt, 1, robot_id.c_str(), -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+      LOG(ERROR) << "批量删除机器人失败: " << robot_id;
+      sqlite3_finalize(stmt);
+      sqlite3_exec(db_, "ROLLBACK", nullptr, nullptr, nullptr);
+      return false;
+    }
+
+    sqlite3_reset(stmt);
+  }
+
+  sqlite3_finalize(stmt);
+
+  // 提交事务
+  if (sqlite3_exec(db_, "COMMIT", nullptr, nullptr, &err_msg) != SQLITE_OK) {
+    LOG(ERROR) << "提交事务失败: " << err_msg;
+    sqlite3_free(err_msg);
+    sqlite3_exec(db_, "ROLLBACK", nullptr, nullptr, nullptr);
+    return false;
+  }
+
+  return true;
 }

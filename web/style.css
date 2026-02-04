@@ -34,6 +34,40 @@ h1 {
     margin-bottom: 30px;
 }
 
+.batch-operations {
+    background: #e3f2fd;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.batch-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: end;
+}
+
+.batch-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.batch-buttons .btn {
+    flex: 1;
+}
+
+.serial-badge {
+    display: inline-block;
+    background: #667eea;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: bold;
+    margin-right: 8px;
+}
+
 .form-group {
     margin-bottom: 15px;
 }
@@ -88,6 +122,32 @@ h1 {
     background: #c82333;
 }
 
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+}
+
+.btn-warning {
+    background: #ffc107;
+    color: #333;
+}
+
+.btn-warning:hover {
+    background: #e0a800;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
+}
+
+.btn.disabled-btn {
+    opacity: 0.5;
+}
+
 .robots-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -113,11 +173,6 @@ h1 {
 
 .robot-card.enabled {
     border-color: #28a745;
-}
-
-.robot-card.disabled {
-    border-color: #dc3545;
-    opacity: 0.7;
 }
 
 .robot-header {

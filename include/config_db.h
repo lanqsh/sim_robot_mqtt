@@ -33,11 +33,18 @@ class ConfigDb {
   struct RobotInfo {
     std::string robot_id;
     std::string robot_name;
+    int serial_number;
     bool enabled;
   };
-  bool AddRobot(const std::string& robot_id, const std::string& robot_name, bool enabled = true);
+  bool AddRobot(const std::string& robot_id, const std::string& robot_name, int serial_number = 0, bool enabled = true);
   bool RemoveRobot(const std::string& robot_id);
+  bool UpdateRobotStatus(const std::string& robot_id, bool enabled);  // 更新机器人启用状态
+  bool IsSerialNumberExists(int serial_number);  // 检查序号是否已存在
   std::vector<RobotInfo> GetAllRobots();  // 获取所有机器人（包括禁用的）
+
+  // 批量操作
+  bool AddRobotsBatch(const std::vector<RobotInfo>& robots);  // 批量添加机器人
+  bool RemoveRobotsBatch(const std::vector<std::string>& robot_ids);  // 批量删除机器人
 };
 
 #endif  // CONFIG_DB_H_
