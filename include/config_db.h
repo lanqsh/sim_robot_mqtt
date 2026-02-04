@@ -22,6 +22,7 @@ class ConfigDb {
   bool Init();
   bool IsInitialized() const { return initialized_; }
   void InsertDefaultConfig();
+  void MigrateDatabase();  // 数据库结构迁移
   std::string GetValue(const std::string& key,
                        const std::string& default_value = "");
   int GetIntValue(const std::string& key, int default_value = 0);

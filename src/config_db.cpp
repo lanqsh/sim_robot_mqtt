@@ -2,6 +2,7 @@
 
 #include <glog/logging.h>
 #include <fstream>
+#include <string>
 
 ConfigDb::ConfigDb(const std::string& path)
     : db_(nullptr), db_path_(path), initialized_(false) {
@@ -64,6 +65,9 @@ bool ConfigDb::Init() {
   }
 
   LOG(INFO) << "表结构创建成功";
+
+  // 检查并迁移表结构
+  MigrateDatabase();
 
   // 插入默认配置（如果不存在）
   InsertDefaultConfig();
