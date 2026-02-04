@@ -9,6 +9,7 @@ add_definitions(-DPROJECT_VERSION="${PROJECT_VERSION}")
 
 # 添加include目录
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/third_party)
 
 # 查找系统安装的 Paho MQTT C++ 库
 find_package(PahoMqttCpp REQUIRED)
