@@ -175,6 +175,9 @@ class Robot {
   // 设置MQTT管理器（用于发送消息）
   void SetMqttManager(std::shared_ptr<MqttManager> manager);
 
+  // 设置上报间隔（秒）
+  void SetReportInterval(int interval_seconds);
+
   // 获取发布主题
   std::string GetPublishTopic() const { return publish_topic_; }
 
@@ -204,6 +207,7 @@ class Robot {
   // 上报线程相关
   std::thread report_thread_;
   std::atomic<bool> stop_report_{false};
+  int report_interval_seconds_{10};  // 上报间隔（秒）
 
   // 上报线程函数
   void ReportThreadFunc();

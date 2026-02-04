@@ -71,7 +71,6 @@ void ConfigDb::InsertDefaultConfig() {
     ('qos', '1'),
     ('keepalive', '60'),
     ('publish_interval', '10'),
-    ('default_duration', '60'),
     ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/event/up'),
     ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down');
 

@@ -85,7 +85,6 @@ int main(int argc, char* argv[]) {
   int qos = config_db.GetIntValue("qos", 1);
   int keepalive = config_db.GetIntValue("keepalive", 60);
   int publish_interval = config_db.GetIntValue("publish_interval", 10);
-  int duration = config_db.GetIntValue("default_duration", 30);
 
   // 获取启用的机器人列表
   auto enabled_robots = config_db.GetEnabledRobots();
@@ -100,7 +99,6 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "Broker: " << broker;
   LOG(INFO) << "Client ID: " << client_id;
   LOG(INFO) << "QoS: " << qos;
-  LOG(INFO) << "Duration: " << duration << " seconds";
   LOG(INFO) << "启用的机器人 (" << enabled_robots.size() << "):";
   for (const auto& id : enabled_robots) LOG(INFO) << "  - " << id;
   LOG(INFO) << "==================";

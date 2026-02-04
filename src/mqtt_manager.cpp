@@ -55,6 +55,10 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
   // 设置机器人的主题
   robot->SetTopics(publish_topic, subscribe_topic);
 
+  // 设置上报间隔
+  int report_interval = config_db_.GetIntValue("publish_interval", 10);
+  robot->SetReportInterval(report_interval);
+
   // 设置MQTT管理器（启动上报线程）
   robot->SetMqttManager(shared_from_this());
 
@@ -273,6 +277,13 @@ void MqttManager::ReceiverThreadFunc() {
 
         std::string dev_eui = j["devEui"].get<std::string>();
         std::string data = j["data"].get<std::string>();
+
+        // 检查主题中是否包含devEui
+        if (msg.topic.find(dev_eui) == std::string::npos) {
+          LOG(WARNING) << "主题中不包含devEui: " << dev_eui << ", 主题: " << msg.topic;
+          lock.lock();
+          continue;
+        }
 
         // 根据devEui查找对应的机器人
         std::shared_ptr<Robot> robot;

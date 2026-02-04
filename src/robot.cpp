@@ -128,12 +128,17 @@ void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
   }
 }
 
+void Robot::SetReportInterval(int interval_seconds) {
+  report_interval_seconds_ = interval_seconds;
+  LOG(INFO) << "[Robot " << robot_id_ << "] 设置上报间隔为 " << interval_seconds << " 秒";
+}
+
 void Robot::ReportThreadFunc() {
-  LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已启动";
+  LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已启动，间隔: " << report_interval_seconds_ << "秒";
 
   while (!stop_report_.load()) {
-    // 等待10秒
-    for (int i = 0; i < 100 && !stop_report_.load(); ++i) {
+    // 等待配置的间隔时间
+    for (int i = 0; i < report_interval_seconds_ * 10 && !stop_report_.load(); ++i) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
