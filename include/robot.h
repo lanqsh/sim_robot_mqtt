@@ -6,6 +6,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <thread>
+#include <mutex>
 
 // 指令类型
 enum class MessageDirection {
@@ -155,6 +157,9 @@ struct RobotData {
   std::string project_code;   // 项目代码
 };
 
+// 前向声明
+class MqttManager;
+
 class Robot {
  public:
   explicit Robot(const std::string& robot_id);
@@ -166,6 +171,12 @@ class Robot {
   // 设置主题
   void SetTopics(const std::string& publish_topic,
                  const std::string& subscribe_topic);
+
+  // 设置MQTT管理器（用于发送消息）
+  void SetMqttManager(std::shared_ptr<MqttManager> manager);
+
+  // 设置上报间隔（秒）
+  void SetReportInterval(int interval_seconds);
 
   // 获取发布主题
   std::string GetPublishTopic() const { return publish_topic_; }
@@ -183,12 +194,27 @@ class Robot {
   RobotData& GetData() { return data_; }
   const RobotData& GetData() const { return data_; }
 
+  // HTTP API支持
+  bool IsRunning() const { return !stop_report_; }
+  std::string GetLastData() const;  // 获取最后一次上报的数据（JSON格式）
+
  private:
   std::string robot_id_;
   std::string publish_topic_;
   std::string subscribe_topic_;
   std::atomic<int> sequence_;
   RobotData data_;  // 机器人完整数据
+
+  // MQTT管理器（用于发送消息）
+  std::weak_ptr<MqttManager> mqtt_manager_;
+
+  // 上报线程相关
+  std::thread report_thread_;
+  std::atomic<bool> stop_report_{false};
+  int report_interval_seconds_{10};  // 上报间隔（秒）
+
+  // 上报线程函数
+  void ReportThreadFunc();
 
   // 读取上行数据模板
   static std::string LoadUplinkTemplate();

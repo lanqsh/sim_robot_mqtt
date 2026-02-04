@@ -1,8 +1,12 @@
 #include "robot.h"
 
 #include <glog/logging.h>
-#include <sstream>
+#include <nlohmann/json.hpp>
+
 #include <fstream>
+#include <sstream>
+
+#include "mqtt_manager.h"
 
 // 上行数据模板占位符
 #define PLACEHOLDER_DEV_EUI "{{DEV_EUI}}"
@@ -15,8 +19,7 @@
 // 静态成员初始化
 std::string Robot::uplink_template_ = "";
 
-Robot::Robot(const std::string& robot_id)
-    : robot_id_(robot_id), sequence_(0) {
+Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
   // 初始化机器人数据
   data_.battery_level = 100;
   data_.battery_voltage = 0;
@@ -44,7 +47,13 @@ Robot::Robot(const std::string& robot_id)
   }
 }
 
-Robot::~Robot() {}
+Robot::~Robot() {
+  // 停止上报线程
+  stop_report_.store(true);
+  if (report_thread_.joinable()) {
+    report_thread_.join();
+  }
+}
 
 void Robot::SetTopics(const std::string& publish_topic,
                       const std::string& subscribe_topic) {
@@ -60,8 +69,8 @@ std::string Robot::GenerateUplinkPayload(const std::string& data) {
 
   // 获取devAddr（机器人ID的后8个字符）
   std::string dev_addr = robot_id_.length() >= 8
-    ? robot_id_.substr(robot_id_.length() - 8)
-    : robot_id_;
+                             ? robot_id_.substr(robot_id_.length() - 8)
+                             : robot_id_;
 
   // 替换模板中的占位符
   std::string result = uplink_template_;
@@ -108,4 +117,64 @@ std::string Robot::LoadUplinkTemplate() {
 void Robot::HandleMessage(const std::string& data) {
   LOG(INFO) << "[Robot " << robot_id_ << "] 收到消息";
   LOG(INFO) << "  内容: " << data;
+}
+
+void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
+  mqtt_manager_ = manager;
+
+  // 启动上报线程
+  if (manager != nullptr) {
+    stop_report_.store(false);
+    report_thread_ = std::thread(&Robot::ReportThreadFunc, this);
+  }
+}
+
+void Robot::SetReportInterval(int interval_seconds) {
+  report_interval_seconds_ = interval_seconds;
+  LOG(INFO) << "[Robot " << robot_id_ << "] 设置上报间隔为 " << interval_seconds << " 秒";
+}
+
+void Robot::ReportThreadFunc() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已启动，间隔: " << report_interval_seconds_ << "秒";
+
+  while (!stop_report_.load()) {
+    // 等待配置的间隔时间
+    for (int i = 0; i < report_interval_seconds_ * 10 && !stop_report_.load(); ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    if (stop_report_.load()) break;
+
+    // 生成并发送上报数据
+    auto mqtt_manager = mqtt_manager_.lock();
+    if (mqtt_manager) {
+      // TODO: 生成实际的通信数据
+      std::string data = "aIIACwAB8ugW";  // 示例数据
+      std::string payload = GenerateUplinkPayload(data);
+
+      // 将消息加入发送队列
+      mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+      LOG(INFO) << "[Robot " << robot_id_ << "] 上报数据已加入队列";
+    }
+  }
+
+  LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
+}
+
+std::string Robot::GetLastData() const {
+  nlohmann::json j;
+  j["robot_id"] = robot_id_;
+  j["battery_level"] = data_.battery_level;
+  j["battery_voltage"] = data_.battery_voltage;
+  j["battery_current"] = data_.battery_current;
+  j["battery_temperature"] = data_.battery_temperature;
+  j["main_motor_current"] = data_.main_motor_current;
+  j["slave_motor_current"] = data_.slave_motor_current;
+  j["working_duration"] = data_.working_duration;
+  j["total_run_count"] = data_.total_run_count;
+  j["current_lap_count"] = data_.current_lap_count;
+  j["solar_voltage"] = data_.solar_voltage;
+  j["solar_current"] = data_.solar_current;
+  j["board_temperature"] = data_.board_temperature;
+  return j.dump();
 }

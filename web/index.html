@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机器人管理系统</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 机器人管理系统</h1>
+
+        <!-- 添加机器人表单 -->
+        <div class="add-robot-form">
+            <h2 style="margin-bottom: 20px;">添加新机器人</h2>
+            <div id="message"></div>
+            <form id="addRobotForm">
+                <div class="form-group">
+                    <label for="robotId">机器人ID *</label>
+                    <input type="text" id="robotId" name="robotId" required
+                           placeholder="例如: 303930306350729d">
+                </div>
+                <div class="form-group">
+                    <label for="robotName">机器人名称</label>
+                    <input type="text" id="robotName" name="robotName"
+                           placeholder="例如: Robot 1">
+                </div>
+                <button type="submit" class="btn btn-primary">➕ 添加机器人</button>
+            </form>
+        </div>
+
+        <!-- 机器人列表 -->
+        <div id="robotsList">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 机器人详情模态框 -->
+    <div id="robotModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>机器人详细信息</h2>
+                <span class="close-btn" onclick="closeModal()">&times;</span>
+            </div>
+            <div id="robotDetails">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
