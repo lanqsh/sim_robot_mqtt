@@ -3,17 +3,22 @@ const API_BASE = window.location.origin;
 // 分页状态
 let currentPage = 1;
 let pageSize = 20;
-let allRobots = [];
+let totalPages = 0;
+let totalCount = 0;
 
-// 加载所有机器人
+// 加载机器人（从后端分页）
 async function loadRobots() {
     try {
-        const response = await fetch(`${API_BASE}/api/robots`);
-        allRobots = await response.json();
+        const response = await fetch(`${API_BASE}/api/robots?page=${currentPage}&pageSize=${pageSize}`);
+        const result = await response.json();
 
         const container = document.getElementById('robotsList');
 
-        if (allRobots.length === 0) {
+        // 更新分页和统计信息
+        totalPages = result.pagination.totalPages;
+        totalCount = result.pagination.total;
+
+        if (totalCount === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <h3>暂无机器人</h3>
@@ -22,18 +27,18 @@ async function loadRobots() {
             `;
             document.getElementById('pagination').innerHTML = '';
             document.getElementById('totalCount').textContent = '';
-            updateStatistics();
+            updateStatistics(result.statistics);
             return;
         }
 
         // 显示总数
-        document.getElementById('totalCount').textContent = `共 ${allRobots.length} 个机器人`;
+        document.getElementById('totalCount').textContent = `共 ${totalCount} 个机器人`;
 
         // 更新统计信息
-        updateStatistics();
+        updateStatistics(result.statistics);
 
         // 渲染当前页
-        renderPage();
+        renderPage(result.data);
     } catch (error) {
         console.error('加载机器人失败:', error);
         document.getElementById('robotsList').innerHTML = `
@@ -43,28 +48,26 @@ async function loadRobots() {
 }
 
 // 更新统计信息
-function updateStatistics() {
-    const total = allRobots.length;
-    const enabled = allRobots.filter(robot => robot.enabled).length;
-    const disabled = total - enabled;
+function updateStatistics(statistics) {
+    if (!statistics) {
+        document.getElementById('statTotal').textContent = 0;
+        document.getElementById('statEnabled').textContent = 0;
+        document.getElementById('statDisabled').textContent = 0;
+        return;
+    }
 
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statEnabled').textContent = enabled;
-    document.getElementById('statDisabled').textContent = disabled;
+    document.getElementById('statTotal').textContent = statistics.total;
+    document.getElementById('statEnabled').textContent = statistics.enabled;
+    document.getElementById('statDisabled').textContent = statistics.disabled;
 }
 
 // 渲染当前页的机器人
-function renderPage() {
+function renderPage(robots) {
     const container = document.getElementById('robotsList');
     container.innerHTML = '<div class="robots-grid"></div>';
     const grid = container.querySelector('.robots-grid');
 
-    // 计算当前页的机器人
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const pageRobots = allRobots.slice(startIndex, endIndex);
-
-    pageRobots.forEach(robot => {
+    robots.forEach(robot => {
             const card = document.createElement('div');
             card.className = 'robot-card';
             card.innerHTML = `
@@ -100,7 +103,6 @@ function renderPage() {
 
 // 渲染分页控件
 function renderPagination() {
-    const totalPages = Math.ceil(allRobots.length / pageSize);
     const pagination = document.getElementById('pagination');
 
     if (totalPages <= 1) {
@@ -162,7 +164,7 @@ function renderPagination() {
 // 跳转到指定页
 function goToPage(page) {
     currentPage = page;
-    renderPage();
+    loadRobots();
     // 滚动到顶部
     document.querySelector('.robots-container').scrollIntoView({ behavior: 'smooth' });
 }
@@ -171,7 +173,7 @@ function goToPage(page) {
 function changePageSize() {
     pageSize = parseInt(document.getElementById('pageSize').value);
     currentPage = 1;
-    renderPage();
+    loadRobots();
 }
 
 // 切换机器人启用状态
