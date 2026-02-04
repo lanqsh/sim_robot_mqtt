@@ -16,18 +16,13 @@
             <div id="message"></div>
             <form id="addRobotForm">
                 <div class="form-group">
-                    <label for="robotId">机器人ID *</label>
-                    <input type="text" id="robotId" name="robotId" required
-                           placeholder="例如: 303930306350729d">
-                </div>
-                <div class="form-group">
                     <label for="robotName">机器人名称</label>
                     <input type="text" id="robotName" name="robotName"
                            placeholder="例如: Robot 1">
                 </div>
                 <div class="form-group">
-                    <label for="serialNumber">序号</label>
-                    <input type="number" id="serialNumber" name="serialNumber" min="0"
+                    <label for="serialNumber">序号 *</label>
+                    <input type="number" id="serialNumber" name="serialNumber" min="1" required
                            placeholder="例如: 1">
                 </div>
                 <button type="submit" class="btn btn-primary">➡️ 添加机器人</button>
@@ -47,8 +42,8 @@
                     <input type="number" id="batchEndSerial" min="1" placeholder="10">
                 </div>
                 <div class="form-group">
-                    <label for="batchIdPrefix">ID前缀 (删除时可选)</label>
-                    <input type="text" id="batchIdPrefix" placeholder="robot_">
+                    <label for="batchNamePrefix">名称前缀 (可选)</label>
+                    <input type="text" id="batchNamePrefix" placeholder="Robot ">
                 </div>
                 <div class="batch-buttons">
                     <button class="btn btn-primary" onclick="batchAddRobots()">📄 批量添加</button>

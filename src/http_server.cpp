@@ -6,6 +6,8 @@
 #include <chrono>
 #include <fstream>
 #include <sstream>
+#include <random>
+#include <iomanip>
 
 #include "config_db.h"
 #include "mqtt_manager.h"
@@ -15,6 +17,40 @@
 #include "httplib.h"
 
 using json = nlohmann::json;
+
+// 生成UUID v4
+static std::string GenerateUUID() {
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(0, 15);
+  std::uniform_int_distribution<> dis2(8, 11);
+
+  std::stringstream ss;
+  ss << std::hex;
+
+  for (int i = 0; i < 8; i++) {
+    ss << dis(gen);
+  }
+  ss << "-";
+  for (int i = 0; i < 4; i++) {
+    ss << dis(gen);
+  }
+  ss << "-4";
+  for (int i = 0; i < 3; i++) {
+    ss << dis(gen);
+  }
+  ss << "-";
+  ss << dis2(gen);
+  for (int i = 0; i < 3; i++) {
+    ss << dis(gen);
+  }
+  ss << "-";
+  for (int i = 0; i < 12; i++) {
+    ss << dis(gen);
+  }
+
+  return ss.str();
+}
 
 HttpServer::HttpServer(std::shared_ptr<ConfigDb> config_db,
                        std::shared_ptr<MqttManager> mqtt_manager, int port)
@@ -132,18 +168,20 @@ void HttpServer::ServerThreadFunc() {
   svr.Post("/api/robots", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       json body = json::parse(req.body);
-      std::string robot_id = body["robot_id"];
       std::string robot_name = body.value("robot_name", "");
       int serial_number = body.value("serial_number", 0);
 
-      if (robot_id.empty()) {
+      if (serial_number <= 0) {
         json error;
         error["success"] = false;
-        error["error"] = "robot_id不能为空";
+        error["error"] = "序号必须大于0";
         res.status = 400;
         res.set_content(error.dump(), "application/json");
         return;
       }
+
+      // 自动生成UUID作为robot_id
+      std::string robot_id = GenerateUUID();
 
       // 添加到数据库
       bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, true);
@@ -154,6 +192,7 @@ void HttpServer::ServerThreadFunc() {
         json response;
         response["success"] = true;
         response["message"] = "机器人添加成功";
+        response["robot_id"] = robot_id;
         res.set_content(response.dump(), "application/json");
         LOG(INFO) << "API: 添加机器人成功 - " << robot_id << " (" << robot_name << ")";
       } else {
@@ -274,7 +313,7 @@ void HttpServer::ServerThreadFunc() {
       std::vector<ConfigDb::RobotInfo> robots;
       for (const auto& robot_json : body["robots"]) {
         ConfigDb::RobotInfo info;
-        info.robot_id = robot_json["robot_id"];
+        info.robot_id = GenerateUUID();  // 自动生成UUID
         info.robot_name = robot_json.value("robot_name", "");
         info.serial_number = robot_json.value("serial_number", 0);
         info.enabled = robot_json.value("enabled", true);

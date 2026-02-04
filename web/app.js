@@ -98,13 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('addRobotForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const robotId = document.getElementById('robotId').value.trim();
         const robotName = document.getElementById('robotName').value.trim();
-        const serialNumber = parseInt(document.getElementById('serialNumber').value) || 0;
+        const serialNumber = parseInt(document.getElementById('serialNumber').value);
         const messageDiv = document.getElementById('message');
 
-        if (!robotId) {
-            messageDiv.innerHTML = '<div class="error-message">机器人ID不能为空</div>';
+        if (!serialNumber || serialNumber < 1) {
+            messageDiv.innerHTML = '<div class="error-message">序号必须填写且大于0</div>';
             return;
         }
 
@@ -115,8 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    robot_id: robotId,
-                    robot_name: robotName || robotId,
+                    robot_name: robotName || `Robot ${serialNumber}`,
                     serial_number: serialNumber
                 })
             });
@@ -268,10 +266,10 @@ async function viewRobotData(robotId) {
 async function batchAddRobots() {
     const startSerial = parseInt(document.getElementById('batchStartSerial').value);
     const endSerial = parseInt(document.getElementById('batchEndSerial').value);
-    const idPrefix = document.getElementById('batchIdPrefix').value.trim();
+    const namePrefix = document.getElementById('batchNamePrefix').value.trim() || 'Robot ';
 
-    if (!startSerial || !endSerial || !idPrefix) {
-        alert('请填写完整的批量添加信息');
+    if (!startSerial || !endSerial) {
+        alert('请填写起始序号和结束序号');
         return;
     }
 
@@ -288,8 +286,7 @@ async function batchAddRobots() {
     const robots = [];
     for (let i = startSerial; i <= endSerial; i++) {
         robots.push({
-            robot_id: `${idPrefix}${i.toString().padStart(3, '0')}`,
-            robot_name: `Robot ${i}`,
+            robot_name: `${namePrefix}${i}`,
             serial_number: i,
             enabled: true
         });
@@ -312,7 +309,7 @@ async function batchAddRobots() {
             // 清空输入框
             document.getElementById('batchStartSerial').value = '';
             document.getElementById('batchEndSerial').value = '';
-            document.getElementById('batchIdPrefix').value = '';
+            document.getElementById('batchNamePrefix').value = '';
         } else {
             alert('批量添加失败: ' + result.error);
         }
@@ -326,7 +323,6 @@ async function batchAddRobots() {
 async function batchDeleteRobots() {
     const startSerial = parseInt(document.getElementById('batchStartSerial').value);
     const endSerial = parseInt(document.getElementById('batchEndSerial').value);
-    const idPrefix = document.getElementById('batchIdPrefix').value.trim();
 
     if (!startSerial || !endSerial) {
         alert('请填写起始序号和结束序号');
@@ -345,31 +341,24 @@ async function batchDeleteRobots() {
 
     let robot_ids = [];
 
-    // 如果没有填写ID前缀，从服务器获取指定序号范围的机器人
-    if (!idPrefix) {
-        try {
-            const response = await fetch(`${API_BASE}/api/robots`);
-            const robots = await response.json();
+    // 从服务器获取指定序号范围的机器人
+    try {
+        const response = await fetch(`${API_BASE}/api/robots`);
+        const robots = await response.json();
 
-            // 过滤出序号在范围内的机器人
-            robot_ids = robots
-                .filter(robot => robot.serial_number >= startSerial && robot.serial_number <= endSerial)
-                .map(robot => robot.robot_id);
+        // 过滤出序号在范围内的机器人
+        robot_ids = robots
+            .filter(robot => robot.serial_number >= startSerial && robot.serial_number <= endSerial)
+            .map(robot => robot.robot_id);
 
-            if (robot_ids.length === 0) {
-                alert('在指定序号范围内没有找到机器人');
-                return;
-            }
-        } catch (error) {
-            console.error('获取机器人列表失败:', error);
-            alert('获取机器人列表失败: ' + error.message);
+        if (robot_ids.length === 0) {
+            alert('在指定序号范围内没有找到机器人');
             return;
         }
-    } else {
-        // 有ID前缀，按照原来的逻辑生成ID列表
-        for (let i = startSerial; i <= endSerial; i++) {
-            robot_ids.push(`${idPrefix}${i.toString().padStart(3, '0')}`);
-        }
+    } catch (error) {
+        console.error('获取机器人列表失败:', error);
+        alert('获取机器人列表失败: ' + error.message);
+        return;
     }
 
     try {

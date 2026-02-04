@@ -51,7 +51,7 @@ bool ConfigDb::Init() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       robot_id TEXT UNIQUE NOT NULL,
       robot_name TEXT,
-      serial_number INTEGER DEFAULT 0,
+      serial_number INTEGER UNIQUE NOT NULL DEFAULT 0,
       enabled INTEGER DEFAULT 1
     );
   )";
@@ -65,9 +65,6 @@ bool ConfigDb::Init() {
   }
 
   LOG(INFO) << "表结构创建成功";
-
-  // 检查并迁移表结构
-  MigrateDatabase();
 
   // 插入默认配置（如果不存在）
   InsertDefaultConfig();
