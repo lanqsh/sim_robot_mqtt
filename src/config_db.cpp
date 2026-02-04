@@ -150,3 +150,40 @@ std::string ConfigDb::ReplacePlaceholder(const std::string& topic_template,
   }
   return topic;
 }
+
+bool ConfigDb::AddRobot(const std::string& robot_id, bool enabled) {
+  if (!initialized_) return false;
+
+  const char* sql = "INSERT OR REPLACE INTO robots (robot_id, enabled) VALUES (?, ?)";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  sqlite3_bind_text(stmt, 1, robot_id.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 2, enabled ? 1 : 0);
+
+  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  sqlite3_finalize(stmt);
+
+  return success;
+}
+
+bool ConfigDb::RemoveRobot(const std::string& robot_id) {
+  if (!initialized_) return false;
+
+  const char* sql = "DELETE FROM robots WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  sqlite3_bind_text(stmt, 1, robot_id.c_str(), -1, SQLITE_STATIC);
+
+  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  sqlite3_finalize(stmt);
+
+  return success;
+}

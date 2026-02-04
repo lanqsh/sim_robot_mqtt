@@ -28,6 +28,10 @@ class ConfigDb {
   std::vector<std::string> GetEnabledRobots();
   std::string GetPublishTopic(const std::string& robot_id);
   std::string GetSubscribeTopic(const std::string& robot_id);
+
+  // 新增和删除机器人
+  bool AddRobot(const std::string& robot_id, bool enabled = true);
+  bool RemoveRobot(const std::string& robot_id);
 };
 
 #endif  // CONFIG_DB_H_

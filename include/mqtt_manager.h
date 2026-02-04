@@ -44,6 +44,9 @@ class MqttManager : public virtual mqtt::callback,
   // 添加机器人（自动从配置获取主题）
   void AddRobot(std::shared_ptr<Robot> robot);
 
+  // 删除机器人
+  void RemoveRobot(const std::string& robot_id);
+
   // 发布消息
   void Publish(const std::string& robot_id);
 

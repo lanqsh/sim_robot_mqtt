@@ -82,6 +82,39 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
   }
 }
 
+void MqttManager::RemoveRobot(const std::string& robot_id) {
+  std::shared_ptr<Robot> robot;
+  std::string subscribe_topic;
+
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    auto it = robots_.find(robot_id);
+    if (it == robots_.end()) {
+      LOG(WARNING) << "机器人不存在: " << robot_id;
+      return;
+    }
+
+    robot = it->second;
+    subscribe_topic = robot->GetSubscribeTopic();
+
+    // 从映射中删除
+    robots_.erase(it);
+    topic_to_robot_.erase(subscribe_topic);
+  }
+
+  LOG(INFO) << "删除机器人: " << robot_id;
+  LOG(INFO) << "  订阅主题: " << subscribe_topic;
+
+  // 取消订阅该机器人的主题
+  try {
+    LOG(INFO) << "正在取消订阅主题: " << subscribe_topic;
+    client_->unsubscribe(subscribe_topic)->wait();
+    LOG(INFO) << "取消订阅完成!";
+  } catch (const mqtt::exception& exc) {
+    LOG(ERROR) << "取消订阅失败: " << exc.what();
+  }
+}
+
 void MqttManager::Publish(const std::string& robot_id) {
   std::shared_ptr<Robot> robot;
   {

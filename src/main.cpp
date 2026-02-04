@@ -74,8 +74,54 @@ int main(int argc, char* argv[]) {
 
   // 保持程序运行，不退出
   LOG(INFO) << "程序运行中，按 Ctrl+C 退出...";
+
+  // 测试逻辑：30秒后新增机器人，再过30秒后删除
+  const std::string test_robot_id = "0000000000000099";
+  bool test_robot_added = false;
+  auto start_time = std::chrono::steady_clock::now();
+
   while (true) {
     std::this_thread::sleep_for(1s);
+
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - start_time).count();
+
+    // 30秒后新增机器人
+    if (elapsed >= 30 && !test_robot_added) {
+      LOG(INFO) << "=== 测试：新增机器人 " << test_robot_id << " ===";
+
+      // 添加到数据库
+      if (config_db.AddRobot(test_robot_id, true)) {
+        LOG(INFO) << "数据库中已添加机器人";
+
+        // 创建并添加到MqttManager
+        auto test_robot = std::make_shared<Robot>(test_robot_id);
+        mqtt_manager->AddRobot(test_robot);
+        LOG(INFO) << "MqttManager中已添加机器人";
+
+        test_robot_added = true;
+      } else {
+        LOG(ERROR) << "添加机器人到数据库失败";
+      }
+    }
+
+    // 60秒后删除机器人
+    if (elapsed >= 60 && test_robot_added) {
+      LOG(INFO) << "=== 测试：删除机器人 " << test_robot_id << " ===";
+
+      // 从MqttManager删除
+      mqtt_manager->RemoveRobot(test_robot_id);
+      LOG(INFO) << "MqttManager中已删除机器人";
+
+      // 从数据库删除
+      if (config_db.RemoveRobot(test_robot_id)) {
+        LOG(INFO) << "数据库中已删除机器人";
+      } else {
+        LOG(ERROR) << "从数据库删除机器人失败";
+      }
+
+      test_robot_added = false;
+    }
   }
 
   return 0;
