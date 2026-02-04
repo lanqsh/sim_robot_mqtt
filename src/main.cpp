@@ -63,38 +63,29 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "Duration: " << duration << " seconds";
   LOG(INFO) << "启用的机器人 (" << enabled_robots.size() << "):";
   for (const auto& id : enabled_robots) {
-    LOG(INFO) << "  - " << id;
-  }
-  LOG(INFO) << "==================";
-
-  // 创建MQTT管理器
-  MqttManager mqtt_manager(broker, client_id, qos, config_db);
-
-  // 连接到broker
-  if (!mqtt_manager.Connect(keepalive)) {
-    LOG(ERROR) << "连接失败";
-    return 1;
-  }
-
-  // 创建所有启用的机器人并添加到管理器
-  for (const auto& robot_id : enabled_robots) {
-    auto robot = std::make_shared<Robot>(robot_id);
-    mqtt_manager.AddRobot(robot);
-  }
-
-  // 发布消息循环
-  LOG(INFO) << "开始发布消息 (运行 " << duration << " 秒)...";
-  for (int i = 0; i < duration; ++i) {
-    // 为所有启用的机器人发布消息
-    for (const auto& robot_id : enabled_robots) {
-      mqtt_manager.Publish(robot_id);
+    // 初始化数据库（构造函数会尝试初始化）
+    ConfigDb config_db("config.db");
+    if (!config_db.IsInitialized()) {
+      LOG(ERROR) << "数据库初始化失败，退出";
+      return 1;
     }
-    std::this_thread::sleep_for(std::chrono::seconds(publish_interval));
-  }
 
-  LOG(INFO) << "发布完成";
-  mqtt_manager.Disconnect();
+    // 从数据库加载配置
+    std::string broker = config_db.GetValue("broker", "tcp://test.mosquitto.org:1883");
+    std::string client_id_prefix = config_db.GetValue("client_id_prefix", "sim_robot_cpp");
+    int qos = config_db.GetIntValue("qos", 1);
+    int keepalive = config_db.GetIntValue("keepalive", 60);
+    int publish_interval = config_db.GetIntValue("publish_interval", 10);
+    int duration = config_db.GetIntValue("default_duration", 30);
 
-  google::ShutdownGoogleLogging();
-  return 0;
-}
+    const std::string client_id = client_id_prefix;
+
+    LOG(INFO) << "Broker: " << broker << ", Client ID: " << client_id << ", QoS: " << qos;
+
+    // 创建并运行 MQTT 管理器（内部会负责加载机器人、订阅与定期刷新）
+    MqttManager mqtt_manager(broker, client_id, qos, config_db);
+    if (!mqtt_manager.Run(keepalive, duration, publish_interval)) {
+      LOG(ERROR) << "MQTT 管理器运行失败";
+      return 1;
+    }
+    }

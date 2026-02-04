@@ -10,6 +10,7 @@ class ConfigDb {
  private:
   sqlite3* db_;
   std::string db_path_;
+  bool initialized_;
 
   std::string ReplacePlaceholder(const std::string& topic_template,
                                  const std::string& robot_id);
@@ -17,8 +18,9 @@ class ConfigDb {
  public:
   explicit ConfigDb(const std::string& path = "config.db");
   ~ConfigDb();
-
+  // 初始化已移至构造函数中，保持兼容仍然提供 Init()
   bool Init();
+  bool IsInitialized() const { return initialized_; }
   void InsertDefaultConfig();
   std::string GetValue(const std::string& key,
                        const std::string& default_value = "");

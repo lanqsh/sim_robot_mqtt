@@ -54,9 +54,15 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
 
   // 设置机器人的主题
   robot->SetTopics(publish_topic, subscribe_topic);
-
-  robots_[robot_id] = robot;
-  topic_to_robot_[subscribe_topic] = robot_id;
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    if (robots_.find(robot_id) != robots_.end()) {
+      LOG(INFO) << "机器人已存在: " << robot_id;
+      return;
+    }
+    robots_[robot_id] = robot;
+    topic_to_robot_[subscribe_topic] = robot_id;
+  }
 
   LOG(INFO) << "添加机器人: " << robot_id;
   LOG(INFO) << "  发布主题: " << publish_topic;
@@ -73,13 +79,16 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
 }
 
 void MqttManager::Publish(const std::string& robot_id) {
-  auto it = robots_.find(robot_id);
-  if (it == robots_.end()) {
-    LOG(WARNING) << "未找到机器人: " << robot_id;
-    return;
+  std::shared_ptr<Robot> robot;
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    auto it = robots_.find(robot_id);
+    if (it == robots_.end()) {
+      LOG(WARNING) << "未找到机器人: " << robot_id;
+      return;
+    }
+    robot = it->second;
   }
-
-  auto robot = it->second;
   // TODO: 生成实际的通信数据
   std::string data = "aIIACwAB8ugW";  // 示例数据
   std::string payload = robot->GenerateUplinkPayload(data);
@@ -93,6 +102,86 @@ void MqttManager::Publish(const std::string& robot_id) {
   } catch (const mqtt::exception& exc) {
     LOG(ERROR) << "发布失败: " << exc.what();
   }
+}
+
+void MqttManager::PublishRaw(const std::string& topic, const std::string& payload) {
+  try {
+    auto msg = mqtt::make_message(topic, payload);
+    msg->set_qos(qos_);
+    client_->publish(msg)->wait();
+    LOG(INFO) << "已向主题发布原始消息: " << topic << " -> " << payload;
+  } catch (const mqtt::exception& exc) {
+    LOG(ERROR) << "原始发布失败: " << exc.what();
+  }
+}
+
+void MqttManager::PublishAll() {
+  std::vector<std::shared_ptr<Robot>> copy;
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    for (const auto& kv : robots_) copy.push_back(kv.second);
+  }
+
+  for (const auto& robot : copy) {
+    Publish(robot->GetId());
+  }
+}
+
+void MqttManager::RefreshRobots() {
+  auto enabled = config_db_.GetEnabledRobots();
+  std::vector<std::string> to_add;
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    for (const auto& id : enabled) {
+      if (robots_.find(id) == robots_.end()) to_add.push_back(id);
+    }
+  }
+
+  for (const auto& id : to_add) {
+    LOG(INFO) << "检测到新机器人, 添加: " << id;
+    auto robot = std::make_shared<Robot>(id);
+    AddRobot(robot);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  }
+}
+
+bool MqttManager::Run(int keepalive, int duration_seconds, int publish_interval_seconds) {
+  if (running_.load()) return false;
+  running_.store(true);
+
+  if (!Connect(keepalive)) {
+    running_.store(false);
+    return false;
+  }
+
+  // 初始加载机器人并注册
+  RefreshRobots();
+
+  // 启动后台刷新线程
+  stop_refresh_.store(false);
+  refresher_thread_ = std::thread([this]() {
+    while (!stop_refresh_.load()) {
+      std::this_thread::sleep_for(std::chrono::seconds(5));
+      RefreshRobots();
+    }
+  });
+
+  // 发布循环
+  for (int i = 0; i < duration_seconds; i += publish_interval_seconds) {
+    PublishAll();
+    std::this_thread::sleep_for(std::chrono::seconds(publish_interval_seconds));
+  }
+
+  Stop();
+  return true;
+}
+
+void MqttManager::Stop() {
+  if (!running_.load()) return;
+  stop_refresh_.store(true);
+  if (refresher_thread_.joinable()) refresher_thread_.join();
+  Disconnect();
+  running_.store(false);
 }
 
 void MqttManager::connection_lost(const std::string& cause) {

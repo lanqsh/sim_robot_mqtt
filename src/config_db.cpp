@@ -2,7 +2,13 @@
 
 #include <glog/logging.h>
 
-ConfigDb::ConfigDb(const std::string& path) : db_(nullptr), db_path_(path) {}
+ConfigDb::ConfigDb(const std::string& path)
+    : db_(nullptr), db_path_(path), initialized_(false) {
+  initialized_ = Init();
+  if (!initialized_) {
+    LOG(ERROR) << "数据库初始化失败: " << db_path_;
+  }
+}
 
 ConfigDb::~ConfigDb() {
   if (db_) {
