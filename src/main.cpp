@@ -62,30 +62,21 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "QoS: " << qos;
   LOG(INFO) << "Duration: " << duration << " seconds";
   LOG(INFO) << "启用的机器人 (" << enabled_robots.size() << "):";
-  for (const auto& id : enabled_robots) {
-    // 初始化数据库（构造函数会尝试初始化）
-    ConfigDb config_db("config.db");
-    if (!config_db.IsInitialized()) {
-      LOG(ERROR) << "数据库初始化失败，退出";
-      return 1;
-    }
+  for (const auto& id : enabled_robots) LOG(INFO) << "  - " << id;
+  LOG(INFO) << "==================";
 
-    // 从数据库加载配置
-    std::string broker = config_db.GetValue("broker", "tcp://test.mosquitto.org:1883");
-    std::string client_id_prefix = config_db.GetValue("client_id_prefix", "sim_robot_cpp");
-    int qos = config_db.GetIntValue("qos", 1);
-    int keepalive = config_db.GetIntValue("keepalive", 60);
-    int publish_interval = config_db.GetIntValue("publish_interval", 10);
-    int duration = config_db.GetIntValue("default_duration", 30);
+  // 创建并运行 MQTT 管理器（内部会负责加载机器人、订阅与定期刷新）
+  MqttManager mqtt_manager(broker, client_id, qos, config_db);
+  if (!mqtt_manager.Run(keepalive)) {
+    LOG(ERROR) << "MQTT 管理器运行失败";
+    return 1;
+  }
 
-    const std::string client_id = client_id_prefix;
+  // 保持程序运行，不退出
+  LOG(INFO) << "程序运行中，按 Ctrl+C 退出...";
+  while (true) {
+    std::this_thread::sleep_for(1s);
+  }
 
-    LOG(INFO) << "Broker: " << broker << ", Client ID: " << client_id << ", QoS: " << qos;
-
-    // 创建并运行 MQTT 管理器（内部会负责加载机器人、订阅与定期刷新）
-    MqttManager mqtt_manager(broker, client_id, qos, config_db);
-    if (!mqtt_manager.Run(keepalive, duration, publish_interval)) {
-      LOG(ERROR) << "MQTT 管理器运行失败";
-      return 1;
-    }
-    }
+  return 0;
+}

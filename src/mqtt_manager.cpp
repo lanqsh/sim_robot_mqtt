@@ -145,7 +145,7 @@ void MqttManager::RefreshRobots() {
   }
 }
 
-bool MqttManager::Run(int keepalive, int duration_seconds, int publish_interval_seconds) {
+bool MqttManager::Run(int keepalive) {
   if (running_.load()) return false;
   running_.store(true);
 
@@ -157,31 +157,133 @@ bool MqttManager::Run(int keepalive, int duration_seconds, int publish_interval_
   // 初始加载机器人并注册
   RefreshRobots();
 
-  // 启动后台刷新线程
-  stop_refresh_.store(false);
-  refresher_thread_ = std::thread([this]() {
-    while (!stop_refresh_.load()) {
-      std::this_thread::sleep_for(std::chrono::seconds(5));
-      RefreshRobots();
-    }
-  });
+  // 启动后台发送线程
+  stop_sender_.store(false);
+  sender_thread_ = std::thread(&MqttManager::SenderThreadFunc, this);
 
-  // 发布循环
-  for (int i = 0; i < duration_seconds; i += publish_interval_seconds) {
-    PublishAll();
-    std::this_thread::sleep_for(std::chrono::seconds(publish_interval_seconds));
-  }
+  // 启动后台接收处理线程
+  stop_receiver_.store(false);
+  receiver_thread_ = std::thread(&MqttManager::ReceiverThreadFunc, this);
 
-  Stop();
   return true;
 }
 
 void MqttManager::Stop() {
   if (!running_.load()) return;
-  stop_refresh_.store(true);
-  if (refresher_thread_.joinable()) refresher_thread_.join();
+  running_.store(false);  // 停止主循环
+
+  // 停止发送线程
+  stop_sender_.store(true);
+  queue_cv_.notify_all();  // 唤醒发送线程
+  if (sender_thread_.joinable()) sender_thread_.join();
+
+  // 停止接收线程
+  stop_receiver_.store(true);
+  received_queue_cv_.notify_all();  // 唤醒接收线程
+  if (receiver_thread_.joinable()) receiver_thread_.join();
+
   Disconnect();
-  running_.store(false);
+}
+
+void MqttManager::EnqueueMessage(const std::string& topic, const std::string& payload, int qos) {
+  {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    message_queue_.push({topic, payload, qos});
+  }
+  queue_cv_.notify_one();  // 通知发送线程
+}
+
+void MqttManager::SenderThreadFunc() {
+  LOG(INFO) << "消息发送线程已启动";
+
+  while (!stop_sender_.load()) {
+    std::unique_lock<std::mutex> lock(queue_mutex_);
+
+    // 等待队列中有消息或收到停止信号
+    queue_cv_.wait(lock, [this] {
+      return !message_queue_.empty() || stop_sender_.load();
+    });
+
+    // 处理队列中的所有消息
+    while (!message_queue_.empty() && !stop_sender_.load()) {
+      PendingMessage msg = message_queue_.front();
+      message_queue_.pop();
+      lock.unlock();  // 释放锁以便其他线程可以入队
+
+      // 发送消息
+      try {
+        auto mqtt_msg = mqtt::make_message(msg.topic, msg.payload);
+        mqtt_msg->set_qos(msg.qos);
+        client_->publish(mqtt_msg);
+        LOG(INFO) << "已从队列发送消息到主题: " << msg.topic;
+      } catch (const mqtt::exception& exc) {
+        LOG(ERROR) << "发送队列消息失败: " << exc.what();
+      }
+
+      lock.lock();  // 重新获取锁以检查队列
+    }
+  }
+
+  LOG(INFO) << "消息发送线程已停止";
+}
+
+void MqttManager::ReceiverThreadFunc() {
+  LOG(INFO) << "消息接收处理线程已启动";
+
+  while (!stop_receiver_.load()) {
+    std::unique_lock<std::mutex> lock(received_queue_mutex_);
+
+    // 等待队列中有消息或收到停止信号
+    received_queue_cv_.wait(lock, [this] {
+      return !received_queue_.empty() || stop_receiver_.load();
+    });
+
+    // 处理队列中的所有消息
+    while (!received_queue_.empty() && !stop_receiver_.load()) {
+      ReceivedMessage msg = received_queue_.front();
+      received_queue_.pop();
+      lock.unlock();  // 释放锁以便其他线程可以入队
+
+      // 处理接收到的消息
+      try {
+        // 解析下行JSON数据
+        json j = json::parse(msg.payload);
+
+        // 提取devEui和data字段
+        if (!j.contains("devEui") || !j.contains("data")) {
+          LOG(WARNING) << "消息缺少必需字段 devEui 或 data";
+          lock.lock();
+          continue;
+        }
+
+        std::string dev_eui = j["devEui"].get<std::string>();
+        std::string data = j["data"].get<std::string>();
+
+        // 根据devEui查找对应的机器人
+        std::shared_ptr<Robot> robot;
+        {
+          std::lock_guard<std::mutex> robots_lock(robots_mutex_);
+          auto robot_it = robots_.find(dev_eui);
+          if (robot_it != robots_.end()) {
+            robot = robot_it->second;
+          }
+        }
+
+        if (robot) {
+          LOG(INFO) << "将消息路由到机器人: " << dev_eui;
+          robot->HandleMessage(data);
+        } else {
+          LOG(WARNING) << "未找到devEui对应的机器人: " << dev_eui;
+        }
+      } catch (const json::exception& e) {
+        LOG(ERROR) << "JSON解析失败: " << e.what();
+      }
+
+      lock.lock();  // 重新获取锁以检查队列
+    }
+  }
+
+  LOG(INFO) << "消息接收处理线程已停止";
 }
 
 void MqttManager::connection_lost(const std::string& cause) {
@@ -194,30 +296,12 @@ void MqttManager::message_arrived(mqtt::const_message_ptr msg) {
 
   LOG(INFO) << "收到消息 - 主题: " << topic;
 
-  try {
-    // 解析下行JSON数据
-    json j = json::parse(payload);
-
-    // 提取devEui和data字段
-    if (!j.contains("devEui") || !j.contains("data")) {
-      LOG(WARNING) << "消息缺少必需字段 devEui 或 data";
-      return;
-    }
-
-    std::string dev_eui = j["devEui"].get<std::string>();
-    std::string data = j["data"].get<std::string>();
-
-    // 根据devEui查找对应的机器人
-    auto robot_it = robots_.find(dev_eui);
-    if (robot_it != robots_.end()) {
-      LOG(INFO) << "将消息路由到机器人: " << dev_eui;
-      robot_it->second->HandleMessage(data);
-    } else {
-      LOG(WARNING) << "未找到devEui对应的机器人: " << dev_eui;
-    }
-  } catch (const json::exception& e) {
-    LOG(ERROR) << "JSON解析失败: " << e.what();
+  // 将接收到的消息放入接收队列，由接收线程处理
+  {
+    std::lock_guard<std::mutex> lock(received_queue_mutex_);
+    received_queue_.push({topic, payload});
   }
+  received_queue_cv_.notify_one();  // 通知接收处理线程
 }
 
 void MqttManager::delivery_complete(mqtt::delivery_token_ptr token) {}
