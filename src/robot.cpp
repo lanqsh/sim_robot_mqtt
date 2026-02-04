@@ -150,3 +150,6 @@ void Robot::ReportThreadFunc() {
       LOG(INFO) << "[Robot " << robot_id_ << "] 上报数据已加入队列";
     }
   }
+
+  LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
+}

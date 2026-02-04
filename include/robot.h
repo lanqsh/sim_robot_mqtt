@@ -199,7 +199,7 @@ class Robot {
   RobotData data_;  // 机器人完整数据
 
   // MQTT管理器（用于发送消息）
-  MqttManager* mqtt_manager_;
+  std::weak_ptr<MqttManager> mqtt_manager_;
 
   // 上报线程相关
   std::thread report_thread_;
