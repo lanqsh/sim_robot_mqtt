@@ -54,6 +54,10 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
 
   // 设置机器人的主题
   robot->SetTopics(publish_topic, subscribe_topic);
+
+  // 设置MQTT管理器（启动上报线程）
+  robot->SetMqttManager(shared_from_this());
+
   {
     std::lock_guard<std::mutex> lock(robots_mutex_);
     if (robots_.find(robot_id) != robots_.end()) {

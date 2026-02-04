@@ -28,7 +28,8 @@ struct ReceivedMessage {
   std::string payload;
 };
 
-class MqttManager : public virtual mqtt::callback {
+class MqttManager : public virtual mqtt::callback,
+                    public std::enable_shared_from_this<MqttManager> {
  public:
   MqttManager(const std::string& broker, const std::string& client_id, int qos,
               ConfigDb& config_db);

@@ -66,8 +66,8 @@ int main(int argc, char* argv[]) {
   LOG(INFO) << "==================";
 
   // 创建并运行 MQTT 管理器（内部会负责加载机器人、订阅与定期刷新）
-  MqttManager mqtt_manager(broker, client_id, qos, config_db);
-  if (!mqtt_manager.Run(keepalive)) {
+  auto mqtt_manager = std::make_shared<MqttManager>(broker, client_id, qos, config_db);
+  if (!mqtt_manager->Run(keepalive)) {
     LOG(ERROR) << "MQTT 管理器运行失败";
     return 1;
   }
