@@ -28,6 +28,7 @@ add_executable(robot
     src/mqtt_manager.cpp
     src/robot.cpp
     src/protocol.cpp
+    src/http_server.cpp
 )
 
 target_link_libraries(robot PRIVATE

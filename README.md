@@ -1,6 +1,6 @@
 # sim_robot_mqtt
 
-一个使用 MQTT 协议的机器人模拟器，基于 C++ 和 Eclipse Paho MQTT 库实现。
+一个使用 MQTT 协议的机器人模拟器，基于 C++ 和 Eclipse Paho MQTT 库实现，支持Web界面管理。
 
 ## 项目简介
 
@@ -8,6 +8,19 @@
 - 支持多个发布主题，发送遥测数据（包含序列号、电池电量和机器人 ID）
 - 支持多个订阅主题，接收控制命令
 - 使用 SQLite 数据库存储配置，支持动态机器人 ID 替换
+- 提供 HTTP REST API 和 Web 前端界面进行机器人管理
+- 支持运行时动态添加/删除机器人
+
+## 功能特性
+
+- ✅ **MQTT通信**: 基于Paho MQTT库的异步消息收发
+- ✅ **多机器人管理**: 支持多个机器人同时运行
+- ✅ **智能指针**: 使用shared_ptr和weak_ptr避免内存泄漏
+- ✅ **消息队列**: 发送和接收消息分别使用独立队列和线程处理
+- ✅ **自动上报**: 机器人定时自动上报数据（间隔可配置）
+- ✅ **Web管理界面**: 通过浏览器查看和管理机器人
+- ✅ **REST API**: 提供HTTP接口供第三方调用
+- ✅ **数据库配置**: 所有配置存储在SQLite数据库
 
 ## 依赖项
 
@@ -17,6 +30,8 @@
 - Eclipse Paho MQTT C++ 库
 - SQLite3 库（用于配置存储）
 - nlohmann/json 库（用于JSON解析）
+- glog 日志库
+- cpp-httplib 库（用于HTTP服务器）
 
 ### 安装依赖库
 
@@ -41,6 +56,10 @@ sudo apt install libgoogle-glog-dev
 
 # 安装 nlohmann-json 库
 sudo apt install nlohmann-json3-dev
+
+# 安装 cpp-httplib 库
+sudo apt install libhttplib-dev
+# 或使用 vcpkg: vcpkg install cpp-httplib
 ```
 
 ## 编译方法
@@ -74,8 +93,8 @@ make
 | client_id_prefix | sim_robot_cpp | 客户端 ID 前缀 |
 | qos | 1 | 消息质量等级 (0/1/2) |
 | keepalive | 60 | 心跳间隔（秒） |
-| publish_interval | 1 | 发布消息间隔（秒） |
-| default_duration | 30 | 默认运行时长（秒） |
+| publish_interval | 10 | 机器人自动上报间隔（秒） |
+| http_port | 8080 | HTTP服务器端口 |
 | publish_topic | application/.../device/{robot_id}/event/up | 发布主题模板 |
 | subscribe_topic | application/.../device/{robot_id}/command/down | 订阅主题模板 |
 
@@ -88,17 +107,18 @@ make
 #### 2. robots 表
 存储机器人列表：
 
-| id | robot_id | enabled | 说明 |
-|----|----------|---------|------|
-| 1 | 303930306350729d | 1 | 启用 |
-| 2 | 303930306350729e | 0 | 禁用 |
-| 3 | 303930306350729f | 0 | 禁用 |
+| id | robot_id | robot_name | enabled | 说明 |
+|----|----------|------------|---------|------|
+| 1 | 303930306350729d | Robot 1 | 1 | 启用 |
+| 2 | 303930306350729e | Robot 2 | 0 | 禁用 |
+| 3 | 303930306350729f | NULL | 0 | 禁用 |
 
 **说明**：
 - `robot_id`：机器人的唯一标识符
+- `robot_name`：机器人的显示名称（可选）
 - `enabled`：1 表示启用，0 表示禁用
-- 程序会自动使用第一个启用的机器人
-- 支持多个机器人，但每次只运行一个
+- 程序启动时会自动加载所有启用的机器人
+- 支持运行时动态添加和删除机器人
 
 ### 修改配置
 
@@ -124,11 +144,76 @@ UPDATE mqtt_config SET value = 'application/your-app-id/device/{robot_id}/comman
 SELECT * FROM robots;
 
 # 添加新机器人
-INSERT INTO robots (robot_id, enabled) VALUES ('robot_new_001', 1);
+INSERT INTO robots (robot_id, robot_name, enabled) VALUES ('robot_new_001', 'New Robot', 1);
 
 # 启用/禁用机器人
 UPDATE robots SET enabled = 1 WHERE robot_id = '303930306350729e';
 UPDATE robots SET enabled = 0 WHERE robot_id = '303930306350729d';
+
+# 修改机器人名称
+UPDATE robots SET robot_name = 'My Custom Robot' WHERE robot_id = '303930306350729d';
+```
+
+## Web管理界面
+
+程序启动后会自动开启HTTP服务器，可以通过浏览器访问Web管理界面。
+
+### 前端文件结构
+
+```
+web/
+├── index.html    # HTML结构
+├── style.css     # CSS样式
+└── app.js        # JavaScript逻辑
+```
+
+前端采用分离式设计，便于维护和扩展。
+
+### 访问地址
+
+```
+http://localhost:8080
+```
+
+端口可以在数据库中配置（`http_port`字段）。
+
+### 功能特性
+
+- **机器人列表展示**: 查看所有机器人及其状态（启用/禁用）
+- **添加机器人**: 填写机器人ID和名称，点击添加即可
+- **删除机器人**: 点击删除按钮移除机器人
+- **查看数据**: 点击机器人卡片查看详细的实时数据
+- **自动刷新**: 页面每10秒自动刷新机器人列表
+
+### REST API
+
+可以通过REST API进行机器人管理：
+
+#### 获取所有机器人
+```bash
+GET http://localhost:8080/api/robots
+```
+
+#### 添加机器人
+```bash
+POST http://localhost:8080/api/robots
+Content-Type: application/json
+
+{
+  "robot_id": "303930306350729g",
+  "robot_name": "Test Robot"
+}
+```
+
+#### 删除机器人
+```bash
+DELETE http://localhost:8080/api/robots/303930306350729g
+```
+
+#### 获取机器人详细数据
+```bash
+GET http://localhost:8080/api/robots/303930306350729d/data
+```
 
 # 删除机器人
 DELETE FROM robots WHERE robot_id = 'robot_new_001';

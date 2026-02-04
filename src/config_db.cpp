@@ -33,6 +33,7 @@ bool ConfigDb::Init() {
     CREATE TABLE IF NOT EXISTS robots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       robot_id TEXT UNIQUE NOT NULL,
+      robot_name TEXT,
       enabled INTEGER DEFAULT 1
     );
   )";
@@ -71,12 +72,13 @@ void ConfigDb::InsertDefaultConfig() {
     ('qos', '1'),
     ('keepalive', '60'),
     ('publish_interval', '10'),
+    ('http_port', '8080'),
     ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/event/up'),
     ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down');
 
-    INSERT OR IGNORE INTO robots (robot_id, enabled) VALUES
-    ('303930306350729d', 1),
-    ('303930306350729e', 0),
+    INSERT OR IGNORE INTO robots (robot_id, robot_name, enabled) VALUES
+    ('303930306350729d', 'Robot 1', 1),
+    ('303930306350729e', 'Robot 2', 0),
     ('303930306350729f', 1);
   )";
 
@@ -150,11 +152,13 @@ std::string ConfigDb::ReplacePlaceholder(const std::string& topic_template,
   return topic;
 }
 
-bool ConfigDb::AddRobot(const std::string& robot_id, bool enabled) {
+bool ConfigDb::AddRobot(const std::string& robot_id,
+                        const std::string& robot_name, bool enabled) {
   if (!initialized_) return false;
 
   const char* sql =
-      "INSERT OR REPLACE INTO robots (robot_id, enabled) VALUES (?, ?)";
+      "INSERT OR REPLACE INTO robots (robot_id, robot_name, enabled) VALUES "
+      "(?, ?, ?)";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -162,7 +166,8 @@ bool ConfigDb::AddRobot(const std::string& robot_id, bool enabled) {
   }
 
   sqlite3_bind_text(stmt, 1, robot_id.c_str(), -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 2, enabled ? 1 : 0);
+  sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
 
   bool success = sqlite3_step(stmt) == SQLITE_DONE;
   sqlite3_finalize(stmt);
@@ -186,4 +191,28 @@ bool ConfigDb::RemoveRobot(const std::string& robot_id) {
   sqlite3_finalize(stmt);
 
   return success;
+}
+
+std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
+  std::vector<RobotInfo> robots;
+  if (!initialized_) return robots;
+
+  const char* sql = "SELECT robot_id, robot_name, enabled FROM robots";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return robots;
+  }
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    RobotInfo info;
+    info.robot_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    info.robot_name = name ? name : "";
+    info.enabled = sqlite3_column_int(stmt, 2) != 0;
+    robots.push_back(info);
+  }
+
+  sqlite3_finalize(stmt);
+  return robots;
 }

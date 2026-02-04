@@ -29,9 +29,15 @@ class ConfigDb {
   std::string GetPublishTopic(const std::string& robot_id);
   std::string GetSubscribeTopic(const std::string& robot_id);
 
-  // 新增和删除机器人
-  bool AddRobot(const std::string& robot_id, bool enabled = true);
+  // 机器人管理
+  struct RobotInfo {
+    std::string robot_id;
+    std::string robot_name;
+    bool enabled;
+  };
+  bool AddRobot(const std::string& robot_id, const std::string& robot_name, bool enabled = true);
   bool RemoveRobot(const std::string& robot_id);
+  std::vector<RobotInfo> GetAllRobots();  // 获取所有机器人（包括禁用的）
 };
 
 #endif  // CONFIG_DB_H_

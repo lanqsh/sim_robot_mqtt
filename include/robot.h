@@ -194,6 +194,10 @@ class Robot {
   RobotData& GetData() { return data_; }
   const RobotData& GetData() const { return data_; }
 
+  // HTTP API支持
+  bool IsRunning() const { return !stop_report_; }
+  std::string GetLastData() const;  // 获取最后一次上报的数据（JSON格式）
+
  private:
   std::string robot_id_;
   std::string publish_topic_;

@@ -1,6 +1,7 @@
 #include "robot.h"
 
 #include <glog/logging.h>
+#include <json.hpp>
 
 #include <fstream>
 #include <sstream>
@@ -158,4 +159,22 @@ void Robot::ReportThreadFunc() {
   }
 
   LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
+}
+
+std::string Robot::GetLastData() const {
+  nlohmann::json j;
+  j["robot_id"] = robot_id_;
+  j["battery_level"] = data_.battery_level;
+  j["battery_voltage"] = data_.battery_voltage;
+  j["battery_current"] = data_.battery_current;
+  j["battery_temperature"] = data_.battery_temperature;
+  j["main_motor_current"] = data_.main_motor_current;
+  j["slave_motor_current"] = data_.slave_motor_current;
+  j["working_duration"] = data_.working_duration;
+  j["total_run_count"] = data_.total_run_count;
+  j["current_lap_count"] = data_.current_lap_count;
+  j["solar_voltage"] = data_.solar_voltage;
+  j["solar_current"] = data_.solar_current;
+  j["board_temperature"] = data_.board_temperature;
+  return j.dump();
 }

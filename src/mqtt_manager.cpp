@@ -86,6 +86,44 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
   }
 }
 
+void MqttManager::AddRobot(const std::string& robot_id) {
+  std::string publish_topic = config_db_.GetPublishTopic(robot_id);
+  std::string subscribe_topic = config_db_.GetSubscribeTopic(robot_id);
+
+  auto robot = std::make_shared<Robot>(robot_id);
+  robot->SetTopics(publish_topic, subscribe_topic);
+
+  // 设置上报间隔
+  int report_interval = config_db_.GetIntValue("publish_interval", 10);
+  robot->SetReportInterval(report_interval);
+
+  // 设置MQTT管理器（启动上报线程）
+  robot->SetMqttManager(shared_from_this());
+
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    if (robots_.find(robot_id) != robots_.end()) {
+      LOG(INFO) << "机器人已存在: " << robot_id;
+      return;
+    }
+    robots_[robot_id] = robot;
+    topic_to_robot_[subscribe_topic] = robot_id;
+  }
+
+  LOG(INFO) << "添加机器人: " << robot_id;
+  LOG(INFO) << "  发布主题: " << publish_topic;
+  LOG(INFO) << "  订阅主题: " << subscribe_topic;
+
+  // 订阅该机器人的主题
+  try {
+    LOG(INFO) << "正在订阅主题: " << subscribe_topic;
+    client_->subscribe(subscribe_topic, qos_)->wait();
+    LOG(INFO) << "订阅完成!";
+  } catch (const mqtt::exception& exc) {
+    LOG(ERROR) << "订阅失败: " << exc.what();
+  }
+}
+
 void MqttManager::RemoveRobot(const std::string& robot_id) {
   std::shared_ptr<Robot> robot;
   std::string subscribe_topic;
@@ -117,6 +155,15 @@ void MqttManager::RemoveRobot(const std::string& robot_id) {
   } catch (const mqtt::exception& exc) {
     LOG(ERROR) << "取消订阅失败: " << exc.what();
   }
+}
+
+std::shared_ptr<Robot> MqttManager::GetRobot(const std::string& robot_id) {
+  std::lock_guard<std::mutex> lock(robots_mutex_);
+  auto it = robots_.find(robot_id);
+  if (it != robots_.end()) {
+    return it->second;
+  }
+  return nullptr;
 }
 
 void MqttManager::Publish(const std::string& robot_id) {
