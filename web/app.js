@@ -23,7 +23,7 @@ async function loadRobots() {
 
         robots.forEach(robot => {
             const card = document.createElement('div');
-            card.className = `robot-card ${robot.enabled ? 'enabled' : 'disabled'}`;
+            card.className = 'robot-card';
             card.innerHTML = `
                 <div class="robot-header">
                     <div class="robot-name">
@@ -36,7 +36,7 @@ async function loadRobots() {
                 </div>
                 <div class="robot-id">ID: ${robot.robot_id}</div>
                 <div class="robot-actions">
-                    <button class="btn ${robot.enabled ? 'btn-warning' : 'btn-success'}"
+                    <button class="btn ${robot.enabled ? 'btn-warning' : 'btn-success'} ${!robot.enabled ? 'disabled-btn' : ''}"
                             onclick="toggleRobotStatus('${robot.robot_id}', ${robot.enabled})">
                         ${robot.enabled ? '禁用' : '启用'}
                     </button>
@@ -99,10 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const robotName = document.getElementById('robotName').value.trim();
         const serialNumber = parseInt(document.getElementById('serialNumber').value);
-        const messageDiv = document.getElementById('message');
 
         if (!serialNumber || serialNumber < 1) {
-            messageDiv.innerHTML = '<div class="error-message">序号必须填写且大于0</div>';
+            alert('序号必须填写且大于0');
             return;
         }
 
@@ -121,18 +120,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (result.success) {
-                messageDiv.innerHTML = '<div class="success-message">机器人添加成功!</div>';
+                alert('机器人添加成功!');
                 document.getElementById('addRobotForm').reset();
-                setTimeout(() => {
-                    messageDiv.innerHTML = '';
-                    loadRobots();
-                }, 2000);
+                loadRobots();
             } else {
-                messageDiv.innerHTML = `<div class="error-message">添加失败: ${result.error}</div>`;
+                alert(`添加失败: ${result.error}`);
             }
         } catch (error) {
             console.error('添加机器人失败:', error);
-            messageDiv.innerHTML = `<div class="error-message">添加失败: ${error.message}</div>`;
+            alert(`添加失败: ${error.message}`);
         }
     });
 

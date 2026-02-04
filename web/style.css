@@ -144,6 +144,10 @@ h1 {
     box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
 }
 
+.btn.disabled-btn {
+    opacity: 0.5;
+}
+
 .robots-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -169,11 +173,6 @@ h1 {
 
 .robot-card.enabled {
     border-color: #28a745;
-}
-
-.robot-card.disabled {
-    border-color: #dc3545;
-    opacity: 0.7;
 }
 
 .robot-header {
