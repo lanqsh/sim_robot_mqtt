@@ -292,6 +292,28 @@ bool ConfigDb::IsSerialNumberExists(int serial_number) {
   return exists;
 }
 
+std::string ConfigDb::GetRobotIdBySerial(int serial_number) {
+  if (!initialized_) return "";
+
+  const char* sql = "SELECT robot_id FROM robots WHERE serial_number = ? AND enabled = 1";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return "";
+  }
+
+  sqlite3_bind_int(stmt, 1, serial_number);
+
+  std::string robot_id;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    const char* id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    if (id) robot_id = id;
+  }
+
+  sqlite3_finalize(stmt);
+  return robot_id;
+}
+
 std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
   std::vector<RobotInfo> robots;
   if (!initialized_) return robots;

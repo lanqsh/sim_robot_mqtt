@@ -704,3 +704,259 @@ async function batchDeleteRobots() {
 function closeModal() {
     document.getElementById('robotModal').classList.remove('active');
 }
+
+// 切换定时启动表单的显示/隐藏
+function toggleScheduleForm() {
+    const content = document.getElementById('scheduleFormContent');
+    const icon = document.getElementById('scheduleCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'grid';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+// 发送定时启动请求
+async function sendScheduleRequest() {
+    const robotId = document.getElementById('scheduleRobotId').value.trim();
+    const serialNumber = document.getElementById('scheduleSerial').value.trim();
+    const scheduleId = parseInt(document.getElementById('scheduleId').value);
+    const weekday = parseInt(document.getElementById('scheduleWeekday').value);
+    const hour = parseInt(document.getElementById('scheduleHour').value);
+    const minute = parseInt(document.getElementById('scheduleMinute').value);
+    const runCount = parseInt(document.getElementById('scheduleRunCount').value);
+
+    // 验证必填字段：机器人ID或序号至少填一个
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return;
+    }
+
+    if (isNaN(scheduleId) || scheduleId < 1 || scheduleId > 255) {
+        alert('定时编号必须在1-255之间');
+        return;
+    }
+
+    if (isNaN(hour) || hour < 0 || hour > 23) {
+        alert('小时必须在0-23之间');
+        return;
+    }
+
+    if (isNaN(minute) || minute < 0 || minute > 59) {
+        alert('分钟必须在0-59之间');
+        return;
+    }
+
+    if (isNaN(runCount) || runCount < 1 || runCount > 255) {
+        alert('运行次数必须在1-255之间');
+        return;
+    }
+
+    const weekdayNames = ['', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送定时启动请求吗？\n\n` +
+        `${robotInfo}\n` +
+        `定时编号: ${scheduleId}\n` +
+        `星期: ${weekdayNames[weekday]}\n` +
+        `时间: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}\n` +
+        `运行次数: ${runCount}次`;
+
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    try {
+        showLoading('正在发送定时启动请求...');
+
+        // 构造请求URL和参数
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const response = await fetch(`${API_BASE}/api/robots/${identifier}/schedule_start?type=${identifierType}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                schedule_id: scheduleId,
+                weekday: weekday,
+                hour: hour,
+                minute: minute,
+                run_count: runCount
+            })
+        });
+
+        const result = await response.json();
+        hideLoading();
+
+        if (result.success) {
+            alert(`定时启动请求发送成功！\n\n` +
+                `机器人: ${result.robot_id}\n` +
+                `定时编号: ${result.schedule_id}\n` +
+                `星期: ${weekdayNames[result.weekday]}\n` +
+                `时间: ${String(result.hour).padStart(2, '0')}:${String(result.minute).padStart(2, '0')}\n` +
+                `运行次数: ${result.run_count}次\n\n` +
+                `请等待平台回复...`);
+
+            // 不清空表单，保留所有数据
+        } else {
+            alert('发送失败: ' + result.error);
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('发送定时启动请求失败:', error);
+        alert('发送失败: ' + error.message);
+    }
+}
+
+// 切换启动请求表单的显示/隐藏
+function toggleStartForm() {
+    const content = document.getElementById('startFormContent');
+    const icon = document.getElementById('startCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+// 发送启动请求
+async function sendStartRequest() {
+    const robotId = document.getElementById('startRobotId').value.trim();
+    const serialNumber = document.getElementById('startSerial').value.trim();
+
+    // 验证必填字段：机器人ID或序号至少填一个
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return;
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送启动请求吗？\n\n${robotInfo}`;
+
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    try {
+        showLoading('正在发送启动请求...');
+
+        // 构造请求URL和参数
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const response = await fetch(`${API_BASE}/api/robots/${identifier}/start?type=${identifierType}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        hideLoading();
+
+        if (result.success) {
+            alert(`启动请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            // 不清空表单，保留所有数据
+        } else {
+            alert('发送失败: ' + result.error);
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('发送启动请求失败:', error);
+        alert('发送失败: ' + error.message);
+    }
+}
+
+// 切换校时请求表单的显示/隐藏
+function toggleTimeSyncForm() {
+    const content = document.getElementById('timeSyncFormContent');
+    const icon = document.getElementById('timeSyncCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+// 发送校时请求
+async function sendTimeSyncRequest() {
+    const robotId = document.getElementById('timeSyncRobotId').value.trim();
+    const serialNumber = document.getElementById('timeSyncSerial').value.trim();
+
+    // 验证必填字段：机器人ID或序号至少填一个
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return;
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送校时请求吗？\n\n${robotInfo}`;
+
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    try {
+        showLoading('正在发送校时请求...');
+
+        // 构造请求URL和参数
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const response = await fetch(`${API_BASE}/api/robots/${identifier}/time_sync?type=${identifierType}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        hideLoading();
+
+        if (result.success) {
+            alert(`校时请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            // 不清空表单，保留所有数据
+        } else {
+            alert('发送失败: ' + result.error);
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('发送校时请求失败:', error);
+        alert('发送失败: ' + error.message);
+    }
+}
+
+// 切换添加机器人表单的显示/隐藏
+function toggleAddRobotForm() {
+    const content = document.getElementById('addRobotContent');
+    const icon = document.getElementById('addRobotCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+// 切换批量操作表单的显示/隐藏
+function toggleBatchForm() {
+    const content = document.getElementById('batchFormContent');
+    const icon = document.getElementById('batchCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}

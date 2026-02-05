@@ -34,6 +34,10 @@ h1 {
     margin-bottom: 30px;
 }
 
+.add-robot-form #addRobotContent {
+    margin-top: 15px;
+}
+
 .batch-operations {
     background: #e3f2fd;
     padding: 25px;
@@ -46,6 +50,7 @@ h1 {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 15px;
     align-items: end;
+    margin-top: 15px;
 }
 
 .batch-buttons {
@@ -55,6 +60,154 @@ h1 {
 
 .batch-buttons .btn {
     flex: 1;
+}
+
+.schedule-request-section {
+    background: #f3e5f5;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 15px;
+    transition: all 0.3s;
+}
+
+.collapsible-header:hover {
+    opacity: 0.8;
+}
+
+.collapsible-header h2 {
+    margin: 0;
+}
+
+.collapse-icon {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #666;
+    transition: transform 0.3s;
+}
+
+.schedule-controls {
+    margin-top: 15px;
+}
+
+.schedule-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.schedule-inline-form input,
+.schedule-inline-form select {
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.schedule-inline-form input:focus,
+.schedule-inline-form select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.schedule-inline-form .or-text {
+    color: #999;
+    font-size: 0.9em;
+    margin: 0 -5px;
+}
+
+/* 启动请求区域样式 */
+.start-request-section {
+    background: #e8f5e9;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.start-controls {
+    margin-top: 15px;
+}
+
+.start-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.start-inline-form input {
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.start-inline-form input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.start-inline-form .or-text {
+    color: #999;
+    font-size: 0.9em;
+    margin: 0 -5px;
+}
+
+/* 校时请求区域样式 */
+.timesync-request-section {
+    background: #fff3e0;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.timesync-controls {
+    margin-top: 15px;
+}
+
+.timesync-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.timesync-inline-form input {
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.timesync-inline-form input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.timesync-inline-form .or-text {
+    color: #999;
+    font-size: 0.9em;
+    margin: 0 -5px;
+}
+
+.schedule-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.schedule-form .form-group:last-child {
+    grid-column: 1 / -1;
+    text-align: center;
 }
 
 .serial-badge {

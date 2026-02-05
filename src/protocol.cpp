@@ -9,29 +9,29 @@ Protocol::Protocol() {}
 
 Protocol::~Protocol() {}
 
-std::vector<uint8_t> Protocol::Encode(uint8_t control_code, uint8_t number,
+std::vector<uint8_t> Protocol::Encode(uint8_t control_code, uint16_t number,
                                       uint8_t frame_count,
                                       const std::vector<uint8_t>& data) {
   ProtocolFrame frame;
   frame.control_code = control_code;
   frame.number = number;
   frame.frame_count = frame_count;
-  frame.length = static_cast<uint16_t>(data.size());
+  frame.length = static_cast<uint8_t>(data.size());
   frame.data = data;
 
   // 构建完整帧（用于计算校验和）
   std::vector<uint8_t> result;
-  result.push_back(frame.header);
-  result.push_back(frame.control_code);
-  result.push_back(frame.number);
-  result.push_back(frame.frame_count);
-  result.push_back(static_cast<uint8_t>(frame.length >> 8));    // 长度高字节
-  result.push_back(static_cast<uint8_t>(frame.length & 0xFF));  // 长度低字节
-  result.insert(result.end(), frame.data.begin(), frame.data.end());
+  result.push_back(frame.header);                               // 帧头 0x68
+  result.push_back(frame.control_code);                         // 控制码
+  result.push_back(static_cast<uint8_t>(frame.number >> 8));    // 编号高字节
+  result.push_back(static_cast<uint8_t>(frame.number & 0xFF));  // 编号低字节
+  result.push_back(frame.frame_count);                          // 帧计数
+  result.push_back(frame.length);                               // 数据长度
+  result.insert(result.end(), frame.data.begin(), frame.data.end());  // 数据域
 
-  // 计算校验和（从控制码到数据域结束）
+  // 计算校验和（从帧头到数据域结束的累加和）
   uint8_t checksum = 0;
-  for (size_t i = 1; i < result.size(); ++i) {  // 跳过帧头
+  for (size_t i = 0; i < result.size(); ++i) {  // 包含帧头
     checksum += result[i];
   }
   frame.checksum = checksum;
@@ -46,8 +46,7 @@ std::vector<uint8_t> Protocol::Encode(uint8_t control_code, uint8_t number,
 
 bool Protocol::Decode(const std::vector<uint8_t>& raw_data,
                       ProtocolFrame& frame) {
-  // 最小帧长度：帧头(1) + 控制码(1) + 编号(1) + 帧计数(1) + 长度(2) + 校验(1) +
-  // 帧尾(1) = 8
+  // 最小帧长度：帧头(1) + 控制码(1) + 编号(2) + 帧计数(1) + 长度(1) + 数据(0+) + 校验(1) + 帧尾(1) = 8
   if (raw_data.size() < 8) {
     LOG(ERROR) << "帧长度不足: " << raw_data.size();
     return false;
@@ -68,17 +67,17 @@ bool Protocol::Decode(const std::vector<uint8_t>& raw_data,
 
   // 解析字段
   size_t index = 0;
-  frame.header = raw_data[index++];
-  frame.control_code = raw_data[index++];
-  frame.number = raw_data[index++];
-  frame.frame_count = raw_data[index++];
-  frame.length = (static_cast<uint16_t>(raw_data[index]) << 8) |
+  frame.header = raw_data[index++];                                      // 帧头
+  frame.control_code = raw_data[index++];                                // 控制码
+  frame.number = (static_cast<uint16_t>(raw_data[index]) << 8) |         // 编号（2字节）
                  static_cast<uint16_t>(raw_data[index + 1]);
   index += 2;
+  frame.frame_count = raw_data[index++];                                 // 帧计数
+  frame.length = raw_data[index++];                                      // 数据长度
 
   // 验证数据长度
   if (raw_data.size() < index + frame.length + 2) {  // +2 for checksum and tail
-    LOG(ERROR) << "数据长度不匹配. 期望: " << frame.length
+    LOG(ERROR) << "数据长度不匹配. 期望: " << static_cast<int>(frame.length)
                << ", 实际: " << (raw_data.size() - index - 2);
     return false;
   }
@@ -93,9 +92,9 @@ bool Protocol::Decode(const std::vector<uint8_t>& raw_data,
   frame.checksum = raw_data[index++];
   frame.tail = raw_data[index];
 
-  // 验证校验和（从控制码到数据域结束）
+  // 验证校验和（从帧头到数据域结束的累加和）
   uint8_t calculated_checksum = 0;
-  for (size_t i = 1; i < raw_data.size() - 2; ++i) {  // 跳过帧头、校验和、帧尾
+  for (size_t i = 0; i < raw_data.size() - 2; ++i) {  // 包含帧头，跳过校验和、帧尾
     calculated_checksum += raw_data[i];
   }
 
@@ -108,7 +107,8 @@ bool Protocol::Decode(const std::vector<uint8_t>& raw_data,
 
   LOG(INFO) << "解码成功 - 控制码: 0x" << std::hex
             << static_cast<int>(frame.control_code)
-            << ", 数据长度: " << std::dec << frame.length;
+            << ", 编号: 0x" << static_cast<int>(frame.number)
+            << ", 数据长度: " << std::dec << static_cast<int>(frame.length);
   return true;
 }
 
@@ -125,9 +125,9 @@ bool Protocol::VerifyChecksum(const std::vector<uint8_t>& raw_data) {
     return false;
   }
 
-  // 计算校验和（从控制码到数据域结束）
+  // 计算校验和（从帧头到数据域结束）
   uint8_t calculated_checksum = 0;
-  for (size_t i = 1; i < raw_data.size() - 2; ++i) {
+  for (size_t i = 0; i < raw_data.size() - 2; ++i) {  // 包含帧头
     calculated_checksum += raw_data[i];
   }
 
@@ -266,10 +266,10 @@ std::vector<uint8_t> Protocol::Base64ToBytes(const std::string& base64_str) {
 uint8_t Protocol::CalculateFrameChecksum(const ProtocolFrame& frame) {
   uint8_t checksum = 0;
   checksum += frame.control_code;
-  checksum += frame.number;
+  checksum += static_cast<uint8_t>(frame.number >> 8);    // 编号高字节
+  checksum += static_cast<uint8_t>(frame.number & 0xFF);  // 编号低字节
   checksum += frame.frame_count;
-  checksum += static_cast<uint8_t>(frame.length >> 8);
-  checksum += static_cast<uint8_t>(frame.length & 0xFF);
+  checksum += frame.length;
 
   for (uint8_t byte : frame.data) {
     checksum += byte;

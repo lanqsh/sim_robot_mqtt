@@ -9,6 +9,8 @@
 #include <thread>
 #include <mutex>
 
+#include "protocol.h"
+
 // 指令类型
 enum class MessageDirection {
   kUplink,   // 上行
@@ -178,6 +180,12 @@ class Robot {
   // 设置上报间隔（秒）
   void SetReportInterval(int interval_seconds);
 
+  // 启动定时上报
+  void StartReport();
+
+  // 停止定时上报
+  void StopReport();
+
   // 获取发布主题
   std::string GetPublishTopic() const { return publish_topic_; }
 
@@ -198,6 +206,12 @@ class Robot {
   bool IsRunning() const { return !stop_report_; }
   std::string GetLastData() const;  // 获取最后一次上报的数据（JSON格式）
 
+  // 请求类指令
+  void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
+                                uint8_t hour, uint8_t minute, uint8_t run_count);
+  void SendStartRequest();  // 启动请求
+  void SendTimeSyncRequest();  // 校时请求
+
  private:
   std::string robot_id_;                   // 机器人ID
   std::string publish_topic_;              // 发布主题
@@ -212,6 +226,7 @@ class Robot {
   std::thread report_thread_;              // 上报线程
   std::atomic<bool> stop_report_{false};   // 停止上报标志
   int report_interval_seconds_{10};        // 上报间隔（秒）
+  Protocol protocol_;                      // 协议编解码器
 
   // 上报线程函数
   void ReportThreadFunc();

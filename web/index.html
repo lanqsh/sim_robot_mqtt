@@ -12,27 +12,35 @@
 
         <!-- 添加机器人表单 -->
         <div class="add-robot-form">
-            <h2 style="margin-bottom: 20px;">添加新机器人</h2>
-            <div id="message"></div>
-            <form id="addRobotForm">
-                <div class="form-group">
-                    <label for="serialNumber">序号 *</label>
-                    <input type="number" id="serialNumber" name="serialNumber" min="1" required
-                           placeholder="例如: 1">
-                </div>
-                <div class="form-group">
-                    <label for="robotName">机器人名称</label>
-                    <input type="text" id="robotName" name="robotName"
-                           placeholder="例如: Robot 1">
-                </div>
-                <button type="submit" class="btn btn-primary">添加机器人</button>
-            </form>
+            <div class="collapsible-header" onclick="toggleAddRobotForm()">
+                <h2>添加新机器人</h2>
+                <span class="collapse-icon" id="addRobotCollapseIcon">▼</span>
+            </div>
+            <div id="addRobotContent" style="display: none;">
+                <div id="message"></div>
+                <form id="addRobotForm">
+                    <div class="form-group">
+                        <label for="serialNumber">序号 *</label>
+                        <input type="number" id="serialNumber" name="serialNumber" min="1" required
+                               placeholder="例如: 1">
+                    </div>
+                    <div class="form-group">
+                        <label for="robotName">机器人名称</label>
+                        <input type="text" id="robotName" name="robotName"
+                               placeholder="例如: Robot 1">
+                    </div>
+                    <button type="submit" class="btn btn-primary">添加机器人</button>
+                </form>
+            </div>
         </div>
 
         <!-- 批量操作区域 -->
         <div class="batch-operations">
-            <h2 style="margin-bottom: 15px;">批量操作</h2>
-            <div class="batch-controls">
+            <div class="collapsible-header" onclick="toggleBatchForm()">
+                <h2>批量增删机器人</h2>
+                <span class="collapse-icon" id="batchCollapseIcon">▼</span>
+            </div>
+            <div class="batch-controls" id="batchFormContent" style="display: none;">
                 <div class="form-group">
                     <label for="batchStartSerial">起始序号</label>
                     <input type="number" id="batchStartSerial" min="1" placeholder="1">
@@ -48,6 +56,68 @@
                 <div class="batch-buttons">
                     <button class="btn btn-primary" onclick="batchAddRobots()">批量添加</button>
                     <button class="btn btn-danger" onclick="batchDeleteRobots()">批量删除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 定时启动请求区域 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleScheduleForm()">
+                <h2>定时启动请求</h2>
+                <span class="collapse-icon" id="scheduleCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls" id="scheduleFormContent" style="display: none;">
+                <div class="schedule-inline-form">
+                    <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="scheduleSerial" min="1" placeholder="序号" style="width: 80px;">
+                    <input type="number" id="scheduleId" min="1" max="255" placeholder="定时编号" style="width: 90px;" required>
+                    <select id="scheduleWeekday" required style="width: 100px;">
+                        <option value="1">星期一</option>
+                        <option value="2">星期二</option>
+                        <option value="3">星期三</option>
+                        <option value="4">星期四</option>
+                        <option value="5">星期五</option>
+                        <option value="6">星期六</option>
+                        <option value="7">星期日</option>
+                    </select>
+                    <input type="number" id="scheduleHour" min="0" max="23" placeholder="时" style="width: 60px;" required>
+                    <span>:</span>
+                    <input type="number" id="scheduleMinute" min="0" max="59" placeholder="分" style="width: 60px;" required>
+                    <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 90px;" required>
+                    <button class="btn btn-success" onclick="sendScheduleRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 启动请求区域 -->
+        <div class="start-request-section">
+            <div class="collapsible-header" onclick="toggleStartForm()">
+                <h2>启动请求</h2>
+                <span class="collapse-icon" id="startCollapseIcon">▼</span>
+            </div>
+            <div class="start-controls" id="startFormContent" style="display: none;">
+                <div class="start-inline-form">
+                    <input type="text" id="startRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="startSerial" min="1" placeholder="序号" style="width: 80px;">
+                    <button class="btn btn-success" onclick="sendStartRequest()">发送启动请求</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 校时请求区域 -->
+        <div class="timesync-request-section">
+            <div class="collapsible-header" onclick="toggleTimeSyncForm()">
+                <h2>校时请求</h2>
+                <span class="collapse-icon" id="timeSyncCollapseIcon">▼</span>
+            </div>
+            <div class="timesync-controls" id="timeSyncFormContent" style="display: none;">
+                <div class="timesync-inline-form">
+                    <input type="text" id="timeSyncRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="timeSyncSerial" min="1" placeholder="序号" style="width: 80px;">
+                    <button class="btn btn-info" onclick="sendTimeSyncRequest()">发送校时请求</button>
                 </div>
             </div>
         </div>
