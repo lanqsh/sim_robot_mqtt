@@ -244,9 +244,9 @@ h1 {
     background: white;
     border-radius: 15px;
     padding: 30px;
-    max-width: 600px;
+    max-width: 900px;
     width: 90%;
-    max-height: 80vh;
+    max-height: 85vh;
     overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
@@ -255,11 +255,14 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
 }
 
 .modal-header h2 {
     color: #333;
+    font-size: 1.5em;
 }
 
 .close-btn {
@@ -267,17 +270,23 @@ h1 {
     cursor: pointer;
     color: #999;
     line-height: 1;
+    transition: color 0.2s;
 }
 
 .close-btn:hover {
-    color: #333;
+    color: #667eea;
 }
 
 .data-item {
     display: flex;
-    align-items: center;
-    padding: 10px;
-    border-bottom: 1px solid #eee;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-bottom: 1px solid #f5f5f5;
+    transition: background-color 0.2s;
+}
+
+.data-item:hover {
+    background-color: #fafafa;
 }
 
 .data-item:last-child {
@@ -285,34 +294,53 @@ h1 {
 }
 
 .data-label {
-    font-weight: bold;
+    font-weight: 600;
     color: #555;
-}
-
-.data-value {
-    color: #333;
-}
-
-/* 长标签右对齐并靠近数据 */
-.data-label {
-    width: 360px;
+    min-width: 200px;
+    max-width: 200px;
     flex-shrink: 0;
     text-align: right;
-    padding-right: 12px;
+    padding-right: 15px;
+    font-size: 0.95em;
 }
 
 .data-value {
     flex: 1;
+    color: #333;
     text-align: left;
     word-break: break-word;
+    font-size: 0.95em;
+    line-height: 1.6;
 }
 
 .object-list {
-    padding-left: 8px;
+    padding-left: 0;
+    margin-left: 20px;
+    border-left: 2px solid #e8e8e8;
+    padding: 10px 0 10px 15px;
+    margin-top: 5px;
+    background: #fafafa;
+    border-radius: 5px;
 }
 
 .array-list {
-    padding-left: 16px;
+    padding-left: 0;
+    margin-left: 20px;
+    border-left: 2px solid #d0d0d0;
+    padding: 10px 0 10px 15px;
+    margin-top: 5px;
+}
+
+.array-item {
+    padding: 5px 0;
+    display: flex;
+    gap: 10px;
+}
+
+.array-index {
+    font-weight: bold;
+    color: #667eea;
+    min-width: 35px;
 }
 
 .empty-state {
