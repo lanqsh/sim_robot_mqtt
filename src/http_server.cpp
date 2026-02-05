@@ -108,16 +108,19 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // JavaScript文件
-  svr.Get("/app.js", [](const httplib::Request&, httplib::Response& res) {
-    std::ifstream file("web/app.js");
+  // JavaScript模块文件（支持 /js/*.js 路径）
+  svr.Get(R"(/js/(.+\.js))", [](const httplib::Request& req, httplib::Response& res) {
+    std::string filename = req.matches[1];
+    std::string filepath = "web/js/" + filename;
+
+    std::ifstream file(filepath);
     if (file.is_open()) {
       std::stringstream buffer;
       buffer << file.rdbuf();
       res.set_content(buffer.str(), "application/javascript; charset=utf-8");
     } else {
       res.status = 404;
-      res.set_content("app.js not found", "text/plain");
+      res.set_content("File not found: " + filepath, "text/plain");
     }
   });
 
@@ -706,6 +709,140 @@ void HttpServer::ServerThreadFunc() {
 
     } catch (const std::exception& e) {
       LOG(ERROR) << "发送校时请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/robots/:id/lora_clean_settings - 发送Lora参数&清扫设置上报
+  svr.Post(R"(/api/robots/([^/]+)/lora_clean_settings)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    // 获取查询参数type（id或serial）
+    std::string type = "id";  // 默认为id
+    if (req.has_param("type")) {
+      type = req.get_param_value("type");
+    }
+
+    LOG(INFO) << "收到Lora参数&清扫设置上报请求 - 标识: " << identifier << ", 类型: " << type;
+
+    try {
+      std::shared_ptr<Robot> robot;
+
+      if (type == "serial") {
+        // 通过序号查找robot_id
+        int serial_number = std::stoi(identifier);
+        std::string robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          LOG(WARNING) << "未找到序号对应的机器人: " << serial_number;
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号对应的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+
+        robot = mqtt_manager_->GetRobot(robot_id);
+      } else {
+        // 直接使用robot_id
+        robot = mqtt_manager_->GetRobot(identifier);
+      }
+
+      if (!robot) {
+        LOG(WARNING) << "未找到机器人: " << identifier;
+        json error;
+        error["success"] = false;
+        error["error"] = "未找到机器人";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 发送Lora参数&清扫设置上报
+      robot->SendLoraAndCleanSettingsReport();
+
+      json response;
+      response["success"] = true;
+      response["message"] = "Lora参数&清扫设置上报已发送";
+      response["robot_id"] = robot->GetId();
+      res.set_content(response.dump(), "application/json");
+
+      LOG(INFO) << "Lora参数&清扫设置上报已发送 - 机器人: " << robot->GetId();
+
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送Lora参数&清扫设置上报失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/robots/:id/robot_data - 发送机器人数据上报
+  svr.Post(R"(/api/robots/([^/]+)/robot_data)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    // 获取查询参数type（id或serial）
+    std::string type = "id";  // 默认为id
+    if (req.has_param("type")) {
+      type = req.get_param_value("type");
+    }
+
+    LOG(INFO) << "收到机器人数据上报请求 - 标识: " << identifier << ", 类型: " << type;
+
+    try {
+      std::shared_ptr<Robot> robot;
+
+      if (type == "serial") {
+        // 通过序号查找robot_id
+        int serial_number = std::stoi(identifier);
+        std::string robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          LOG(WARNING) << "未找到序号对应的机器人: " << serial_number;
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号对应的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+
+        robot = mqtt_manager_->GetRobot(robot_id);
+      } else {
+        // 直接使用robot_id
+        robot = mqtt_manager_->GetRobot(identifier);
+      }
+
+      if (!robot) {
+        LOG(WARNING) << "未找到机器人: " << identifier;
+        json error;
+        error["success"] = false;
+        error["error"] = "未找到机器人";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 发送机器人数据上报
+      robot->SendRobotDataReport();
+
+      json response;
+      response["success"] = true;
+      response["message"] = "机器人数据上报已发送";
+      response["robot_id"] = robot->GetId();
+      res.set_content(response.dump(), "application/json");
+
+      LOG(INFO) << "机器人数据上报已发送 - 机器人: " << robot->GetId();
+
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送机器人数据上报失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();

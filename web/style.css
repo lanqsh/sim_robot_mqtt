@@ -199,6 +199,43 @@ h1 {
     margin: 0 -5px;
 }
 
+/* 机器人数据上报区域样式 */
+.robot-data-report-section {
+    background: #e8f5e9;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.robot-data-controls {
+    margin-top: 15px;
+}
+
+.robot-data-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.robot-data-inline-form input {
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.robot-data-inline-form input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.robot-data-inline-form .or-text {
+    color: #999;
+    font-size: 0.9em;
+    margin: 0 -5px;
+}
+
 .schedule-form {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

@@ -1,0 +1,21 @@
+# Backup files
+*.bak
+
+# Build outputs
+build/
+*.o
+*.obj
+*.exe
+
+# IDE files
+.vscode/
+.vs/
+*.suo
+*.user
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
