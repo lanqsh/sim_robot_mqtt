@@ -487,11 +487,11 @@ void Robot::SendLoraAndCleanSettingsReport() {
     return;
   }
 
-  // 构造数据域：标识(0xB1) + Lora参数 + 清扫设置
+  // 构造数据域：标识(0xE0) + Lora参数 + 清扫设置
   std::vector<uint8_t> data_field;
 
   // 标识符
-  data_field.push_back(0xB1);
+  data_field.push_back(0xE0);
 
   // Lora参数 (3字节)
   data_field.push_back(static_cast<uint8_t>(data_.lora_params.power));      // 功率
@@ -533,8 +533,6 @@ void Robot::SendLoraAndCleanSettingsReport() {
     data_field.push_back(static_cast<uint8_t>(task.run_count));
   }
 
-  // 最后的启用/停用 (1字节)
-  data_field.push_back(data_.enabled ? 0x01 : 0x00);
 
   LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
   LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);

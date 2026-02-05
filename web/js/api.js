@@ -92,12 +92,6 @@ export async function sendTimeSyncRequest(identifier, type) {
     });
     return await response.json();
 }
-
-// 发送Lora参数&清扫设置上报
-export async function sendLoraCleanSettingsReport(identifier, type) {
-    const response = await fetch(`${API_BASE}/api/robots/${identifier}/lora_clean_settings?type=${type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
     });
     return await response.json();
 }

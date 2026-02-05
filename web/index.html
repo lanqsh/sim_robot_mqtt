@@ -122,25 +122,6 @@
             </div>
         </div>
 
-        <!-- Lora参数&清扫设置上报区域 -->
-        <div class="lora-clean-report-section">
-            <div class="collapsible-header" onclick="toggleLoraCleanForm()">
-                <h2>Lora参数&清扫设置上报</h2>
-                <span class="collapse-icon" id="loraCleanCollapseIcon">▼</span>
-            </div>
-            <div class="lora-clean-controls" id="loraCleanFormContent" style="display: none;">
-                <div class="lora-clean-inline-form">
-                    <input type="text" id="loraCleanRobotId" placeholder="机器人ID" style="width: 150px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="loraCleanSerial" min="1" placeholder="序号" style="width: 80px;">
-                    <button class="btn btn-warning" onclick="sendLoraCleanSettingsReport()">发送上报</button>
-                </div>
-                <div class="help-text" style="margin-top: 10px; color: #666; font-size: 14px;">
-                    <strong>说明：</strong>这是一个上报类指令，机器人会上报Lora参数和清扫设置（包括功率、频率、速率、定时任务等），平台收到后不回复。
-                </div>
-            </div>
-        </div>
-
         <!-- 机器人列表 -->
         <div class="robots-container">
             <!-- 统计信息 -->

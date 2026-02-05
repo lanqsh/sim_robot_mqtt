@@ -91,7 +91,6 @@ window.closeModal = function() {
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
-window.toggleLoraCleanForm = () => ui.toggleForm('loraCleanFormContent', 'loraCleanCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
 
@@ -122,14 +121,6 @@ window.sendTimeSyncRequest = async function() {
     const serialNumber = document.getElementById('timeSyncSerial').value.trim();
 
     await commands.sendTimeSyncRequest(robotId, serialNumber);
-};
-
-// 全局函数：发送Lora参数&清扫设置上报
-window.sendLoraCleanSettingsReport = async function() {
-    const robotId = document.getElementById('loraCleanRobotId').value.trim();
-    const serialNumber = document.getElementById('loraCleanSerial').value.trim();
-
-    await commands.sendLoraCleanSettingsReport(robotId, serialNumber);
 };
 
 // 页面加载完成后初始化
