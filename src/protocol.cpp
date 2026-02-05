@@ -29,9 +29,9 @@ std::vector<uint8_t> Protocol::Encode(uint8_t control_code, uint16_t number,
   result.push_back(frame.length);                               // 数据长度
   result.insert(result.end(), frame.data.begin(), frame.data.end());  // 数据域
 
-  // 计算校验和（从控制码到数据域结束的累加和）
+  // 计算校验和（从帧头到数据域结束的累加和）
   uint8_t checksum = 0;
-  for (size_t i = 1; i < result.size(); ++i) {  // 跳过帧头
+  for (size_t i = 0; i < result.size(); ++i) {  // 包含帧头
     checksum += result[i];
   }
   frame.checksum = checksum;
@@ -92,9 +92,9 @@ bool Protocol::Decode(const std::vector<uint8_t>& raw_data,
   frame.checksum = raw_data[index++];
   frame.tail = raw_data[index];
 
-  // 验证校验和（从控制码到数据域结束的累加和）
+  // 验证校验和（从帧头到数据域结束的累加和）
   uint8_t calculated_checksum = 0;
-  for (size_t i = 1; i < raw_data.size() - 2; ++i) {  // 跳过帧头、校验和、帧尾
+  for (size_t i = 0; i < raw_data.size() - 2; ++i) {  // 包含帧头，跳过校验和、帧尾
     calculated_checksum += raw_data[i];
   }
 
@@ -125,9 +125,9 @@ bool Protocol::VerifyChecksum(const std::vector<uint8_t>& raw_data) {
     return false;
   }
 
-  // 计算校验和（从控制码到数据域结束）
+  // 计算校验和（从帧头到数据域结束）
   uint8_t calculated_checksum = 0;
-  for (size_t i = 1; i < raw_data.size() - 2; ++i) {
+  for (size_t i = 0; i < raw_data.size() - 2; ++i) {  // 包含帧头
     calculated_checksum += raw_data[i];
   }
 
