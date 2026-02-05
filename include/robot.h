@@ -209,6 +209,7 @@ class Robot {
   // 请求类指令
   void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                 uint8_t hour, uint8_t minute, uint8_t run_count);
+  void SendStartRequest();  // 启动请求
 
  private:
   std::string robot_id_;                   // 机器人ID

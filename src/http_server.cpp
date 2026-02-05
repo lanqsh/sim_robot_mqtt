@@ -592,6 +592,61 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // POST /api/robots/{id}/start - 发送启动请求
+  svr.Post(R"(/api/robots/([^/]+)/start)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    try {
+      // 判断是通过ID还是序号查找
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        // 通过序号查找机器人ID
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      // 查找机器人
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+
+      if (robot) {
+        // 发送启动请求
+        robot->SendStartRequest();
+
+        json response;
+        response["success"] = true;
+        response["message"] = "启动请求已发送";
+        response["robot_id"] = robot_id;
+
+        res.set_content(response.dump(), "application/json");
+        LOG(INFO) << "API: 发送启动请求 - 机器人: " << robot_id;
+      } else {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+      }
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送启动请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   LOG(INFO) << "HTTP服务器线程启动，监听端口: " << port_;
 
   // 启动服务器（阻塞）
