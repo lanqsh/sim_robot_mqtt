@@ -413,7 +413,24 @@ async function viewRobotData(robotId) {
                 robot_name: '机器人名称',
                 serial_number: '序号'
             };
-
+            // 格式化时间对象为字符串
+            function formatTimeObject(timeObj) {
+                if (!timeObj || typeof timeObj !== 'object') return '';
+                const parts = [];
+                if (timeObj.year !== undefined) {
+                    parts.push(`${timeObj.year}年${timeObj.month}月${timeObj.day}日`);
+                }
+                if (timeObj.hour !== undefined) {
+                    const h = String(timeObj.hour).padStart(2, '0');
+                    const m = String(timeObj.minute).padStart(2, '0');
+                    const s = String(timeObj.second).padStart(2, '0');
+                    parts.push(`${h}:${m}:${s}`);
+                }
+                if (timeObj.weekday !== undefined && !timeObj.year) {
+                    parts.push(`星期${timeObj.weekday}`);
+                }
+                return parts.join(' ');
+            }
             // 简单字段格式化
             function formatValue(key, val) {
                 if (val === null) return 'null';
@@ -491,12 +508,28 @@ async function viewRobotData(robotId) {
             // lastData.data 包含 RobotData 的内容，直接展开其字段
             const robotData = lastData.data || lastData;
             for (const key of Object.keys(robotData)) {
+                // 跳过 current_timestamp 和 local_time,稍后单独处理
+                if (key === 'current_timestamp' || key === 'local_time') continue;
+
                 const label = labelMap[key] || key;
                 const value = robotData[key];
                 if (value !== null && typeof value === 'object') {
                     html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
                 } else {
                     html += `<div class="data-item"><span class="data-label">${label}:</span> <span class="data-value">${formatValue(key, value)}</span></div>`;
+                }
+            }
+
+            // 单独处理时间字段：拼接 current_timestamp 和 local_time
+            if (robotData.current_timestamp || robotData.local_time) {
+                const currentTimeStr = formatTimeObject(robotData.current_timestamp);
+                const localTimeStr = formatTimeObject(robotData.local_time);
+
+                if (currentTimeStr) {
+                    html += `<div class="data-item"><span class="data-label">当前时间戳:</span> <span class="data-value">${currentTimeStr}</span></div>`;
+                }
+                if (localTimeStr) {
+                    html += `<div class="data-item"><span class="data-label">本地时间:</span> <span class="data-value">${localTimeStr}</span></div>`;
                 }
             }
 
