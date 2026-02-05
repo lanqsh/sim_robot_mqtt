@@ -92,6 +92,3 @@ export async function sendTimeSyncRequest(identifier, type) {
     });
     return await response.json();
 }
-    });
-    return await response.json();
-}
