@@ -314,6 +314,8 @@ async function viewRobotData(robotId) {
                 sequence: '序列号',
                 report_interval_seconds: '上报间隔(秒)',
                 running: '运行状态',
+                // 顶层/基本
+                data: '数据',
 
                 // RobotData
                 main_motor_current: '主电机电流',
@@ -324,7 +326,7 @@ async function viewRobotData(robotId) {
                 battery_level: '电池电量',
                 battery_temperature: '电池温度',
                 position_info: '位置信息',
-                working_duration: '工作时长(小时)',
+                working_duration: '工作时长',
                 total_run_count: '累计运行次数',
                 current_lap_count: '当前圈数',
                 solar_voltage: '光伏电压',
@@ -340,15 +342,64 @@ async function viewRobotData(robotId) {
                 temp_voltage_protection: '温压保护参数',
                 local_time: '本地时间',
                 environment_info: '环境信息',
-                master_currents: '主机电流列表',
-                slave_currents: '从机电流列表',
+                master_currents: '主机电流',
+                slave_currents: '从机电流',
                 position: '位置',
                 direction: '方向',
                 module_eui: '模组EUI',
                 domestic_foreign_flag: '国内/国外版本',
                 country_code: '国家代码',
                 region_code: '地区代码',
-                project_code: '项目代码'
+                project_code: '项目代码',
+
+                // environment_info 内部
+                sensor_temperature: '传感器温度',
+                sensor_humidity: '传感器湿度',
+                ambient_temperature: '环境温度',
+                day_night_status: '白夜状态',
+
+                // current_timestamp
+                current_timestamp: '当前时间戳',
+
+                // motor_params 详细
+                walk_motor_speed: '行走电机速率',
+                brush_motor_speed: '毛刷电机速率',
+                windproof_motor_speed: '防风电机速率',
+                walk_motor_max_current_ma: '行走电机上限电流停机值(mA)',
+                brush_motor_max_current_ma: '毛刷电机上限电流停机值(mA)',
+                windproof_motor_max_current_ma: '防风电机上限电流停机值(mA)',
+                walk_motor_warning_current_ma: '行走电机预警电流(mA)',
+                brush_motor_warning_current_ma: '毛刷电机预警电流(mA)',
+                windproof_motor_warning_current_ma: '防风电机预警电流(mA)',
+                walk_motor_mileage_m: '行走电机运行里程(m)',
+                brush_motor_timeout_s: '毛刷电机超时(s)',
+                windproof_motor_timeout_s: '防风电机超时(s)',
+                reverse_time_s: '反转时间(s)',
+                protection_angle: '保护角度',
+
+                // temp_voltage_protection 详细
+                protection_current_ma: '保护电流(mA)',
+                high_temp_threshold: '高温阈值',
+                low_temp_threshold: '低温阈值',
+                protection_temp: '保护温度',
+                recovery_temp: '恢复温度',
+                protection_voltage: '保护电压',
+                recovery_voltage: '恢复电压',
+                protection_battery_level: '保护电量',
+                limit_run_battery_level: '限制运行电量',
+                recovery_battery_level: '恢复电量',
+                board_protection_temp: '主板保护温度',
+                board_recovery_temp: '主板恢复温度',
+
+                // schedule task fields
+                weekday: '星期',
+                hour: '小时',
+                minute: '分钟',
+                run_count: '运行次数',
+
+                // 其他常用
+                robot_name: '机器人名称',
+                serial_number: '序号'
             };
 
             // 简单字段格式化
