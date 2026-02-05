@@ -515,7 +515,7 @@ void HttpServer::ServerThreadFunc() {
 
   // POST /api/robots/{id}/schedule_start - 发送定时启动请求
   svr.Post(R"(/api/robots/([^/]+)/schedule_start)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string robot_id = req.matches[1];
+    std::string identifier = req.matches[1];
 
     try {
       // 解析请求体
@@ -536,6 +536,25 @@ void HttpServer::ServerThreadFunc() {
       uint8_t hour = body["hour"].get<int>();
       uint8_t minute = body["minute"].get<int>();
       uint8_t run_count = body["run_count"].get<int>();
+
+      // 判断是通过ID还是序号查找
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        // 通过序号查找机器人ID
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
 
       // 查找机器人
       auto robot = mqtt_manager_->GetRobot(robot_id);

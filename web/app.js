@@ -722,15 +722,16 @@ function toggleScheduleForm() {
 // 发送定时启动请求
 async function sendScheduleRequest() {
     const robotId = document.getElementById('scheduleRobotId').value.trim();
+    const serialNumber = document.getElementById('scheduleSerial').value.trim();
     const scheduleId = parseInt(document.getElementById('scheduleId').value);
     const weekday = parseInt(document.getElementById('scheduleWeekday').value);
     const hour = parseInt(document.getElementById('scheduleHour').value);
     const minute = parseInt(document.getElementById('scheduleMinute').value);
     const runCount = parseInt(document.getElementById('scheduleRunCount').value);
 
-    // 验证必填字段
-    if (!robotId) {
-        alert('请填写机器人ID');
+    // 验证必填字段：机器人ID或序号至少填一个
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
         return;
     }
 
@@ -755,8 +756,9 @@ async function sendScheduleRequest() {
     }
 
     const weekdayNames = ['', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
     const confirmMsg = `确定发送定时启动请求吗？\n\n` +
-        `机器人ID: ${robotId}\n` +
+        `${robotInfo}\n` +
         `定时编号: ${scheduleId}\n` +
         `星期: ${weekdayNames[weekday]}\n` +
         `时间: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}\n` +
@@ -769,7 +771,10 @@ async function sendScheduleRequest() {
     try {
         showLoading('正在发送定时启动请求...');
 
-        const response = await fetch(`${API_BASE}/api/robots/${robotId}/schedule_start`, {
+        // 构造请求URL和参数
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const response = await fetch(`${API_BASE}/api/robots/${identifier}/schedule_start?type=${identifierType}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -795,11 +800,7 @@ async function sendScheduleRequest() {
                 `运行次数: ${result.run_count}次\n\n` +
                 `请等待平台回复...`);
 
-            // 清空表单（除了机器人ID）
-            document.getElementById('scheduleId').value = '';
-            document.getElementById('scheduleHour').value = '';
-            document.getElementById('scheduleMinute').value = '';
-            document.getElementById('scheduleRunCount').value = '';
+            // 不清空表单，保留所有数据
         } else {
             alert('发送失败: ' + result.error);
         }
