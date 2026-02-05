@@ -421,6 +421,43 @@ async function viewRobotData(robotId) {
                 return String(val);
             }
 
+            // 将键名翻译为中文（使用映射，或按单词映射回退）
+            function translateKey(key) {
+                if (labelMap[key]) return labelMap[key];
+                // 拆分 snake_case 或 camelCase
+                const parts = key.split(/_|(?=[A-Z])/).filter(Boolean);
+                const wordMap = {
+                    second: '秒',
+                    minute: '分钟',
+                    hour: '小时',
+                    day: '日',
+                    month: '月',
+                    year: '年',
+                    frequency: '频率',
+                    power: '功率',
+                    rate: '速率',
+                    weekday: '星期',
+                    temperature: '温度',
+                    voltage: '电压',
+                    current: '电流',
+                    battery: '电池',
+                    motor: '电机',
+                    max: '上限',
+                    min: '下限',
+                    protection: '保护',
+                    board: '主板',
+                    sensor: '传感器',
+                    position: '位置',
+                    count: '次数'
+                };
+
+                const translated = parts.map(p => {
+                    const lower = p.toLowerCase();
+                    return wordMap[lower] || lower;
+                });
+                return translated.join('');
+            }
+
             // 递归渲染对象为HTML（带中文标签和格式化）
             function renderObject(obj) {
                 if (obj === null) return '<span class="data-value">null</span>';
@@ -437,7 +474,7 @@ async function viewRobotData(robotId) {
                 }
                 let html = '<div class="object-list">';
                 for (const key of Object.keys(obj)) {
-                    const label = labelMap[key] || key;
+                    const label = translateKey(key);
                     const value = obj[key];
                     if (value !== null && typeof value === 'object') {
                         html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
