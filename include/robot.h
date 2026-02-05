@@ -97,6 +97,12 @@ struct EnvironmentInfo {
 
 // 机器人数据结构
 struct RobotData {
+  // 告警信息
+  uint32_t alarm_fa = 0;  // FA告警 (4字节)
+  uint16_t alarm_fb = 0;  // FB告警 (2字节)
+  uint32_t alarm_fc = 0;  // FC告警 (4字节)
+  uint16_t alarm_fd = 0;  // FD告警 (2字节)
+
   // 电流电压
   int main_motor_current = 0;   // 主电机电流（100mA）
   int slave_motor_current = 0;  // 从电机电流（100mA）
@@ -214,6 +220,7 @@ class Robot {
 
   // 上报类指令
   void SendLoraAndCleanSettingsReport();  // Lora参数&清扫设置上报
+  void SendRobotDataReport();             // 机器人数据上报
 
  private:
   std::string robot_id_;                   // 机器人ID

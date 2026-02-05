@@ -154,3 +154,41 @@ export async function sendTimeSyncRequest(robotId, serialNumber) {
         return false;
     }
 }
+
+// 发送机器人数据上报
+export async function sendRobotDataReport(robotId, serialNumber) {
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return false;
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送机器人数据上报吗？\n\n${robotInfo}`;
+
+    if (!confirm(confirmMsg)) {
+        return false;
+    }
+
+    try {
+        ui.showLoading('正在发送机器人数据上报...');
+
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const result = await api.sendRobotDataReport(identifier, identifierType);
+
+        ui.hideLoading();
+
+        if (result.success) {
+            alert(`机器人数据上报发送成功！\n\n机器人: ${result.robot_id}\n\n这是一个上报类指令，平台不回复。`);
+            return true;
+        } else {
+            alert('发送失败: ' + result.error);
+            return false;
+        }
+    } catch (error) {
+        ui.hideLoading();
+        console.error('发送机器人数据上报失败:', error);
+        alert('发送失败: ' + error.message);
+        return false;
+    }
+}

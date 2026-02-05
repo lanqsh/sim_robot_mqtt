@@ -122,6 +122,25 @@
             </div>
         </div>
 
+        <!-- 机器人数据上报区域 -->
+        <div class="robot-data-report-section">
+            <div class="collapsible-header" onclick="toggleRobotDataForm()">
+                <h2>机器人数据上报</h2>
+                <span class="collapse-icon" id="robotDataCollapseIcon">▼</span>
+            </div>
+            <div class="robot-data-controls" id="robotDataFormContent" style="display: none;">
+                <div class="robot-data-inline-form">
+                    <input type="text" id="robotDataRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="robotDataSerial" min="1" placeholder="序号" style="width: 80px;">
+                    <button class="btn btn-success" onclick="sendRobotDataReport()">发送上报</button>
+                </div>
+                <div class="help-text" style="margin-top: 10px; color: #666; font-size: 14px;">
+                    <strong>说明：</strong>这是一个上报类指令，机器人会上报实时数据（电流、电压、电量、温度、工作时长等），平台收到后不回复。
+                </div>
+            </div>
+        </div>
+
         <!-- 机器人列表 -->
         <div class="robots-container">
             <!-- 统计信息 -->

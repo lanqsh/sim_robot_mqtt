@@ -22,6 +22,10 @@ std::string Robot::uplink_template_ = "";
 
 Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
   // 初始化机器人数据
+  data_.alarm_fa = 0;
+  data_.alarm_fb = 0;
+  data_.alarm_fc = 0;
+  data_.alarm_fd = 0;
   data_.battery_level = 100;
   data_.battery_voltage = 0;
   data_.battery_current = 0;
@@ -332,31 +336,8 @@ void Robot::ReportThreadFunc() {
 
     if (stop_report_.load()) break;
 
-    // 生成并发送上报数据
-    auto mqtt_manager = mqtt_manager_.lock();
-    if (mqtt_manager) {
-      // 构造数据域（标识 + 参数）
-      // 示例：标识0xA4（LoRa参数设置），参数：0x14 0x50 0x01
-      std::vector<uint8_t> data_field = {0xA4, 0x14, 0x50, 0x01};
-
-      // 使用Protocol编码：控制码0x41（上行），编号（取robot_number或序号），帧计数（sequence_累加）
-      uint16_t robot_num = 2;  // TODO: 从data_.robot_number解析或使用配置的序号
-      uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
-      std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_UPLINK, robot_num, frame_count, data_field);
-
-      // 转换为Base64
-      std::string base64_data = Protocol::BytesToBase64(encoded);
-
-      // 填入上行模板
-      std::string payload = GenerateUplinkPayload(base64_data);
-
-      // 将消息加入发送队列
-      mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
-      LOG(INFO) << "[Robot " << robot_id_ << "] 上报数据已加入队列，Base64: " << base64_data;
-
-      // 帧计数累加
-      sequence_.fetch_add(1);
-    }
+    // 生成并发送机器人数据上报
+    SendRobotDataReport();
   }
 
   LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
@@ -558,6 +539,146 @@ void Robot::SendLoraAndCleanSettingsReport() {
   sequence_.fetch_add(1);
 }
 
+void Robot::SendRobotDataReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送机器人数据上报";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(0xE4) + 机器人数据 (共46字节)
+  std::vector<uint8_t> data_field;
+
+  // 标识符
+  data_field.push_back(0xE4);
+
+  // FA告警 (4字节)
+  uint32_t fa = data_.alarm_fa;
+  data_field.push_back(static_cast<uint8_t>(fa >> 24));
+  data_field.push_back(static_cast<uint8_t>(fa >> 16));
+  data_field.push_back(static_cast<uint8_t>(fa >> 8));
+  data_field.push_back(static_cast<uint8_t>(fa));
+
+  // FB告警 (2字节)
+  uint16_t fb = data_.alarm_fb;
+  data_field.push_back(static_cast<uint8_t>(fb >> 8));
+  data_field.push_back(static_cast<uint8_t>(fb));
+
+  // FC告警 (4字节)
+  uint32_t fc = data_.alarm_fc;
+  data_field.push_back(static_cast<uint8_t>(fc >> 24));
+  data_field.push_back(static_cast<uint8_t>(fc >> 16));
+  data_field.push_back(static_cast<uint8_t>(fc >> 8));
+  data_field.push_back(static_cast<uint8_t>(fc));
+
+  // FD告警 (2字节)
+  uint16_t fd = data_.alarm_fd;
+  data_field.push_back(static_cast<uint8_t>(fd >> 8));
+  data_field.push_back(static_cast<uint8_t>(fd));
+
+  // 主电机电流 (2字节，单位100mA)
+  uint16_t main_current = static_cast<uint16_t>(data_.main_motor_current);
+  data_field.push_back(static_cast<uint8_t>(main_current >> 8));
+  data_field.push_back(static_cast<uint8_t>(main_current));
+
+  // 从电机电流 (2字节，单位100mA)
+  uint16_t slave_current = static_cast<uint16_t>(data_.slave_motor_current);
+  data_field.push_back(static_cast<uint8_t>(slave_current >> 8));
+  data_field.push_back(static_cast<uint8_t>(slave_current));
+
+  // 电池电压 (2字节，单位100mV)
+  uint16_t battery_volt = static_cast<uint16_t>(data_.battery_voltage);
+  data_field.push_back(static_cast<uint8_t>(battery_volt >> 8));
+  data_field.push_back(static_cast<uint8_t>(battery_volt));
+
+  // 电池电流 (2字节，单位100mA)
+  uint16_t battery_curr = static_cast<uint16_t>(data_.battery_current);
+  data_field.push_back(static_cast<uint8_t>(battery_curr >> 8));
+  data_field.push_back(static_cast<uint8_t>(battery_curr));
+
+  // 电池状态 (2字节)
+  uint16_t battery_status = static_cast<uint16_t>(data_.battery_status);
+  data_field.push_back(static_cast<uint8_t>(battery_status >> 8));
+  data_field.push_back(static_cast<uint8_t>(battery_status));
+
+  // 电池电量 (2字节)
+  uint16_t battery_level = static_cast<uint16_t>(data_.battery_level);
+  data_field.push_back(static_cast<uint8_t>(battery_level >> 8));
+  data_field.push_back(static_cast<uint8_t>(battery_level));
+
+  // 电池温度 (2字节)
+  uint16_t battery_temp = static_cast<uint16_t>(data_.battery_temperature);
+  data_field.push_back(static_cast<uint8_t>(battery_temp >> 8));
+  data_field.push_back(static_cast<uint8_t>(battery_temp));
+
+  // 位置信息 (2字节) - 使用position字段
+  uint16_t position = static_cast<uint16_t>(data_.position);
+  data_field.push_back(static_cast<uint8_t>(position >> 8));
+  data_field.push_back(static_cast<uint8_t>(position));
+
+  // 工作时长 (2字节)
+  uint16_t work_duration = static_cast<uint16_t>(data_.working_duration);
+  data_field.push_back(static_cast<uint8_t>(work_duration >> 8));
+  data_field.push_back(static_cast<uint8_t>(work_duration));
+
+  // 光伏板输出电压 (2字节，单位100mV)
+  uint16_t solar_volt = static_cast<uint16_t>(data_.solar_voltage);
+  data_field.push_back(static_cast<uint8_t>(solar_volt >> 8));
+  data_field.push_back(static_cast<uint8_t>(solar_volt));
+
+  // 光伏板输出电流 (2字节，单位100mA)
+  uint16_t solar_curr = static_cast<uint16_t>(data_.solar_current);
+  data_field.push_back(static_cast<uint8_t>(solar_curr >> 8));
+  data_field.push_back(static_cast<uint8_t>(solar_curr));
+
+  // 累计运行次数 (2字节)
+  uint16_t total_count = static_cast<uint16_t>(data_.total_run_count);
+  data_field.push_back(static_cast<uint8_t>(total_count >> 8));
+  data_field.push_back(static_cast<uint8_t>(total_count));
+
+  // 当前运行圈数 (4字节)
+  uint32_t lap_count = static_cast<uint32_t>(data_.current_lap_count);
+  data_field.push_back(static_cast<uint8_t>(lap_count >> 24));
+  data_field.push_back(static_cast<uint8_t>(lap_count >> 16));
+  data_field.push_back(static_cast<uint8_t>(lap_count >> 8));
+  data_field.push_back(static_cast<uint8_t>(lap_count));
+
+  // 当前实际时间戳 (3字节: 时、分、秒)
+  data_field.push_back(static_cast<uint8_t>(data_.current_timestamp.hour));
+  data_field.push_back(static_cast<uint8_t>(data_.current_timestamp.minute));
+  data_field.push_back(static_cast<uint8_t>(data_.current_timestamp.second));
+
+  // 主板温度 (2字节)
+  uint16_t board_temp = static_cast<uint16_t>(data_.board_temperature);
+  data_field.push_back(static_cast<uint8_t>(board_temp >> 8));
+  data_field.push_back(static_cast<uint8_t>(board_temp));
+
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  // 使用Protocol编码：控制码0x82（机器人主动上报）
+  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  // 转换为Base64
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  LOG(INFO) << "  Base64编码: " << base64_data;
+
+  // 填入上行模板并发送
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  机器人数据上报已加入发送队列";
+
+  // 帧计数累加
+  sequence_.fetch_add(1);
+}
+
 std::string Robot::GetLastData() const {
   nlohmann::json j;
 
@@ -571,6 +692,10 @@ std::string Robot::GetLastData() const {
 
   // RobotData 全量序列化
   nlohmann::json d;
+  d["alarm_fa"] = data_.alarm_fa;
+  d["alarm_fb"] = data_.alarm_fb;
+  d["alarm_fc"] = data_.alarm_fc;
+  d["alarm_fd"] = data_.alarm_fd;
   d["main_motor_current"] = data_.main_motor_current;
   d["slave_motor_current"] = data_.slave_motor_current;
   d["battery_voltage"] = data_.battery_voltage;
