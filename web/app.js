@@ -311,7 +311,7 @@ async function viewRobotData(robotId) {
                 robot_id: '机器人ID',
                 publish_topic: '发布主题',
                 subscribe_topic: '订阅主题',
-                sequence: '序列号',
+                sequence: 'MQTT消息序号',
                 report_interval_seconds: '上报间隔(秒)',
                 running: '运行状态',
                 // 顶层/基本
@@ -351,6 +351,18 @@ async function viewRobotData(robotId) {
                 country_code: '国家代码',
                 region_code: '地区代码',
                 project_code: '项目代码',
+
+                // lora_params 内部
+                lora_params: 'LoRa参数',
+                power: '功率',
+                frequency: '频率',
+                rate: '速率',
+
+                // local_time 内部
+                year: '年',
+                month: '月',
+                day: '日',
+                second: '秒',
 
                 // environment_info 内部
                 sensor_temperature: '传感器温度',
@@ -451,6 +463,12 @@ async function viewRobotData(robotId) {
 
             let html = '';
             html += `<div class="data-item"><span class="data-label">机器人ID:</span><span class="data-value">${data.robot_id}</span></div>`;
+            if (data.serial_number !== undefined) {
+                html += `<div class="data-item"><span class="data-label">机器人序号:</span><span class="data-value">#${data.serial_number}</span></div>`;
+            }
+            if (data.robot_name) {
+                html += `<div class="data-item"><span class="data-label">机器人名称:</span><span class="data-value">${data.robot_name}</span></div>`;
+            }
             html += `<div class="data-item"><span class="data-label">运行状态:</span><span class="data-value">${data.status === 'running' ? '运行中' : '已停止'}</span></div>`;
             html += '<hr style="margin: 20px 0;">';
             html += '<h3 style="margin-bottom: 15px;">完整成员变量</h3>';
@@ -499,6 +517,7 @@ async function batchAddRobots() {
     }
 
     try {
+        showLoading(`正在添加 ${count} 个机器人...`);
         const response = await fetch(`${API_BASE}/api/robots/batch`, {
             method: 'POST',
             headers: {
@@ -508,6 +527,7 @@ async function batchAddRobots() {
         });
 
         const result = await response.json();
+        hideLoading();
 
         if (result.success) {
             alert(`批量添加成功！共添加 ${result.count} 个机器人`);
@@ -520,6 +540,7 @@ async function batchAddRobots() {
             alert('批量添加失败: ' + result.error);
         }
     } catch (error) {
+        hideLoading();
         console.error('批量添加机器人失败:', error);
         alert('批量添加失败: ' + error.message);
     }

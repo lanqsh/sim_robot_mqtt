@@ -484,6 +484,16 @@ void HttpServer::ServerThreadFunc() {
         robot_data["status"] = robot->IsRunning() ? "running" : "stopped";
         robot_data["last_data"] = robot->GetLastData();
 
+        // 从数据库获取serial_number和robot_name
+        auto all_robots = config_db_->GetAllRobots();
+        for (const auto& r : all_robots) {
+          if (r.robot_id == robot_id) {
+            robot_data["serial_number"] = r.serial_number;
+            robot_data["robot_name"] = r.robot_name;
+            break;
+          }
+        }
+
         res.set_content(robot_data.dump(), "application/json");
         LOG(INFO) << "API: 获取机器人数据 - " << robot_id;
       } else {
