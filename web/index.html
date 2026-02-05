@@ -59,7 +59,7 @@
                     <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 150px;">
                     <span class="or-text">或</span>
                     <input type="number" id="scheduleSerial" min="1" placeholder="序号" style="width: 80px;">
-                    <input type="number" id="scheduleId" min="1" max="255" placeholder="定时编号" style="width: 90px;" required>
+                    <input type="number" id="scheduleId" min="1" max="255" placeholder="定时编号" style="width: 105px;" required>
                     <select id="scheduleWeekday" required style="width: 100px;">
                         <option value="1">星期一</option>
                         <option value="2">星期二</option>
@@ -72,7 +72,7 @@
                     <input type="number" id="scheduleHour" min="0" max="23" placeholder="时" style="width: 60px;" required>
                     <span>:</span>
                     <input type="number" id="scheduleMinute" min="0" max="59" placeholder="分" style="width: 60px;" required>
-                    <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 90px;" required>
+                    <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 105px;" required>
                     <button class="btn btn-success" onclick="sendScheduleRequest()">发送请求</button>
                 </div>
             </div>

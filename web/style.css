@@ -285,6 +285,10 @@ h1 {
     font-size: 0.9em;
 }
 
+.inline-form .btn:first-of-type {
+    margin-left: auto;
+}
+
 .form-group {
     margin-bottom: 15px;
 }
