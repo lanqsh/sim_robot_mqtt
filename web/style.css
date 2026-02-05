@@ -125,6 +125,10 @@ h1 {
     margin: 0 -5px;
 }
 
+.schedule-inline-form .btn:first-of-type {
+    margin-left: auto;
+}
+
 /* 启动请求区域样式 */
 .start-request-section {
     background: #e8f5e9;
@@ -160,6 +164,10 @@ h1 {
     color: #999;
     font-size: 0.9em;
     margin: 0 -5px;
+}
+
+.start-inline-form .btn:first-of-type {
+    margin-left: auto;
 }
 
 /* 校时请求区域样式 */
@@ -199,6 +207,10 @@ h1 {
     margin: 0 -5px;
 }
 
+.timesync-inline-form .btn:first-of-type {
+    margin-left: auto;
+}
+
 /* 机器人数据上报区域样式 */
 .robot-data-report-section {
     background: #e8f5e9;
@@ -234,6 +246,10 @@ h1 {
     color: #999;
     font-size: 0.9em;
     margin: 0 -5px;
+}
+
+.robot-data-inline-form .btn:first-of-type {
+    margin-left: auto;
 }
 
 .schedule-form {
