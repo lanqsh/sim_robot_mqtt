@@ -871,3 +871,64 @@ async function sendStartRequest() {
         alert('发送失败: ' + error.message);
     }
 }
+
+// 切换校时请求表单的显示/隐藏
+function toggleTimeSyncForm() {
+    const content = document.getElementById('timeSyncFormContent');
+    const icon = document.getElementById('timeSyncCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+// 发送校时请求
+async function sendTimeSyncRequest() {
+    const robotId = document.getElementById('timeSyncRobotId').value.trim();
+    const serialNumber = document.getElementById('timeSyncSerial').value.trim();
+
+    // 验证必填字段：机器人ID或序号至少填一个
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return;
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送校时请求吗？\n\n${robotInfo}`;
+
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    try {
+        showLoading('正在发送校时请求...');
+
+        // 构造请求URL和参数
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const response = await fetch(`${API_BASE}/api/robots/${identifier}/time_sync?type=${identifierType}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        hideLoading();
+
+        if (result.success) {
+            alert(`校时请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            // 不清空表单，保留所有数据
+        } else {
+            alert('发送失败: ' + result.error);
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('发送校时请求失败:', error);
+        alert('发送失败: ' + error.message);
+    }
+}

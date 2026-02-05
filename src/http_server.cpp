@@ -647,6 +647,73 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // POST /api/robots/:id/time_sync - 发送校时请求
+  svr.Post(R"(/api/robots/([^/]+)/time_sync)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    // 获取查询参数type（id或serial）
+    std::string type = "id";  // 默认为id
+    if (req.has_param("type")) {
+      type = req.get_param_value("type");
+    }
+
+    LOG(INFO) << "收到校时请求 - 标识: " << identifier << ", 类型: " << type;
+
+    try {
+      std::shared_ptr<Robot> robot;
+
+      if (type == "serial") {
+        // 通过序号查找robot_id
+        int serial_number = std::stoi(identifier);
+        std::string robot_id = config_db_.GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          LOG(WARNING) << "未找到序号对应的机器人: " << serial_number;
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号对应的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+
+        robot = mqtt_manager_->GetRobot(robot_id);
+      } else {
+        // 直接使用robot_id
+        robot = mqtt_manager_->GetRobot(identifier);
+      }
+
+      if (!robot) {
+        LOG(WARNING) << "未找到机器人: " << identifier;
+        json error;
+        error["success"] = false;
+        error["error"] = "未找到机器人";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 发送校时请求
+      robot->SendTimeSyncRequest();
+
+      json response;
+      response["success"] = true;
+      response["message"] = "校时请求已发送";
+      response["robot_id"] = robot->GetId();
+      res.set_content(response.dump(), "application/json");
+
+      LOG(INFO) << "校时请求已发送 - 机器人: " << robot->GetId();
+
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送校时请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   LOG(INFO) << "HTTP服务器线程启动，监听端口: " << port_;
 
   // 启动服务器（阻塞）
