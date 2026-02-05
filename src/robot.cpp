@@ -42,6 +42,15 @@ Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
   data_.direction = 0;
   data_.domestic_foreign_flag = 0;
 
+  // 初始化定时任务，保留7个元素
+  data_.schedule_tasks.resize(7);
+  for (auto& task : data_.schedule_tasks) {
+    task.weekday = 0;
+    task.hour = 0;
+    task.minute = 0;
+    task.run_count = 0;
+  }
+
   // 首次加载模板
   if (uplink_template_.empty()) {
     uplink_template_ = LoadUplinkTemplate();
@@ -118,6 +127,9 @@ void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
 
   // 自动启动定时上报
   StartReport();
+
+  // 启动后立即发送一次Lora参数&清扫设置上报
+  SendLoraAndCleanSettingsReport();
 }
 
 void Robot::HandleMessage(const std::string& data) {
@@ -461,6 +473,88 @@ void Robot::SendTimeSyncRequest() {
   mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
 
   LOG(INFO) << "  校时请求已加入发送队列";
+
+  // 帧计数累加
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendLoraAndCleanSettingsReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送Lora参数&清扫设置上报";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(0xB1) + Lora参数 + 清扫设置
+  std::vector<uint8_t> data_field;
+
+  // 标识符
+  data_field.push_back(0xB1);
+
+  // Lora参数 (3字节)
+  data_field.push_back(static_cast<uint8_t>(data_.lora_params.power));      // 功率
+  data_field.push_back(static_cast<uint8_t>(data_.lora_params.frequency));  // 频率
+  data_field.push_back(static_cast<uint8_t>(data_.lora_params.rate));       // 速率
+
+  // 机器人编号 (2字节) - 从robot_number字符串转换
+  uint16_t robot_num = 2;  // TODO: 从data_.robot_number解析
+  data_field.push_back(static_cast<uint8_t>(robot_num >> 8));   // 高字节
+  data_field.push_back(static_cast<uint8_t>(robot_num));        // 低字节
+
+  // 软件版本 (2字节) - 例如 "1.0" -> 0x01 0x00
+  uint8_t major_version = 1;
+  uint8_t minor_version = 0;
+  if (!data_.software_version.empty()) {
+    sscanf(data_.software_version.c_str(), "%hhu.%hhu", &major_version, &minor_version);
+  }
+  data_field.push_back(major_version);
+  data_field.push_back(minor_version);
+
+  // 启用/停用 (1字节)
+  data_field.push_back(0x00);
+
+  // 保留 (1字节) - 保留字段
+  data_field.push_back(0x00);
+
+  // 停机位 (1字节)
+  data_field.push_back(static_cast<uint8_t>(data_.parking_position));
+
+  // 白天防误扫开关 (1字节)
+  data_field.push_back(data_.daytime_scan_protect ? 0x01 : 0x00);
+
+  // 定时任务1-7 (每个4字节，共28字节)
+  for (int i = 0; i < 7; i++) {
+    const auto& task = data_.schedule_tasks[i];
+    data_field.push_back(static_cast<uint8_t>(task.weekday));
+    data_field.push_back(static_cast<uint8_t>(task.hour));
+    data_field.push_back(static_cast<uint8_t>(task.minute));
+    data_field.push_back(static_cast<uint8_t>(task.run_count));
+  }
+
+  // 最后的启用/停用 (1字节)
+  data_field.push_back(data_.enabled ? 0x01 : 0x00);
+
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  // 使用Protocol编码：控制码0x82（机器人主动上报）
+  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  // 转换为Base64
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  LOG(INFO) << "  Base64编码: " << base64_data;
+
+  // 填入上行模板并发送
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  Lora参数&清扫设置上报已加入发送队列";
 
   // 帧计数累加
   sequence_.fetch_add(1);

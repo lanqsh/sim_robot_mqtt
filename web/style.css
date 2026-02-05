@@ -199,6 +199,43 @@ h1 {
     margin: 0 -5px;
 }
 
+/* Lora参数&清扫设置上报区域样式 */
+.lora-clean-report-section {
+    background: #fff8e1;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.lora-clean-controls {
+    margin-top: 15px;
+}
+
+.lora-clean-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.lora-clean-inline-form input {
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.lora-clean-inline-form input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.lora-clean-inline-form .or-text {
+    color: #999;
+    font-size: 0.9em;
+    margin: 0 -5px;
+}
+
 .schedule-form {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

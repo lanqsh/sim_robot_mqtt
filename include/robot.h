@@ -212,6 +212,9 @@ class Robot {
   void SendStartRequest();  // 启动请求
   void SendTimeSyncRequest();  // 校时请求
 
+  // 上报类指令
+  void SendLoraAndCleanSettingsReport();  // Lora参数&清扫设置上报
+
  private:
   std::string robot_id_;                   // 机器人ID
   std::string publish_topic_;              // 发布主题
