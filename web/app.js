@@ -705,6 +705,20 @@ function closeModal() {
     document.getElementById('robotModal').classList.remove('active');
 }
 
+// 切换定时启动表单的显示/隐藏
+function toggleScheduleForm() {
+    const content = document.getElementById('scheduleFormContent');
+    const icon = document.getElementById('scheduleCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'grid';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
 // 发送定时启动请求
 async function sendScheduleRequest() {
     const robotId = document.getElementById('scheduleRobotId').value.trim();

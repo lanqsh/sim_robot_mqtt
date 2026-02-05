@@ -54,8 +54,11 @@
 
         <!-- 定时启动请求区域 -->
         <div class="schedule-request-section">
-            <h2 style="margin-bottom: 15px;">定时启动请求</h2>
-            <div class="schedule-controls">
+            <div class="collapsible-header" onclick="toggleScheduleForm()">
+                <h2>定时启动请求</h2>
+                <span class="collapse-icon" id="scheduleCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls" id="scheduleFormContent" style="display: none;">
                 <div class="form-group">
                     <label for="scheduleRobotId">机器人ID *</label>
                     <input type="text" id="scheduleRobotId" placeholder="例如: robot_001" required>

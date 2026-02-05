@@ -50,10 +50,7 @@ Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
 
 Robot::~Robot() {
   // 停止上报线程
-  stop_report_.store(true);
-  if (report_thread_.joinable()) {
-    report_thread_.join();
-  }
+  StopReport();
 }
 
 void Robot::SetTopics(const std::string& publish_topic,
@@ -118,6 +115,9 @@ std::string Robot::LoadUplinkTemplate() {
 void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
   mqtt_manager_ = manager;
   LOG(INFO) << "[Robot " << robot_id_ << "] MQTT管理器已设置";
+
+  // 自动启动定时上报
+  StartReport();
 }
 
 void Robot::HandleMessage(const std::string& data) {
@@ -206,6 +206,31 @@ void Robot::HandleMessage(const std::string& data) {
 void Robot::SetReportInterval(int interval_seconds) {
   report_interval_seconds_ = interval_seconds;
   LOG(INFO) << "[Robot " << robot_id_ << "] 设置上报间隔为 " << interval_seconds << " 秒";
+}
+
+void Robot::StartReport() {
+  // 如果线程已经在运行，先停止
+  if (report_thread_.joinable()) {
+    LOG(WARNING) << "[Robot " << robot_id_ << "] 上报线程已在运行，先停止";
+    StopReport();
+  }
+
+  // 重置停止标志
+  stop_report_.store(false);
+
+  // 启动新线程
+  report_thread_ = std::thread(&Robot::ReportThreadFunc, this);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 定时上报已启动";
+}
+
+void Robot::StopReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 正在停止定时上报...";
+  stop_report_.store(true);
+
+  if (report_thread_.joinable()) {
+    report_thread_.join();
+    LOG(INFO) << "[Robot " << robot_id_ << "] 定时上报已停止";
+  }
 }
 
 void Robot::ReportThreadFunc() {

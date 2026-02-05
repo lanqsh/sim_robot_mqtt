@@ -180,6 +180,12 @@ class Robot {
   // 设置上报间隔（秒）
   void SetReportInterval(int interval_seconds);
 
+  // 启动定时上报
+  void StartReport();
+
+  // 停止定时上报
+  void StopReport();
+
   // 获取发布主题
   std::string GetPublishTopic() const { return publish_topic_; }
 
