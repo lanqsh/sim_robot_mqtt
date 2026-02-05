@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 
 #include "mqtt_manager.h"
@@ -133,7 +134,7 @@ void Robot::HandleMessage(const std::string& data) {
       LOG(INFO) << "    数据长度: " << static_cast<int>(frame.length);
       LOG(INFO) << "    数据域: " << Protocol::BytesToHexString(frame.data);
 
-      // TODO: 根据数据域的标识字段处理不同类型的命令
+      // 根据数据域的标识字段处理不同类型的命令
       if (!frame.data.empty()) {
         uint8_t identifier = frame.data[0];  // 第一个字节是标识
         LOG(INFO) << "    标识符: 0x" << std::hex << static_cast<int>(identifier);
@@ -144,25 +145,46 @@ void Robot::HandleMessage(const std::string& data) {
             LOG(INFO) << "    命令类型: LoRa参数设置";
             // TODO: 解析参数并更新配置
             break;
-          default:
-            LOG(WARNING) << "    未知命令标识符: 0x" << std::hex << static_cast<int>(identifier);
+
+          case 0xF0: {  // 定时启动请求回复
+            LOG(INFO) << "    命令类型: 定时启动请求回复";
+            if (frame.data.size() >= 15) {  // 标识(1) + 参数(14)
+              uint8_t start_flag = frame.data[1];           // 启动运行标志
+              uint8_t year = frame.data[2];                 // 年
+              uint8_t month = frame.data[3];                // 月
+              uint8_t day = frame.data[4];                  // 日
+              uint8_t hour = frame.data[5];                 // 时
+              uint8_t minute = frame.data[6];               // 分
+              uint8_t second = frame.data[7];               // 秒
+              uint8_t weekday = frame.data[8];              // 星期
+              uint8_t wind_speed = frame.data[9];           // 当前风速
+              uint16_t comm_box_count = (static_cast<uint16_t>(frame.data[10]) << 8) | frame.data[11];  // 通信箱数量
+              uint16_t robot_count = (static_cast<uint16_t>(frame.data[12]) << 8) | frame.data[13];     // 机器人数量
+              uint8_t protection_info = frame.data[14];     // 后台保护信息
+
+              LOG(INFO) << "    === 定时启动请求回复解析 ===";
+              LOG(INFO) << "    启动运行标志: 0x" << std::hex << static_cast<int>(start_flag);
+              LOG(INFO) << "    时间信息: 20" << std::dec << static_cast<int>(year)
+                       << "-" << std::setfill('0') << std::setw(2) << static_cast<int>(month)
+                       << "-" << std::setw(2) << static_cast<int>(day)
+                       << " " << std::setw(2) << static_cast<int>(hour)
+                       << ":" << std::setw(2) << static_cast<int>(minute)
+                       << ":" << std::setw(2) << static_cast<int>(second)
+                       << " 星期" << static_cast<int>(weekday);
+              LOG(INFO) << "    当前风速: " << static_cast<int>(wind_speed);
+              LOG(INFO) << "    通信箱数量: " << comm_box_count;
+              LOG(INFO) << "    机器人数量: " << robot_count;
+              LOG(INFO) << "    后台保护信息: 0x" << std::hex << static_cast<int>(protection_info);
+              LOG(INFO) << "      - 大风保护: " << ((protection_info & 0x01) ? "开启" : "关闭");
+              LOG(INFO) << "      - 湿度保护: " << ((protection_info & 0x02) ? "开启" : "关闭");
+              LOG(INFO) << "      - 支架保护: " << ((protection_info & 0x04) ? "开启" : "关闭");
+              LOG(INFO) << "      - 环境温度保护: " << ((protection_info & 0x08) ? "开启" : "关闭");
+            } else {
+              LOG(ERROR) << "    定时启动回复数据长度不足";
+            }
             break;
-        }
-      }
-    } else {
-      LOG(ERROR) << "  协议解析失败";
-    }
-  } catch (const std::exception& e) {
-    LOG(ERROR) << "  消息处理失败: " << e.what();
-  }
-}
+          }
 
-void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
-  mqtt_manager_ = manager;
-
-  // 启动上报线程
-  if (manager != nullptr) {
-    stop_report_.store(false);
     report_thread_ = std::thread(&Robot::ReportThreadFunc, this);
   }
 }
@@ -211,6 +233,52 @@ void Robot::ReportThreadFunc() {
   }
 
   LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
+}
+
+void Robot::SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
+                                     uint8_t hour, uint8_t minute, uint8_t run_count) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送定时启动请求";
+  LOG(INFO) << "  定时信息编号: " << static_cast<int>(schedule_id);
+  LOG(INFO) << "  星期: " << static_cast<int>(weekday);
+  LOG(INFO) << "  时间: " << std::setfill('0') << std::setw(2) << static_cast<int>(hour)
+           << ":" << std::setw(2) << static_cast<int>(minute);
+  LOG(INFO) << "  运行次数: " << static_cast<int>(run_count);
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(0xF0) + 参数(5字节)
+  std::vector<uint8_t> data_field = {
+    0xF0,         // 标识：定时启动请求
+    schedule_id,  // 定时信息编号
+    weekday,      // 星期
+    hour,         // 时
+    minute,       // 分
+    run_count     // 运行次数
+  };
+
+  // 使用Protocol编码：控制码0x82（机器人主动发送请求）
+  uint16_t robot_num = 2;  // TODO: 使用实际的robot_number
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  // 转换为Base64
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  LOG(INFO) << "  Base64编码: " << base64_data;
+
+  // 填入上行模板并发送
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  定时启动请求已加入发送队列";
+
+  // 帧计数累加
+  sequence_.fetch_add(1);
 }
 
 std::string Robot::GetLastData() const {

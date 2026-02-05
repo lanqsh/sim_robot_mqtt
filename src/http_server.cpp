@@ -513,6 +513,66 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // POST /api/robots/{id}/schedule_start - 发送定时启动请求
+  svr.Post(R"(/api/robots/([^/]+)/schedule_start)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.matches[1];
+
+    try {
+      // 解析请求体
+      json body = json::parse(req.body);
+
+      if (!body.contains("schedule_id") || !body.contains("weekday") ||
+          !body.contains("hour") || !body.contains("minute") || !body.contains("run_count")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: schedule_id, weekday, hour, minute, run_count";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      uint8_t schedule_id = body["schedule_id"].get<int>();
+      uint8_t weekday = body["weekday"].get<int>();
+      uint8_t hour = body["hour"].get<int>();
+      uint8_t minute = body["minute"].get<int>();
+      uint8_t run_count = body["run_count"].get<int>();
+
+      // 查找机器人
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+
+      if (robot) {
+        // 发送定时启动请求
+        robot->SendScheduleStartRequest(schedule_id, weekday, hour, minute, run_count);
+
+        json response;
+        response["success"] = true;
+        response["message"] = "定时启动请求已发送";
+        response["robot_id"] = robot_id;
+        response["schedule_id"] = schedule_id;
+        response["weekday"] = weekday;
+        response["hour"] = hour;
+        response["minute"] = minute;
+        response["run_count"] = run_count;
+
+        res.set_content(response.dump(), "application/json");
+        LOG(INFO) << "API: 发送定时启动请求 - 机器人: " << robot_id;
+      } else {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+      }
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送定时启动请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   LOG(INFO) << "HTTP服务器线程启动，监听端口: " << port_;
 
   // 启动服务器（阻塞）

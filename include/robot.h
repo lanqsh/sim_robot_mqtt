@@ -200,6 +200,10 @@ class Robot {
   bool IsRunning() const { return !stop_report_; }
   std::string GetLastData() const;  // 获取最后一次上报的数据（JSON格式）
 
+  // 请求类指令
+  void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
+                                uint8_t hour, uint8_t minute, uint8_t run_count);
+
  private:
   std::string robot_id_;                   // 机器人ID
   std::string publish_topic_;              // 发布主题
