@@ -665,7 +665,7 @@ void HttpServer::ServerThreadFunc() {
       if (type == "serial") {
         // 通过序号查找robot_id
         int serial_number = std::stoi(identifier);
-        std::string robot_id = config_db_.GetRobotIdBySerial(serial_number);
+        std::string robot_id = config_db_->GetRobotIdBySerial(serial_number);
 
         if (robot_id.empty()) {
           LOG(WARNING) << "未找到序号对应的机器人: " << serial_number;
