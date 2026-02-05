@@ -91,7 +91,6 @@ window.closeModal = function() {
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
-window.toggleRobotDataForm = () => ui.toggleForm('robotDataFormContent', 'robotDataCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
 
@@ -122,14 +121,6 @@ window.sendTimeSyncRequest = async function() {
     const serialNumber = document.getElementById('timeSyncSerial').value.trim();
 
     await commands.sendTimeSyncRequest(robotId, serialNumber);
-};
-
-// 全局函数：发送机器人数据上报
-window.sendRobotDataReport = async function() {
-    const robotId = document.getElementById('robotDataRobotId').value.trim();
-    const serialNumber = document.getElementById('robotDataSerial').value.trim();
-
-    await commands.sendRobotDataReport(robotId, serialNumber);
 };
 
 // 页面加载完成后初始化
