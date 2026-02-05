@@ -258,6 +258,33 @@ h1 {
     margin-right: 8px;
 }
 
+/* 通用的单行表单样式 */
+.inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.inline-form input,
+.inline-form select {
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.inline-form input:focus,
+.inline-form select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.inline-form span {
+    color: #999;
+    font-size: 0.9em;
+}
+
 .form-group {
     margin-bottom: 15px;
 }

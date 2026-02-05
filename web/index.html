@@ -19,17 +19,13 @@
             <div id="addRobotContent" style="display: none;">
                 <div id="message"></div>
                 <form id="addRobotForm">
-                    <div class="form-group">
-                        <label for="serialNumber">序号 *</label>
+                    <div class="inline-form">
                         <input type="number" id="serialNumber" name="serialNumber" min="1" required
-                               placeholder="例如: 1">
-                    </div>
-                    <div class="form-group">
-                        <label for="robotName">机器人名称</label>
+                               placeholder="序号 *" style="width: 120px;">
                         <input type="text" id="robotName" name="robotName"
-                               placeholder="例如: Robot 1">
+                               placeholder="机器人名称（可选）" style="width: 200px;">
+                        <button type="submit" class="btn btn-primary">添加机器人</button>
                     </div>
-                    <button type="submit" class="btn btn-primary">添加机器人</button>
                 </form>
             </div>
         </div>
@@ -41,19 +37,11 @@
                 <span class="collapse-icon" id="batchCollapseIcon">▼</span>
             </div>
             <div class="batch-controls" id="batchFormContent" style="display: none;">
-                <div class="form-group">
-                    <label for="batchStartSerial">起始序号</label>
-                    <input type="number" id="batchStartSerial" min="1" placeholder="1">
-                </div>
-                <div class="form-group">
-                    <label for="batchEndSerial">结束序号</label>
-                    <input type="number" id="batchEndSerial" min="1" placeholder="10">
-                </div>
-                <div class="form-group">
-                    <label for="batchNamePrefix">名称前缀 (可选)</label>
-                    <input type="text" id="batchNamePrefix" placeholder="Robot ">
-                </div>
-                <div class="batch-buttons">
+                <div class="inline-form">
+                    <input type="number" id="batchStartSerial" min="1" placeholder="起始序号" style="width: 110px;">
+                    <span>~</span>
+                    <input type="number" id="batchEndSerial" min="1" placeholder="结束序号" style="width: 110px;">
+                    <input type="text" id="batchNamePrefix" placeholder="名称前缀（可选）" style="width: 150px;">
                     <button class="btn btn-primary" onclick="batchAddRobots()">批量添加</button>
                     <button class="btn btn-danger" onclick="batchDeleteRobots()">批量删除</button>
                 </div>
@@ -134,9 +122,6 @@
                     <span class="or-text">或</span>
                     <input type="number" id="robotDataSerial" min="1" placeholder="序号" style="width: 80px;">
                     <button class="btn btn-success" onclick="sendRobotDataReport()">发送上报</button>
-                </div>
-                <div class="help-text" style="margin-top: 10px; color: #666; font-size: 14px;">
-                    <strong>说明：</strong>这是一个上报类指令，机器人会上报实时数据（电流、电压、电量、温度、工作时长等），平台收到后不回复。
                 </div>
             </div>
         </div>
