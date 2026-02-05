@@ -108,16 +108,19 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // JavaScript文件
-  svr.Get("/app.js", [](const httplib::Request&, httplib::Response& res) {
-    std::ifstream file("web/app.js");
+  // JavaScript模块文件（支持 /js/*.js 路径）
+  svr.Get(R"(/js/(.+\.js))", [](const httplib::Request& req, httplib::Response& res) {
+    std::string filename = req.matches[1];
+    std::string filepath = "web/js/" + filename;
+
+    std::ifstream file(filepath);
     if (file.is_open()) {
       std::stringstream buffer;
       buffer << file.rdbuf();
       res.set_content(buffer.str(), "application/javascript; charset=utf-8");
     } else {
       res.status = 404;
-      res.set_content("app.js not found", "text/plain");
+      res.set_content("File not found: " + filepath, "text/plain");
     }
   });
 
