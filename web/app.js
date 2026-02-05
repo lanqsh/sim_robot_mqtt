@@ -496,10 +496,25 @@ async function batchDeleteRobots() {
 
     let robot_ids = [];
 
-    // 从服务器获取指定序号范围的机器人
+    // 从服务器获取指定序号范围的机器人（仅使用后端分页接口）
     try {
-        const response = await fetch(`${API_BASE}/api/robots`);
-        const robots = await response.json();
+        let robots = [];
+
+        // 按页拉取所有数据，使用当前前端 pageSize 设置
+        let page = 1;
+        while (true) {
+            const resp = await fetch(`${API_BASE}/api/robots?page=${page}&pageSize=${pageSize}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const json = await resp.json();
+
+            const pageData = json.data || [];
+            robots = robots.concat(pageData);
+
+            const pagination = json.pagination;
+            if (!pagination) break; // 如果没有分页信息则停止
+            if (page >= pagination.totalPages) break;
+            page += 1;
+        }
 
         // 过滤出序号在范围内的机器人
         robot_ids = robots
