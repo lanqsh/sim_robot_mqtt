@@ -165,124 +165,124 @@ std::string Robot::GetLastData() const {
   nlohmann::json j;
 
   // 基本信息
-  j["robot_id"] = robot_id_;
-  j["publish_topic"] = publish_topic_;
-  j["subscribe_topic"] = subscribe_topic_;
-  j["sequence"] = sequence_.load();
-  j["report_interval_seconds"] = report_interval_seconds_;
-  j["running"] = IsRunning();
+  j["机器人ID"] = robot_id_;
+  j["发布主题"] = publish_topic_;
+  j["订阅主题"] = subscribe_topic_;
+  j["序列号"] = sequence_.load();
+  j["上报间隔(秒)"] = report_interval_seconds_;
+  j["运行状态"] = IsRunning();
 
   // RobotData 全量序列化
   nlohmann::json d;
-  d["main_motor_current"] = data_.main_motor_current;
-  d["slave_motor_current"] = data_.slave_motor_current;
-  d["battery_voltage"] = data_.battery_voltage;
-  d["battery_current"] = data_.battery_current;
-  d["battery_status"] = data_.battery_status;
-  d["battery_level"] = data_.battery_level;
-  d["battery_temperature"] = data_.battery_temperature;
-  d["position_info"] = data_.position_info;
-  d["working_duration"] = data_.working_duration;
-  d["total_run_count"] = data_.total_run_count;
-  d["current_lap_count"] = data_.current_lap_count;
-  d["solar_voltage"] = data_.solar_voltage;
-  d["solar_current"] = data_.solar_current;
+  d["主电机电流"] = data_.main_motor_current;
+  d["从电机电流"] = data_.slave_motor_current;
+  d["电池电压"] = data_.battery_voltage;
+  d["电池电流"] = data_.battery_current;
+  d["电池状态"] = data_.battery_status;
+  d["电池电量"] = data_.battery_level;
+  d["电池温度"] = data_.battery_temperature;
+  d["位置信息"] = data_.position_info;
+  d["工作时长"] = data_.working_duration;
+  d["累计运行次数"] = data_.total_run_count;
+  d["当前圈数"] = data_.current_lap_count;
+  d["光伏电压"] = data_.solar_voltage;
+  d["光伏电流"] = data_.solar_current;
 
   // timestamp
-  d["current_timestamp"] = {
-    {"hour", data_.current_timestamp.hour},
-    {"minute", data_.current_timestamp.minute},
-    {"second", data_.current_timestamp.second}
+  d["当前时间戳"] = {
+    {"时", data_.current_timestamp.hour},
+    {"分", data_.current_timestamp.minute},
+    {"秒", data_.current_timestamp.second}
   };
 
-  d["board_temperature"] = data_.board_temperature;
+  d["主板温度"] = data_.board_temperature;
 
   // 配置参数
-  d["lora_params"] = {
-    {"power", data_.lora_params.power},
-    {"frequency", data_.lora_params.frequency},
-    {"rate", data_.lora_params.rate}
+  d["LoRa参数"] = {
+    {"功率", data_.lora_params.power},
+    {"频率", data_.lora_params.frequency},
+    {"速率", data_.lora_params.rate}
   };
 
-  d["robot_number"] = data_.robot_number;
-  d["software_version"] = data_.software_version;
-  d["parking_position"] = data_.parking_position;
-  d["daytime_scan_protect"] = data_.daytime_scan_protect;
+  d["机器人编号"] = data_.robot_number;
+  d["软件版本"] = data_.software_version;
+  d["停机位"] = data_.parking_position;
+  d["白天防误扫"] = data_.daytime_scan_protect;
 
   // schedule tasks
   nlohmann::json tasks = nlohmann::json::array();
   for (const auto& t : data_.schedule_tasks) {
     tasks.push_back({
-      {"weekday", t.weekday}, {"hour", t.hour}, {"minute", t.minute}, {"run_count", t.run_count}
+      {"星期", t.weekday}, {"时", t.hour}, {"分", t.minute}, {"运行次数", t.run_count}
     });
   }
-  d["schedule_tasks"] = tasks;
+  d["定时任务"] = tasks;
 
-  d["enabled"] = data_.enabled;
+  d["是否启用"] = data_.enabled;
 
   // 电机参数
-  d["motor_params"] = {
-    {"walk_motor_speed", data_.motor_params.walk_motor_speed},
-    {"brush_motor_speed", data_.motor_params.brush_motor_speed},
-    {"windproof_motor_speed", data_.motor_params.windproof_motor_speed},
-    {"walk_motor_max_current_ma", data_.motor_params.walk_motor_max_current_ma},
-    {"brush_motor_max_current_ma", data_.motor_params.brush_motor_max_current_ma},
-    {"windproof_motor_max_current_ma", data_.motor_params.windproof_motor_max_current_ma},
-    {"walk_motor_warning_current_ma", data_.motor_params.walk_motor_warning_current_ma},
-    {"brush_motor_warning_current_ma", data_.motor_params.brush_motor_warning_current_ma},
-    {"windproof_motor_warning_current_ma", data_.motor_params.windproof_motor_warning_current_ma},
-    {"walk_motor_mileage_m", data_.motor_params.walk_motor_mileage_m},
-    {"brush_motor_timeout_s", data_.motor_params.brush_motor_timeout_s},
-    {"windproof_motor_timeout_s", data_.motor_params.windproof_motor_timeout_s},
-    {"reverse_time_s", data_.motor_params.reverse_time_s},
-    {"protection_angle", data_.motor_params.protection_angle}
+  d["电机参数"] = {
+    {"行走电机速率", data_.motor_params.walk_motor_speed},
+    {"毛刷电机速率", data_.motor_params.brush_motor_speed},
+    {"防风电机速率", data_.motor_params.windproof_motor_speed},
+    {"行走电机上限电流停机值(mA)", data_.motor_params.walk_motor_max_current_ma},
+    {"毛刷电机上限电流停机值(mA)", data_.motor_params.brush_motor_max_current_ma},
+    {"防风电机上限电流停机值(mA)", data_.motor_params.windproof_motor_max_current_ma},
+    {"行走电机预警电流(mA)", data_.motor_params.walk_motor_warning_current_ma},
+    {"毛刷电机预警电流(mA)", data_.motor_params.brush_motor_warning_current_ma},
+    {"防风电机预警电流(mA)", data_.motor_params.windproof_motor_warning_current_ma},
+    {"行走电机运行里程(m)", data_.motor_params.walk_motor_mileage_m},
+    {"毛刷电机超时(s)", data_.motor_params.brush_motor_timeout_s},
+    {"防风电机超时(s)", data_.motor_params.windproof_motor_timeout_s},
+    {"反转时间(s)", data_.motor_params.reverse_time_s},
+    {"保护角度", data_.motor_params.protection_angle}
   };
 
   // 保护参数
-  d["temp_voltage_protection"] = {
-    {"protection_current_ma", data_.temp_voltage_protection.protection_current_ma},
-    {"high_temp_threshold", data_.temp_voltage_protection.high_temp_threshold},
-    {"low_temp_threshold", data_.temp_voltage_protection.low_temp_threshold},
-    {"protection_temp", data_.temp_voltage_protection.protection_temp},
-    {"recovery_temp", data_.temp_voltage_protection.recovery_temp},
-    {"protection_voltage", data_.temp_voltage_protection.protection_voltage},
-    {"recovery_voltage", data_.temp_voltage_protection.recovery_voltage},
-    {"protection_battery_level", data_.temp_voltage_protection.protection_battery_level},
-    {"limit_run_battery_level", data_.temp_voltage_protection.limit_run_battery_level},
-    {"recovery_battery_level", data_.temp_voltage_protection.recovery_battery_level},
-    {"board_protection_temp", data_.temp_voltage_protection.board_protection_temp},
-    {"board_recovery_temp", data_.temp_voltage_protection.board_recovery_temp}
+  d["温压保护参数"] = {
+    {"保护电流(mA)", data_.temp_voltage_protection.protection_current_ma},
+    {"高温阈值", data_.temp_voltage_protection.high_temp_threshold},
+    {"低温阈值", data_.temp_voltage_protection.low_temp_threshold},
+    {"保护温度", data_.temp_voltage_protection.protection_temp},
+    {"恢复温度", data_.temp_voltage_protection.recovery_temp},
+    {"保护电压", data_.temp_voltage_protection.protection_voltage},
+    {"恢复电压", data_.temp_voltage_protection.recovery_voltage},
+    {"保护电量", data_.temp_voltage_protection.protection_battery_level},
+    {"限制运行电量", data_.temp_voltage_protection.limit_run_battery_level},
+    {"恢复电量", data_.temp_voltage_protection.recovery_battery_level},
+    {"主板保护温度", data_.temp_voltage_protection.board_protection_temp},
+    {"主板恢复温度", data_.temp_voltage_protection.board_recovery_temp}
   };
 
   // 本地时间
-  d["local_time"] = {
-    {"year", data_.local_time.year}, {"month", data_.local_time.month}, {"day", data_.local_time.day},
-    {"hour", data_.local_time.hour}, {"minute", data_.local_time.minute}, {"second", data_.local_time.second},
-    {"weekday", data_.local_time.weekday}
+  d["本地时间"] = {
+    {"年", data_.local_time.year}, {"月", data_.local_time.month}, {"日", data_.local_time.day},
+    {"时", data_.local_time.hour}, {"分", data_.local_time.minute}, {"秒", data_.local_time.second},
+    {"星期", data_.local_time.weekday}
   };
 
   // 环境信息
-  d["environment_info"] = {
-    {"sensor_temperature", data_.environment_info.sensor_temperature},
-    {"sensor_humidity", data_.environment_info.sensor_humidity},
-    {"ambient_temperature", data_.environment_info.ambient_temperature},
-    {"day_night_status", data_.environment_info.day_night_status}
+  d["环境信息"] = {
+    {"传感器温度", data_.environment_info.sensor_temperature},
+    {"传感器湿度", data_.environment_info.sensor_humidity},
+    {"环境温度", data_.environment_info.ambient_temperature},
+    {"白夜状态", data_.environment_info.day_night_status}
   };
 
   // 数组数据
-  d["master_currents"] = data_.master_currents;
-  d["slave_currents"] = data_.slave_currents;
-  d["position"] = data_.position;
-  d["direction"] = data_.direction;
+  d["主机电流"] = data_.master_currents;
+  d["从机电流"] = data_.slave_currents;
+  d["位置"] = data_.position;
+  d["方向"] = data_.direction;
 
   // 设备标识
-  d["module_eui"] = data_.module_eui;
-  d["domestic_foreign_flag"] = data_.domestic_foreign_flag;
-  d["country_code"] = data_.country_code;
-  d["region_code"] = data_.region_code;
-  d["project_code"] = data_.project_code;
+  d["模组EUI"] = data_.module_eui;
+  d["国内/国外版本"] = data_.domestic_foreign_flag;
+  d["国家代码"] = data_.country_code;
+  d["地区代码"] = data_.region_code;
+  d["项目代码"] = data_.project_code;
 
-  j["data"] = d;
+  j["数据"] = d;
 
   return j.dump();
 }

@@ -481,7 +481,7 @@ void HttpServer::ServerThreadFunc() {
       if (robot) {
         json robot_data;
         robot_data["robot_id"] = robot->GetId();
-        robot_data["status"] = robot->IsRunning() ? "运行中" : "已停止";
+        robot_data["status"] = robot->IsRunning() ? "running" : "stopped";
         robot_data["last_data"] = robot->GetLastData();
 
         res.set_content(robot_data.dump(), "application/json");

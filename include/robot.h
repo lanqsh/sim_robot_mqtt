@@ -76,12 +76,12 @@ struct TempVoltageProtection {
 
 // 机器人本地时间
 struct RobotLocalTime {
-  int year;
-  int month;
-  int day;
-  int hour;
-  int minute;
-  int second;
+  int year;     // 年
+  int month;    // 月
+  int day;      // 日
+  int hour;     // 时
+  int minute;   // 分
+  int second;   // 秒
   int weekday;  // 星期
 };
 
@@ -118,9 +118,9 @@ struct RobotData {
 
   // 时间戳
   struct {
-    int hour;
-    int minute;
-    int second;
+    int hour;    // 时
+    int minute;  // 分
+    int second;  // 秒
   } current_timestamp;  // 当前变化时间戳
 
   // 温度
@@ -199,19 +199,19 @@ class Robot {
   std::string GetLastData() const;  // 获取最后一次上报的数据（JSON格式）
 
  private:
-  std::string robot_id_;
-  std::string publish_topic_;
-  std::string subscribe_topic_;
-  std::atomic<int> sequence_;
-  RobotData data_;  // 机器人完整数据
+  std::string robot_id_;         // 机器人ID
+  std::string publish_topic_;    // 发布主题
+  std::string subscribe_topic_;  // 订阅主题
+  std::atomic<int> sequence_;    // 序列号
+  RobotData data_;               // 机器人完整数据
 
   // MQTT管理器（用于发送消息）
   std::weak_ptr<MqttManager> mqtt_manager_;
 
   // 上报线程相关
-  std::thread report_thread_;
-  std::atomic<bool> stop_report_{false};
-  int report_interval_seconds_{10};  // 上报间隔（秒）
+  std::thread report_thread_;              // 上报线程
+  std::atomic<bool> stop_report_{false};   // 停止上报标志
+  int report_interval_seconds_{10};        // 上报间隔（秒）
 
   // 上报线程函数
   void ReportThreadFunc();
