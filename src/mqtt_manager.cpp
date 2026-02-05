@@ -206,7 +206,6 @@ void MqttManager::RefreshRobots() {
     LOG(INFO) << "检测到新机器人, 添加: " << id;
     auto robot = std::make_shared<Robot>(id);
     AddRobot(robot);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
 }
 

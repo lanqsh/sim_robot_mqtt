@@ -122,22 +122,72 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 获取所有机器人列表
-  svr.Get("/api/robots", [this](const httplib::Request&, httplib::Response& res) {
+  svr.Get("/api/robots", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      auto robots = config_db_->GetAllRobots();
-      json j = json::array();
+      auto all_robots = config_db_->GetAllRobots();
 
-      for (const auto& robot : robots) {
+      // 获取分页参数
+      int page = 1;
+      int pageSize = 20;
+
+      if (req.has_param("page")) {
+        page = std::stoi(req.get_param_value("page"));
+        if (page < 1) page = 1;
+      }
+
+      if (req.has_param("pageSize")) {
+        pageSize = std::stoi(req.get_param_value("pageSize"));
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 1000) pageSize = 1000; // 限制最大值
+      }
+
+      // 计算统计信息
+      int total = all_robots.size();
+      int enabled_count = 0;
+      int disabled_count = 0;
+
+      for (const auto& robot : all_robots) {
+        if (robot.enabled) {
+          enabled_count++;
+        } else {
+          disabled_count++;
+        }
+      }
+
+      // 计算分页
+      int totalPages = (total + pageSize - 1) / pageSize;
+      int startIndex = (page - 1) * pageSize;
+      int endIndex = std::min(startIndex + pageSize, total);
+
+      // 获取当前页数据
+      json data = json::array();
+      for (int i = startIndex; i < endIndex; i++) {
+        const auto& robot = all_robots[i];
         json robot_json;
         robot_json["robot_id"] = robot.robot_id;
         robot_json["robot_name"] = robot.robot_name;
         robot_json["serial_number"] = robot.serial_number;
         robot_json["enabled"] = robot.enabled;
-        j.push_back(robot_json);
+        data.push_back(robot_json);
       }
 
-      res.set_content(j.dump(), "application/json");
-      LOG(INFO) << "API: 获取机器人列表, 数量: " << robots.size();
+      // 构建响应
+      json response;
+      response["data"] = data;
+      response["pagination"] = {
+        {"page", page},
+        {"pageSize", pageSize},
+        {"total", total},
+        {"totalPages", totalPages}
+      };
+      response["statistics"] = {
+        {"total", total},
+        {"enabled", enabled_count},
+        {"disabled", disabled_count}
+      };
+
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 获取机器人列表, 页: " << page << "/" << totalPages << ", 总数: " << total;
     } catch (const std::exception& e) {
       LOG(ERROR) << "获取机器人列表失败: " << e.what();
       json error;
@@ -431,8 +481,18 @@ void HttpServer::ServerThreadFunc() {
       if (robot) {
         json robot_data;
         robot_data["robot_id"] = robot->GetId();
-        robot_data["status"] = robot->IsRunning() ? "运行中" : "已停止";
+        robot_data["status"] = robot->IsRunning() ? "running" : "stopped";
         robot_data["last_data"] = robot->GetLastData();
+
+        // 从数据库获取serial_number和robot_name
+        auto all_robots = config_db_->GetAllRobots();
+        for (const auto& r : all_robots) {
+          if (r.robot_id == robot_id) {
+            robot_data["serial_number"] = r.serial_number;
+            robot_data["robot_name"] = r.robot_name;
+            break;
+          }
+        }
 
         res.set_content(robot_data.dump(), "application/json");
         LOG(INFO) << "API: 获取机器人数据 - " << robot_id;

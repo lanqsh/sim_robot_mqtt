@@ -130,7 +130,8 @@ void ConfigDb::InsertDefaultConfig() {
     const char* robots_sql = R"(
       INSERT OR IGNORE INTO robots (robot_id, robot_name, serial_number, enabled) VALUES
       ('303930306350729d', 'Robot 1', 1, 1),
-      ('303930306350729e', 'Robot 2', 2, 0)
+      ('303930306350729e', 'Robot 2', 2, 1),
+      ('303930306350729f', 'Robot 3', 3, 0)
     )";
 
     char* err_msg = nullptr;

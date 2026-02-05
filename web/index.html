@@ -53,8 +53,47 @@
         </div>
 
         <!-- 机器人列表 -->
-        <div id="robotsList">
-            <div class="loading">加载中...</div>
+        <div class="robots-container">
+            <!-- 统计信息 -->
+            <div class="statistics">
+                <div class="stat-card stat-total">
+                    <div class="stat-label">总数</div>
+                    <div class="stat-value" id="statTotal">0</div>
+                </div>
+                <div class="stat-card stat-enabled">
+                    <div class="stat-label">已启用</div>
+                    <div class="stat-value" id="statEnabled">0</div>
+                </div>
+                <div class="stat-card stat-disabled">
+                    <div class="stat-label">已禁用</div>
+                    <div class="stat-value" id="statDisabled">0</div>
+                </div>
+            </div>
+
+            <div class="pagination-controls">
+                <div class="page-size-control">
+                    <label for="pageSize">每页显示：</label>
+                    <select id="pageSize" onchange="changePageSize()">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                    <span id="totalCount" style="margin-left: 15px;"></span>
+                </div>
+            </div>
+            <div id="robotsList">
+                <div class="loading">加载中...</div>
+            </div>
+            <div id="pagination" class="pagination"></div>
+        </div>
+    </div>
+
+    <!-- 加载提示模态框 -->
+    <div id="loadingModal" class="modal">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <div class="loading-text" id="loadingText">处理中...</div>
         </div>
     </div>
 
