@@ -57,6 +57,24 @@ h1 {
     flex: 1;
 }
 
+.schedule-request-section {
+    background: #f3e5f5;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.schedule-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.schedule-form .form-group:last-child {
+    grid-column: 1 / -1;
+    text-align: center;
+}
+
 .serial-badge {
     display: inline-block;
     background: #667eea;

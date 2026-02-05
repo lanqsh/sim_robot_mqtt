@@ -185,7 +185,16 @@ void Robot::HandleMessage(const std::string& data) {
             break;
           }
 
-    report_thread_ = std::thread(&Robot::ReportThreadFunc, this);
+          default:
+            LOG(WARNING) << "    未知命令标识: 0x" << std::hex << static_cast<int>(identifier);
+            break;
+        }
+      }
+    } else {
+      LOG(ERROR) << "  协议解析失败";
+    }
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "  处理消息异常: " << e.what();
   }
 }
 

@@ -52,6 +52,48 @@
             </div>
         </div>
 
+        <!-- 定时启动请求区域 -->
+        <div class="schedule-request-section">
+            <h2 style="margin-bottom: 15px;">定时启动请求</h2>
+            <div class="schedule-controls">
+                <div class="form-group">
+                    <label for="scheduleRobotId">机器人ID *</label>
+                    <input type="text" id="scheduleRobotId" placeholder="例如: robot_001" required>
+                </div>
+                <div class="form-group">
+                    <label for="scheduleId">定时编号 *</label>
+                    <input type="number" id="scheduleId" min="1" max="255" placeholder="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="scheduleWeekday">星期 *</label>
+                    <select id="scheduleWeekday" required>
+                        <option value="1">星期一</option>
+                        <option value="2">星期二</option>
+                        <option value="3">星期三</option>
+                        <option value="4">星期四</option>
+                        <option value="5">星期五</option>
+                        <option value="6">星期六</option>
+                        <option value="7">星期日</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="scheduleHour">小时 *</label>
+                    <input type="number" id="scheduleHour" min="0" max="23" placeholder="13" required>
+                </div>
+                <div class="form-group">
+                    <label for="scheduleMinute">分钟 *</label>
+                    <input type="number" id="scheduleMinute" min="0" max="59" placeholder="30" required>
+                </div>
+                <div class="form-group">
+                    <label for="scheduleRunCount">运行次数 *</label>
+                    <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="1" required>
+                </div>
+                <div class="schedule-button">
+                    <button class="btn btn-success" onclick="sendScheduleRequest()">发送定时启动请求</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 机器人列表 -->
         <div class="robots-container">
             <!-- 统计信息 -->
