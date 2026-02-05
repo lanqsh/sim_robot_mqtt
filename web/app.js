@@ -306,7 +306,71 @@ async function viewRobotData(robotId) {
                 ? JSON.parse(data.last_data)
                 : data.last_data;
 
-            // 递归渲染对象为HTML
+            // 字段中文映射
+            const labelMap = {
+                robot_id: '机器人ID',
+                publish_topic: '发布主题',
+                subscribe_topic: '订阅主题',
+                sequence: '序列号',
+                report_interval_seconds: '上报间隔(秒)',
+                running: '运行状态',
+
+                // RobotData
+                main_motor_current: '主电机电流',
+                slave_motor_current: '从电机电流',
+                battery_voltage: '电池电压',
+                battery_current: '电池电流',
+                battery_status: '电池状态',
+                battery_level: '电池电量',
+                battery_temperature: '电池温度',
+                position_info: '位置信息',
+                working_duration: '工作时长(小时)',
+                total_run_count: '累计运行次数',
+                current_lap_count: '当前圈数',
+                solar_voltage: '光伏电压',
+                solar_current: '光伏电流',
+                board_temperature: '主板温度',
+                robot_number: '机器人编号',
+                software_version: '软件版本',
+                parking_position: '停机位',
+                daytime_scan_protect: '白天防误扫',
+                schedule_tasks: '定时任务',
+                enabled: '是否启用',
+                motor_params: '电机参数',
+                temp_voltage_protection: '温压保护参数',
+                local_time: '本地时间',
+                environment_info: '环境信息',
+                master_currents: '主机电流列表',
+                slave_currents: '从机电流列表',
+                position: '位置',
+                direction: '方向',
+                module_eui: '模组EUI',
+                domestic_foreign_flag: '国内/国外版本',
+                country_code: '国家代码',
+                region_code: '地区代码',
+                project_code: '项目代码'
+            };
+
+            // 简单字段格式化
+            function formatValue(key, val) {
+                if (val === null) return 'null';
+                if (key === 'battery_level') return `${val}%`;
+                if (key === 'battery_voltage' || key === 'solar_voltage') {
+                    // 后端以 100mV 为单位，前端显示 V（保留1位）
+                    return `${(val / 10).toFixed(1)}V`;
+                }
+                if (key === 'battery_current' || key === 'main_motor_current' || key === 'slave_motor_current' || key === 'solar_current') {
+                    return `${(val / 10).toFixed(1)}A`;
+                }
+                if (key === 'battery_temperature' || key === 'board_temperature') {
+                    return `${val}°C`;
+                }
+                if (key === 'working_duration') return `${val} 小时`;
+                if (typeof val === 'boolean') return val ? '是' : '否';
+                return String(val);
+            }
+
+            // 递归渲染对象为HTML（带中文标签和格式化）
             function renderObject(obj) {
                 if (obj === null) return '<span class="data-value">null</span>';
                 if (typeof obj !== 'object') {
@@ -322,7 +386,13 @@ async function viewRobotData(robotId) {
                 }
                 let html = '<div class="object-list">';
                 for (const key of Object.keys(obj)) {
-                    html += `<div class="data-item"><span class="data-label">${key}:</span> ${renderObject(obj[key])}</div>`;
+                    const label = labelMap[key] || key;
+                    const value = obj[key];
+                    if (value !== null && typeof value === 'object') {
+                        html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
+                    } else {
+                        html += `<div class="data-item"><span class="data-label">${label}:</span> <span class="data-value">${formatValue(key, value)}</span></div>`;
+                    }
                 }
                 html += '</div>';
                 return html;
