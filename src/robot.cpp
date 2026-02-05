@@ -116,7 +116,45 @@ std::string Robot::LoadUplinkTemplate() {
 
 void Robot::HandleMessage(const std::string& data) {
   LOG(INFO) << "[Robot " << robot_id_ << "] 收到消息";
-  LOG(INFO) << "  内容: " << data;
+  LOG(INFO) << "  Base64内容: " << data;
+
+  try {
+    // Base64解码
+    std::vector<uint8_t> raw_bytes = Protocol::Base64ToBytes(data);
+    LOG(INFO) << "  解码后字节: " << Protocol::BytesToHexString(raw_bytes);
+
+    // 协议解码
+    ProtocolFrame frame;
+    if (protocol_.Decode(raw_bytes, frame)) {
+      LOG(INFO) << "  协议解析成功:";
+      LOG(INFO) << "    控制码: 0x" << std::hex << static_cast<int>(frame.control_code);
+      LOG(INFO) << "    编号: 0x" << std::hex << frame.number;
+      LOG(INFO) << "    帧计数: " << std::dec << static_cast<int>(frame.frame_count);
+      LOG(INFO) << "    数据长度: " << static_cast<int>(frame.length);
+      LOG(INFO) << "    数据域: " << Protocol::BytesToHexString(frame.data);
+
+      // TODO: 根据数据域的标识字段处理不同类型的命令
+      if (!frame.data.empty()) {
+        uint8_t identifier = frame.data[0];  // 第一个字节是标识
+        LOG(INFO) << "    标识符: 0x" << std::hex << static_cast<int>(identifier);
+
+        // 根据标识符处理不同的命令
+        switch (identifier) {
+          case 0xA4:  // LoRa参数设置
+            LOG(INFO) << "    命令类型: LoRa参数设置";
+            // TODO: 解析参数并更新配置
+            break;
+          default:
+            LOG(WARNING) << "    未知命令标识符: 0x" << std::hex << static_cast<int>(identifier);
+            break;
+        }
+      }
+    } else {
+      LOG(ERROR) << "  协议解析失败";
+    }
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "  消息处理失败: " << e.what();
+  }
 }
 
 void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
@@ -148,13 +186,27 @@ void Robot::ReportThreadFunc() {
     // 生成并发送上报数据
     auto mqtt_manager = mqtt_manager_.lock();
     if (mqtt_manager) {
-      // TODO: 生成实际的通信数据
-      std::string data = "aIIACwAB8ugW";  // 示例数据
-      std::string payload = GenerateUplinkPayload(data);
+      // 构造数据域（标识 + 参数）
+      // 示例：标识0xA4（LoRa参数设置），参数：0x14 0x50 0x01
+      std::vector<uint8_t> data_field = {0xA4, 0x14, 0x50, 0x01};
+
+      // 使用Protocol编码：控制码0x41（上行），编号（取robot_number或序号），帧计数（sequence_累加）
+      uint16_t robot_num = 2;  // TODO: 从data_.robot_number解析或使用配置的序号
+      uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+      std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_UPLINK, robot_num, frame_count, data_field);
+
+      // 转换为Base64
+      std::string base64_data = Protocol::BytesToBase64(encoded);
+
+      // 填入上行模板
+      std::string payload = GenerateUplinkPayload(base64_data);
 
       // 将消息加入发送队列
       mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
-      LOG(INFO) << "[Robot " << robot_id_ << "] 上报数据已加入队列";
+      LOG(INFO) << "[Robot " << robot_id_ << "] 上报数据已加入队列，Base64: " << base64_data;
+
+      // 帧计数累加
+      sequence_.fetch_add(1);
     }
   }
 

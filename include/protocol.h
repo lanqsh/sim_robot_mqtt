@@ -9,21 +9,19 @@
 #define FRAME_HEADER 0x68  // 帧头
 #define FRAME_TAIL 0x16    // 帧尾
 
-// 数据方向
-enum class DataDirection : uint8_t {
-  kUplink = 0x01,   // 上行
-  kDownlink = 0x02  // 下行
-};
+// 控制码定义
+#define CONTROL_CODE_UPLINK 0x41    // 上行控制码（机器人发送）
+#define CONTROL_CODE_DOWNLINK 0x82  // 下行控制码（平台下发）
 
 // 协议帧结构
 struct ProtocolFrame {
   uint8_t header;             // 帧头 0x68
-  uint8_t control_code;       // 控制码
-  uint8_t number;             // 编号
-  uint8_t frame_count;        // 帧计数
-  uint16_t length;            // 数据长度（数据域字节数）
-  std::vector<uint8_t> data;  // 数据域（标识+参数）
-  uint8_t checksum;           // 校验和
+  uint8_t control_code;       // 控制码（上行0x41，下行0x82）
+  uint16_t number;            // 编号（2字节，robot_number）
+  uint8_t frame_count;        // 帧计数（1字节，每次发送累加）
+  uint8_t length;             // 数据长度（1字节，数据域字节数）
+  std::vector<uint8_t> data;  // 数据域（标识1字节+参数N字节）
+  uint8_t checksum;           // 校验和（累加和）
   uint8_t tail;               // 帧尾 0x16
 
   ProtocolFrame()
@@ -42,7 +40,7 @@ class Protocol {
   ~Protocol();
 
   // 编码：将数据打包成协议帧
-  std::vector<uint8_t> Encode(uint8_t control_code, uint8_t number,
+  std::vector<uint8_t> Encode(uint8_t control_code, uint16_t number,
                               uint8_t frame_count,
                               const std::vector<uint8_t>& data);
 

@@ -9,6 +9,8 @@
 #include <thread>
 #include <mutex>
 
+#include "protocol.h"
+
 // 指令类型
 enum class MessageDirection {
   kUplink,   // 上行
@@ -212,6 +214,7 @@ class Robot {
   std::thread report_thread_;              // 上报线程
   std::atomic<bool> stop_report_{false};   // 停止上报标志
   int report_interval_seconds_{10};        // 上报间隔（秒）
+  Protocol protocol_;                      // 协议编解码器
 
   // 上报线程函数
   void ReportThreadFunc();
