@@ -34,6 +34,10 @@ h1 {
     margin-bottom: 30px;
 }
 
+.add-robot-form #addRobotContent {
+    margin-top: 15px;
+}
+
 .batch-operations {
     background: #e3f2fd;
     padding: 25px;
@@ -46,6 +50,7 @@ h1 {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 15px;
     align-items: end;
+    margin-top: 15px;
 }
 
 .batch-buttons {

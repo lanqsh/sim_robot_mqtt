@@ -932,3 +932,31 @@ async function sendTimeSyncRequest() {
         alert('发送失败: ' + error.message);
     }
 }
+
+// 切换添加机器人表单的显示/隐藏
+function toggleAddRobotForm() {
+    const content = document.getElementById('addRobotContent');
+    const icon = document.getElementById('addRobotCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
+
+// 切换批量操作表单的显示/隐藏
+function toggleBatchForm() {
+    const content = document.getElementById('batchFormContent');
+    const icon = document.getElementById('batchCollapseIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▼';
+    }
+}
