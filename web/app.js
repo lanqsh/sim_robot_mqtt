@@ -306,66 +306,38 @@ async function viewRobotData(robotId) {
                 ? JSON.parse(data.last_data)
                 : data.last_data;
 
-            details.innerHTML = `
-                <div class="data-item">
-                    <span class="data-label">机器人ID:</span>
-                    <span class="data-value">${data.robot_id}</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">运行状态:</span>
-                    <span class="data-value">${data.status}</span>
-                </div>
-                <hr style="margin: 20px 0;">
-                <h3 style="margin-bottom: 15px;">实时数据</h3>
-                <div class="data-item">
-                    <span class="data-label">电池电量:</span>
-                    <span class="data-value">${lastData.battery_level}%</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">电池电压:</span>
-                    <span class="data-value">${(lastData.battery_voltage / 10).toFixed(1)}V</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">电池电流:</span>
-                    <span class="data-value">${(lastData.battery_current / 10).toFixed(1)}A</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">电池温度:</span>
-                    <span class="data-value">${lastData.battery_temperature}°C</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">主电机电流:</span>
-                    <span class="data-value">${(lastData.main_motor_current / 10).toFixed(1)}A</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">从电机电流:</span>
-                    <span class="data-value">${(lastData.slave_motor_current / 10).toFixed(1)}A</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">工作时长:</span>
-                    <span class="data-value">${lastData.working_duration} 小时</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">累计运行次数:</span>
-                    <span class="data-value">${lastData.total_run_count}</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">当前圈数:</span>
-                    <span class="data-value">${lastData.current_lap_count}</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">光伏电压:</span>
-                    <span class="data-value">${(lastData.solar_voltage / 10).toFixed(1)}V</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">光伏电流:</span>
-                    <span class="data-value">${(lastData.solar_current / 10).toFixed(1)}A</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">主板温度:</span>
-                    <span class="data-value">${lastData.board_temperature}°C</span>
-                </div>
-            `;
+            // 递归渲染对象为HTML
+            function renderObject(obj) {
+                if (obj === null) return '<span class="data-value">null</span>';
+                if (typeof obj !== 'object') {
+                    return `<span class="data-value">${obj}</span>`;
+                }
+                if (Array.isArray(obj)) {
+                    let html = '<div class="array-list">';
+                    obj.forEach((item, idx) => {
+                        html += `<div class="array-item"><span class="array-index">[${idx}]</span> ${renderObject(item)}</div>`;
+                    });
+                    html += '</div>';
+                    return html;
+                }
+                let html = '<div class="object-list">';
+                for (const key of Object.keys(obj)) {
+                    html += `<div class="data-item"><span class="data-label">${key}:</span> ${renderObject(obj[key])}</div>`;
+                }
+                html += '</div>';
+                return html;
+            }
+
+            let html = '';
+            html += `<div class="data-item"><span class="data-label">机器人ID:</span><span class="data-value">${data.robot_id}</span></div>`;
+            html += `<div class="data-item"><span class="data-label">运行状态:</span><span class="data-value">${data.status}</span></div>`;
+            html += '<hr style="margin: 20px 0;">';
+            html += '<h3 style="margin-bottom: 15px;">完整成员变量</h3>';
+
+            // lastData 可能包含 top-level 字段和 data 字段
+            html += renderObject(lastData);
+
+            details.innerHTML = html;
         } else {
             details.innerHTML = `<div class="error-message">${data.error || '无法获取机器人数据'}</div>`;
         }
