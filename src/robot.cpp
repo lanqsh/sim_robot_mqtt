@@ -115,6 +115,11 @@ std::string Robot::LoadUplinkTemplate() {
   return oss.str();
 }
 
+void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
+  mqtt_manager_ = manager;
+  LOG(INFO) << "[Robot " << robot_id_ << "] MQTT管理器已设置";
+}
+
 void Robot::HandleMessage(const std::string& data) {
   LOG(INFO) << "[Robot " << robot_id_ << "] 收到消息";
   LOG(INFO) << "  Base64内容: " << data;
