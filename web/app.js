@@ -525,6 +525,17 @@ async function batchAddRobots() {
     }
 }
 
+// 显示加载提示
+function showLoading(text = '处理中...') {
+    document.getElementById('loadingText').textContent = text;
+    document.getElementById('loadingModal').classList.add('active');
+}
+
+// 隐藏加载提示
+function hideLoading() {
+    document.getElementById('loadingModal').classList.remove('active');
+}
+
 // 批量删除机器人
 async function batchDeleteRobots() {
     const startSerial = parseInt(document.getElementById('batchStartSerial').value);
@@ -549,6 +560,7 @@ async function batchDeleteRobots() {
 
     // 从服务器获取指定序号范围的机器人（仅使用后端分页接口）
     try {
+        showLoading('正在获取机器人列表...');
         let robots = [];
 
         // 按页拉取所有数据，使用当前前端 pageSize 设置
@@ -573,16 +585,19 @@ async function batchDeleteRobots() {
             .map(robot => robot.robot_id);
 
         if (robot_ids.length === 0) {
+            hideLoading();
             alert('在指定序号范围内没有找到机器人');
             return;
         }
     } catch (error) {
+        hideLoading();
         console.error('获取机器人列表失败:', error);
         alert('获取机器人列表失败: ' + error.message);
         return;
     }
 
     try {
+        showLoading(`正在删除 ${robot_ids.length} 个机器人...`);
         const response = await fetch(`${API_BASE}/api/robots/batch-delete`, {
             method: 'POST',
             headers: {
@@ -592,6 +607,7 @@ async function batchDeleteRobots() {
         });
 
         const result = await response.json();
+        hideLoading();
 
         if (result.success) {
             alert(`批量删除成功！共删除 ${result.count} 个机器人`);
@@ -600,6 +616,7 @@ async function batchDeleteRobots() {
             alert('批量删除失败: ' + result.error);
         }
     } catch (error) {
+        hideLoading();
         console.error('批量删除机器人失败:', error);
         alert('批量删除失败: ' + error.message);
     }
