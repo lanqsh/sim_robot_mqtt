@@ -463,6 +463,7 @@ async function viewRobotData(robotId) {
 
             let html = '';
             html += `<div class="data-item"><span class="data-label">机器人ID:</span><span class="data-value">${data.robot_id}</span></div>`;
+
             if (data.serial_number !== undefined) {
                 html += `<div class="data-item"><span class="data-label">机器人序号:</span><span class="data-value">#${data.serial_number}</span></div>`;
             }
@@ -470,11 +471,34 @@ async function viewRobotData(robotId) {
                 html += `<div class="data-item"><span class="data-label">机器人名称:</span><span class="data-value">${data.robot_name}</span></div>`;
             }
             html += `<div class="data-item"><span class="data-label">运行状态:</span><span class="data-value">${data.status === 'running' ? '运行中' : '已停止'}</span></div>`;
-            html += '<hr style="margin: 20px 0;">';
-            html += '<h3 style="margin-bottom: 15px;">完整成员变量</h3>';
 
-            // lastData 可能包含 top-level 字段和 data 字段
-            html += renderObject(lastData);
+            // 显示lastData的MQTT相关信息
+            if (lastData.publish_topic) {
+                html += `<div class="data-item"><span class="data-label">发布主题:</span><span class="data-value">${lastData.publish_topic}</span></div>`;
+            }
+            if (lastData.subscribe_topic) {
+                html += `<div class="data-item"><span class="data-label">订阅主题:</span><span class="data-value">${lastData.subscribe_topic}</span></div>`;
+            }
+            if (lastData.sequence !== undefined) {
+                html += `<div class="data-item"><span class="data-label">MQTT消息序号:</span><span class="data-value">${lastData.sequence}</span></div>`;
+            }
+            if (lastData.report_interval_seconds !== undefined) {
+                html += `<div class="data-item"><span class="data-label">上报间隔(秒):</span><span class="data-value">${lastData.report_interval_seconds}</span></div>`;
+            }
+            html += '<hr style="margin: 20px 0;">';
+            html += '<h3 style="margin-bottom: 15px;">数据</h3>';
+
+            // lastData.data 包含 RobotData 的内容，直接展开其字段
+            const robotData = lastData.data || lastData;
+            for (const key of Object.keys(robotData)) {
+                const label = labelMap[key] || key;
+                const value = robotData[key];
+                if (value !== null && typeof value === 'object') {
+                    html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
+                } else {
+                    html += `<div class="data-item"><span class="data-label">${label}:</span> <span class="data-value">${formatValue(key, value)}</span></div>`;
+                }
+            }
 
             details.innerHTML = html;
         } else {
