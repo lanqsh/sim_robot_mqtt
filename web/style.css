@@ -53,16 +53,6 @@ h1 {
     align-items: end;
     margin-top: 15px;
 }
-
-.batch-buttons {
-    display: flex;
-    gap: 10px;
-}
-
-.batch-buttons .btn {
-    flex: 1;
-}
-
 .schedule-request-section {
     background: #f3e5f5;
     padding: 25px;

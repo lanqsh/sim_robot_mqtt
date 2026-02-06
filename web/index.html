@@ -24,7 +24,7 @@
                                placeholder="序号 *" style="width: 120px;">
                         <input type="text" id="robotName" name="robotName"
                                placeholder="机器人名称（可选）" style="width: 200px;">
-                        <button type="submit" class="btn btn-primary">添加机器人</button>
+                        <button type="submit" class="btn btn-success">发送请求</button>
                     </div>
                 </form>
             </div>
@@ -74,7 +74,7 @@
                     <input type="number" id="scheduleHour" min="0" max="23" placeholder="时" style="width: 70px;">
                     <input type="number" id="scheduleMinute" min="0" max="59" placeholder="分" style="width: 70px;">
                     <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 110px;">
-                    <button class="btn btn-primary" onclick="sendScheduleRequest()">发送定时启动请求</button>
+                    <button class="btn btn-success" onclick="sendScheduleRequest()">发送请求</button>
                 </div>
             </div>
         </div>
@@ -90,7 +90,7 @@
                     <input type="text" id="startRobotId" placeholder="机器人ID" style="width: 150px;">
                     <span class="or-text">或</span>
                     <input type="number" id="startSerial" min="1" placeholder="序号" style="width: 80px;">
-                    <button class="btn btn-success" onclick="sendStartRequest()">发送启动请求</button>
+                    <button class="btn btn-success" onclick="sendStartRequest()">发送请求</button>
                 </div>
             </div>
         </div>
@@ -106,7 +106,7 @@
                     <input type="text" id="timeSyncRobotId" placeholder="机器人ID" style="width: 150px;">
                     <span class="or-text">或</span>
                     <input type="number" id="timeSyncSerial" min="1" placeholder="序号" style="width: 80px;">
-                    <button class="btn btn-info" onclick="sendTimeSyncRequest()">发送校时请求</button>
+                    <button class="btn btn-success" onclick="sendTimeSyncRequest()">发送请求</button>
                 </div>
             </div>
         </div>
