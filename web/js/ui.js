@@ -224,7 +224,7 @@ export function renderRobotData(data) {
 
     // 渲染清扫记录表格（如果存在）
     const cleanSection = document.getElementById('cleanRecordsSection');
-    const cleanRecords = robotData.clean_records || robotData.cleanRecords || null;
+    const cleanRecords = robotData.clean_records || robotData.cleanRecords || lastData.clean_records || lastData.cleanRecords || null;
     if (Array.isArray(cleanRecords) && cleanRecords.length > 0) {
         let tableHtml = '<h3 style="margin: 10px 0 8px;">最近清扫记录</h3>';
         tableHtml += '<table class="clean-records-table">';
@@ -262,7 +262,7 @@ export function renderRobotData(data) {
 
     // 渲染最近定时任务（如果存在）
     const schedSection = document.getElementById('recentSchedulesSection');
-    const schedules = robotData.schedules || robotData.timers || robotData.schedule_tasks || robotData.scheduleList || null;
+    const schedules = robotData.schedules || lastData.schedules || robotData.timers || lastData.timers || robotData.schedule_tasks || lastData.schedule_tasks || robotData.scheduleList || lastData.scheduleList || null;
     if (Array.isArray(schedules) && schedules.length > 0) {
         let sHtml = '<h3 style="margin: 10px 0 8px;">最近定时任务</h3>';
         sHtml += '<table class="clean-records-table">';
