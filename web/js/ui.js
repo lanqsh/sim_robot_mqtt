@@ -221,6 +221,44 @@ export function renderRobotData(data) {
 
     details.innerHTML = html;
     modal.classList.add('active');
+
+    // 渲染清扫记录表格（如果存在）
+    const cleanSection = document.getElementById('cleanRecordsSection');
+    const cleanRecords = robotData.clean_records || robotData.cleanRecords || null;
+    if (Array.isArray(cleanRecords) && cleanRecords.length > 0) {
+        let tableHtml = '<h3 style="margin: 10px 0 8px;">最近清扫记录</h3>';
+        tableHtml += '<table class="clean-records-table">';
+        tableHtml += '<thead><tr><th>#</th><th>日期(天)</th><th>时间</th><th>持续(分钟)</th><th>结果</th><th>耗电量</th></tr></thead>';
+        tableHtml += '<tbody>';
+        for (let i = 0; i < 5; i++) {
+            const rec = cleanRecords[i] || null;
+            if (!rec) {
+                tableHtml += `<tr><td>${i + 1}</td><td colspan="5">无数据</td></tr>`;
+                continue;
+            }
+            const day = rec.day !== undefined ? rec.day : '';
+            const hour = rec.hour !== undefined ? String(rec.hour).padStart(2, '0') : '00';
+            const minute = rec.minute !== undefined ? String(rec.minute).padStart(2, '0') : '00';
+            const minutes = rec.minutes !== undefined ? rec.minutes : '';
+            const result = rec.result !== undefined ? (typeof rec.result === 'number' ? (rec.result === 0 ? '成功' : `代码 ${rec.result}`) : rec.result) : '';
+            const energy = rec.energy !== undefined ? (typeof rec.energy === 'number' ? `${rec.energy}` : rec.energy) : '';
+
+            tableHtml += `<tr>` +
+                `<td>${i + 1}</td>` +
+                `<td>${day}</td>` +
+                `<td>${hour}:${minute}</td>` +
+                `<td>${minutes}</td>` +
+                `<td>${result}</td>` +
+                `<td>${energy}</td>` +
+                `</tr>`;
+        }
+        tableHtml += '</tbody></table>';
+        cleanSection.innerHTML = tableHtml;
+        cleanSection.style.display = 'block';
+    } else {
+        cleanSection.innerHTML = '';
+        cleanSection.style.display = 'none';
+    }
 }
 
 // 切换表单显示/隐藏
