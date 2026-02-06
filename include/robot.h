@@ -96,6 +96,96 @@ struct EnvironmentInfo {
   int day_night_status = 0;          // 白夜状态
 };
 
+// FA告警位定义（32位）
+enum class AlarmFA : uint32_t {
+  kDeviceEnabled = 1 << 0,          // 设备启用/停用
+  kQueueSwitching = 1 << 1,         // 启动队列切换中
+  kAutoManual = 1 << 2,             // 自动/手动
+  kStartFailed = 1 << 3,            // 启动失败
+  kAutoRunning = 1 << 4,            // 自动运行中(指清扫中)
+  kAutoCompleted = 1 << 5,          // 自动运行完成(指清扫完成)
+  kAutoFailed = 1 << 6,             // 自动运行失败
+  kForward = 1 << 7,                // 前进
+  kBackward = 1 << 8,               // 后退
+  kStopped = 1 << 9,                // 运行停止
+  kNearTrigger = 1 << 10,           // 近端触发
+  kFarTrigger = 1 << 11,            // 远端触发
+  kEmergencyStop = 1 << 12,         // 急停状态
+  kAutoResetting = 1 << 13,         // 自动复位中
+  kAutoResetCompleted = 1 << 14,    // 自动复位完成
+  kLowBatteryReturn = 1 << 15,      // 低电量返回停靠位成功
+  kUpperLimitReturn = 1 << 16,      // 上限停机返回成功
+  kDaytimeProtection = 1 << 17,     // 白天防误扫触发
+  kDayNightSensor = 1 << 18,        // 白夜状态(光线传感器状态)
+  kRunEnded = 1 << 19,              // 运行结束（含正常异常停止）
+  kAuthorized = 1 << 20,            // 有无授权
+  kUpperLimitOriginal = 1 << 21,    // 上限停机返回原位成功
+  kUpperLimitPlatform = 1 << 22,    // 上限停机返回停机平台成功
+  kBodyStuck = 1 << 23,             // 机身卡套
+  kBodyStuckRecovered = 1 << 24,    // 机身卡套恢复
+  kPlatformNotAllowed = 1 << 25,    // 平台不允许运行
+  kAutoRequestTimeout = 1 << 26     // 自动运行请求回复超时
+};
+
+// FB告警位定义（32位）
+enum class AlarmFB : uint32_t {
+  kRemoteStart = 1 << 0,            // 遥控器启动
+  kAppStart = 1 << 1,               // app控制启动
+  kSerialStart = 1 << 2,            // 串口控制启动
+  kScadaStart = 1 << 3,             // scada主动控制启动
+  kScheduledStart = 1 << 4,         // 机器人定时启动
+  kAbnormalReturnStart = 1 << 5,    // 机器人异常回退请求启动
+  kPowerRestoreStart = 1 << 6,      // 断电或者重启之后等致复启动
+  kCommLostRestart = 1 << 7,        // 长时间无法通信等致重启
+  kNetworkRestart = 1 << 8,         // 机器人本人入网等致重启
+  kUpgradeRestart = 1 << 9,         // 升级成功导致重启
+  kCommandRestart = 1 << 10         // 命令重启
+};
+
+// FC告警位定义（32位）
+enum class AlarmFC : uint32_t {
+  kChargerCommFault = 1 << 0,       // 充放电控制器通信故障
+  kBatteryCommFault = 1 << 1,       // 电池包通信故障
+  kSpiStorageFault = 1 << 2,        // SPI存储模块通信故障
+  kLowBatteryWarning = 1 << 3,      // 低手保护电量预警
+  kTempHumidSensorFault = 1 << 4,   // 温湿度传感器通信故障
+  kBatteryVoltageProtect = 1 << 5,  // 电池电压保护
+  kBatteryTempProtect = 1 << 6,     // 电池温度保护（高温）
+  kBatteryCurrentProtect = 1 << 7,  // 电池电流保护
+  kLowBatteryProtect = 1 << 8,      // 低电量保护
+  kMainMotorUpperLimit = 1 << 9,    // 主电机上限故障（上限停机）
+  kSlaveMotorUpperLimit = 1 << 10,  // 从电机上限故障（上限停机）
+  kNoSignal = 1 << 11,              // 远近端无信号
+  kAutoRunTimeout = 1 << 12,        // 自动运行超时
+  kLoraCommFault = 1 << 13,         // Lora通信故障(离线)
+  kWindProtect = 1 << 14,           // 大风保护
+  kHumidityProtect = 1 << 15,       // 湿度保护
+  kBatteryUnderVoltage = 1 << 16,   // 电池放电欠压
+  kBatteryDischargeTempFault = 1 << 17,  // 电池放电温度故障
+  kBatteryOverCurrent = 1 << 18,    // 电池放电过流
+  kBatteryShortCircuit = 1 << 19,   // 电池放电短路
+  kBatteryChargeOverVoltage = 1 << 20,   // 电池充电过压
+  kBatteryChargeOverTemp = 1 << 21, // 电池充电过温
+  kBatteryLowOrDisconnect = 1 << 22,     // 电池超低压或者断线
+  kBatteryLifeExpired = 1 << 23,    // 电池寿命到期
+  kAngleSensorFault = 1 << 24,      // 角度传感器故障
+  kSecondRunTimeout = 1 << 25,      // 二次运行超时
+  kMainEndProtect = 1 << 26,        // 主末保护
+  kAmbientTempFault = 1 << 27,      // 环境温度故障
+  kBoardTempFault = 1 << 28,        // 主板温度故障
+  kMainMotorCurrentSurge = 1 << 29, // 主电机瞬时电流过大故障
+  kSlaveMotorCurrentSurge = 1 << 30 // 从电机瞬时电流过大故障
+};
+
+// FD告警位定义（32位）
+enum class AlarmFD : uint32_t {
+  kMainMotorCurrentWarning = 1 << 0,    // 主电机上限电流预警
+  kSlaveMotorCurrentWarning = 1 << 1,   // 从电机上限电流预警
+  kBatteryHighTempWarning = 1 << 2,     // 电池高温预警
+  kBatteryLowTempWarning = 1 << 3,      // 电池低温预警
+  kPowerLossWarning = 1 << 4            // 设备掉电预警
+};
+
 // 机器人数据结构
 struct RobotData {
   // 告警信息
@@ -180,6 +270,7 @@ struct RobotData {
 
 // 前向声明
 class MqttManager;
+class ConfigDb;
 
 class Robot {
  public:
@@ -195,6 +286,12 @@ class Robot {
 
   // 设置MQTT管理器（用于发送消息）
   void SetMqttManager(std::shared_ptr<MqttManager> manager);
+
+  // 设置配置数据库（用于持久化告警数据）
+  void SetConfigDb(std::shared_ptr<ConfigDb> config_db);
+
+  // 更新告警到数据库（当告警内容发生变化时调用）
+  void UpdateAlarmsToDb();
 
   // 设置上报间隔（秒）
   void SetReportInterval(int interval_seconds);
@@ -251,6 +348,9 @@ class Robot {
 
   // MQTT管理器（用于发送消息）
   std::weak_ptr<MqttManager> mqtt_manager_;
+
+  // 配置数据库（用于持久化告警数据）
+  std::weak_ptr<ConfigDb> config_db_;
 
   // 上报线程相关
   std::thread report_thread_;              // 上报线程

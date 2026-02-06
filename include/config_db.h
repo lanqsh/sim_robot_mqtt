@@ -3,6 +3,7 @@
 
 #include <sqlite3.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -47,6 +48,16 @@ class ConfigDb {
   // 批量操作
   bool AddRobotsBatch(const std::vector<RobotInfo>& robots);  // 批量添加机器人
   bool RemoveRobotsBatch(const std::vector<std::string>& robot_ids);  // 批量删除机器人
+
+  // 告警管理
+  struct AlarmData {
+    uint32_t alarm_fa;
+    uint16_t alarm_fb;
+    uint32_t alarm_fc;
+    uint16_t alarm_fd;
+  };
+  bool UpdateRobotAlarms(const std::string& robot_id, const AlarmData& alarms);  // 更新机器人告警
+  AlarmData GetRobotAlarms(const std::string& robot_id);  // 获取机器人告警
 };
 
 #endif  // CONFIG_DB_H_

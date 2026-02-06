@@ -52,7 +52,11 @@ bool ConfigDb::Init() {
       robot_id TEXT UNIQUE NOT NULL,
       robot_name TEXT,
       serial_number INTEGER UNIQUE NOT NULL DEFAULT 0,
-      enabled INTEGER DEFAULT 1
+      enabled INTEGER DEFAULT 1,
+      alarm_fa INTEGER DEFAULT 0,
+      alarm_fb INTEGER DEFAULT 0,
+      alarm_fc INTEGER DEFAULT 0,
+      alarm_fd INTEGER DEFAULT 0
     );
   )";
 
@@ -449,4 +453,59 @@ bool ConfigDb::RemoveRobotsBatch(const std::vector<std::string>& robot_ids) {
   }
 
   return true;
+}
+
+// 更新机器人告警
+bool ConfigDb::UpdateRobotAlarms(const std::string& robot_id, const AlarmData& alarms) {
+  const char* sql = "UPDATE robots SET alarm_fa = ?, alarm_fb = ?, alarm_fc = ?, alarm_fd = ? WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    LOG(ERROR) << "准备更新告警SQL失败: " << sqlite3_errmsg(db_);
+    return false;
+  }
+
+  sqlite3_bind_int(stmt, 1, alarms.alarm_fa);
+  sqlite3_bind_int(stmt, 2, alarms.alarm_fb);
+  sqlite3_bind_int(stmt, 3, alarms.alarm_fc);
+  sqlite3_bind_int(stmt, 4, alarms.alarm_fd);
+  sqlite3_bind_text(stmt, 5, robot_id.c_str(), -1, SQLITE_STATIC);
+
+  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  sqlite3_finalize(stmt);
+
+  if (success) {
+    LOG(INFO) << "更新机器人告警成功: " << robot_id;
+  } else {
+    LOG(ERROR) << "更新机器人告警失败: " << sqlite3_errmsg(db_);
+  }
+
+  return success;
+}
+
+// 获取机器人告警
+ConfigDb::AlarmData ConfigDb::GetRobotAlarms(const std::string& robot_id) {
+  AlarmData alarms = {0, 0, 0, 0};
+
+  const char* sql = "SELECT alarm_fa, alarm_fb, alarm_fc, alarm_fd FROM robots WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    LOG(ERROR) << "准备查询告警SQL失败: " << sqlite3_errmsg(db_);
+    return alarms;
+  }
+
+  sqlite3_bind_text(stmt, 1, robot_id.c_str(), -1, SQLITE_STATIC);
+
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    alarms.alarm_fa = sqlite3_column_int(stmt, 0);
+    alarms.alarm_fb = sqlite3_column_int(stmt, 1);
+    alarms.alarm_fc = sqlite3_column_int(stmt, 2);
+    alarms.alarm_fd = sqlite3_column_int(stmt, 3);
+  } else {
+    LOG(WARNING) << "未找到机器人告警数据: " << robot_id;
+  }
+
+  sqlite3_finalize(stmt);
+  return alarms;
 }

@@ -123,6 +123,105 @@ window.sendTimeSyncRequest = async function() {
     await commands.sendTimeSyncRequest(robotId, serialNumber);
 };
 
+// 全局函数：加载告警数据
+window.loadAlarmData = async function() {
+    await commands.loadAlarmData();
+};
+
+// 全局函数：切换告警标签页
+window.switchAlarmTab = async function(type) {
+    await commands.switchAlarmTab(type);
+};
+
+// 全局函数：打开告警设置
+window.openAlarmSettings = async function(robotId, serialNumber) {
+    try {
+        ui.showLoading('正在加载告警设置...');
+
+        // 从后端获取告警值
+        const result = await api.getRobotAlarms(robotId, 'id');
+
+        if (result.success) {
+            // 存储当前机器人信息
+            window.currentAlarmRobotId = robotId;
+            window.currentAlarmSerial = serialNumber;
+
+            // 更新模态框标题
+            document.getElementById('alarmModalRobotInfo').textContent = `#${serialNumber} - ${robotId}`;
+
+            // 渲染告警设置UI
+            ui.renderAlarmSettings(result);
+
+            // 打开模态框
+            ui.openAlarmModal();
+        } else {
+            alert('加载告警设置失败: ' + result.error);
+        }
+
+        ui.hideLoading();
+    } catch (error) {
+        ui.hideLoading();
+        console.error('打开告警设置失败:', error);
+        alert('打开告警设置失败: ' + error.message);
+    }
+};
+
+// 全局函数：保存告警设置
+window.saveAlarmSettings = async function() {
+    if (!window.currentAlarmRobotId) {
+        alert('无法确定机器人ID');
+        return;
+    }
+
+    try {
+        // 收集所有告警类型的选中告警位
+        const alarmTypes = ['FA', 'FB', 'FC', 'FD'];
+        const alarmData = {};
+
+        alarmTypes.forEach(type => {
+            const checkboxes = document.querySelectorAll(`#alarm-${type} input[type="checkbox"]`);
+            let value = 0;
+
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const bit = parseInt(checkbox.getAttribute('data-bit'));
+                    value |= (1 << bit);
+                }
+            });
+
+            alarmData[`alarm_f${type[1].toLowerCase()}`] = value;
+        });
+
+        const confirmMsg = `确定保存告警设置吗？\n\nFA: 0x${alarmData.alarm_fa.toString(16).toUpperCase().padStart(8, '0')}\nFB: 0x${alarmData.alarm_fb.toString(16).toUpperCase().padStart(4, '0')}\nFC: 0x${alarmData.alarm_fc.toString(16).toUpperCase().padStart(8, '0')}\nFD: 0x${alarmData.alarm_fd.toString(16).toUpperCase().padStart(4, '0')}`;
+
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        ui.showLoading('正在保存告警设置...');
+
+        const result = await api.setRobotAlarms(window.currentAlarmRobotId, 'id', alarmData);
+
+        ui.hideLoading();
+
+        if (result.success) {
+            alert('告警设置保存成功！');
+            ui.closeAlarmModal();
+        } else {
+            alert('保存失败: ' + result.error);
+        }
+    } catch (error) {
+        ui.hideLoading();
+        console.error('保存告警设置失败:', error);
+        alert('保存失败: ' + error.message);
+    }
+};
+
+// 全局函数：关闭告警模态框
+window.closeAlarmModal = function() {
+    ui.closeAlarmModal();
+};
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 添加机器人表单提交
@@ -150,4 +249,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.closeModal();
         }
     });
+
+    // 点击告警模态框背景关闭
+    const alarmModal = document.getElementById('alarmModal');
+    if (alarmModal) {
+        alarmModal.addEventListener('click', (e) => {
+            if (e.target.id === 'alarmModal') {
+                ui.closeAlarmModal();
+            }
+        });
+    }
+
 });

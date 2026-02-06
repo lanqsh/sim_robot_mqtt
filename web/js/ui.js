@@ -56,6 +56,9 @@ export function renderRobots(robots) {
                 <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
                     查看数据
                 </button>
+                <button class="btn btn-sm btn-info" onclick="window.openAlarmSettings('${robot.robot_id}', ${robot.serial_number})">
+                    告警设置
+                </button>
                 <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
                     删除
                 </button>
@@ -412,4 +415,71 @@ export function toggleForm(contentId, iconId) {
         content.style.display = 'none';
         icon.textContent = '▼';
     }
+}
+
+// 渲染告警设置UI
+export function renderAlarmSettings(alarmData) {
+    const content = document.getElementById('alarmModalContent');
+    if (!content) return;
+
+    const alarmTypes = [
+        { key: 'FA', bits: 27, alarms: [
+            '设备启用/停用', '启动队列切换中', '自动/手动', '启动失败', '自动运行中(指清扫中)',
+            '自动运行完成(指清扫完成)', '自动运行失败', '前进', '后退', '运行停止',
+            '近端触发', '远端触发', '急停状态', '自动复位中', '自动复位完成',
+            '低电量返回停靠位成功', '上限停机返回成功', '白天防误扫触发', '白夜状态(光线传感器状态)',
+            '运行结束（含正常异常停止）', '有无授权', '上限停机返回原位成功', '上限停机返回停机平台成功',
+            '机身卡套', '机身卡套恢复', '平台不允许运行', '自动运行请求回复超时'
+        ]},
+        { key: 'FB', bits: 11, alarms: [
+            '遥控器启动', 'app控制启动', '串口控制启动', 'scada主动控制启动', '机器人定时启动',
+            '机器人异常回退请求启动', '断电或者重启之后等致复启动', '长时间无法通信等致重启',
+            '机器人本人入网等致重启', '升级成功导致重启', '命令重启'
+        ]},
+        { key: 'FC', bits: 31, alarms: [
+            '充放电控制器通信故障', '电池包通信故障', 'SPI存储模块通信故障', '低手保护电量预警',
+            '温湿度传感器通信故障', '电池电压保护', '电池温度保护（高温）', '电池电流保护',
+            '低电量保护', '主电机上限故障（上限停机）', '从电机上限故障（上限停机）', '远近端无信号',
+            '自动运行超时', 'Lora通信故障(离线)', '大风保护', '湿度保护',
+            '电池放电欠压', '电池放电温度故障', '电池放电过流', '电池放电短路',
+            '电池充电过压', '电池充电过温', '电池超低压或者断线', '电池寿命到期',
+            '角度传感器故障', '二次运行超时', '主末保护', '环境温度故障',
+            '主板温度故障', '主电机瞬时电流过大故障', '从电机瞬时电流过大故障'
+        ]},
+        { key: 'FD', bits: 5, alarms: [
+            '主电机上限电流预警', '从电机上限电流预警', '电池高温预警', '电池低温预警', '设备掉电预警'
+        ]}
+    ];
+
+    let html = '<div class="alarm-tabs">';
+    alarmTypes.forEach((type, index) => {
+        html += `<button class="alarm-tab ${index === 0 ? 'active' : ''}" onclick="switchAlarmTab('${type.key}')">${type.key}告警</button>`;
+    });
+    html += '</div>';
+
+    alarmTypes.forEach((type, index) => {
+        const value = alarmData[`alarm_f${type.key[1].toLowerCase()}`] || 0;
+        html += `<div class="alarm-checkboxes" id="alarm-${type.key}" style="display: ${index === 0 ? 'grid' : 'none'};">`;
+
+        for (let bit = 0; bit < type.bits; bit++) {
+            const checked = (value & (1 << bit)) ? 'checked' : '';
+            html += `<label><input type="checkbox" data-type="${type.key}" data-bit="${bit}" ${checked}> ${type.alarms[bit]}</label>`;
+        }
+
+        html += '</div>';
+    });
+
+    content.innerHTML = html;
+}
+
+// 关闭告警模态框
+export function closeAlarmModal() {
+    const modalEl = document.getElementById('alarmModal');
+    if (modalEl) modalEl.classList.remove('active');
+}
+
+// 打开告警模态框
+export function openAlarmModal() {
+    const modalEl = document.getElementById('alarmModal');
+    if (modalEl) modalEl.classList.add('active');
 }

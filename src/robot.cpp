@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "config_db.h"
 #include "mqtt_manager.h"
 
 // 上行数据模板占位符
@@ -154,6 +155,35 @@ void Robot::SetMqttManager(std::shared_ptr<MqttManager> manager) {
 
   // 启动后立即发送一次Lora参数&清扫设置上报
   SendLoraAndCleanSettingsReport();
+}
+
+void Robot::SetConfigDb(std::shared_ptr<ConfigDb> config_db) {
+  config_db_ = config_db;
+  LOG(INFO) << "[Robot " << robot_id_ << "] ConfigDb已设置";
+}
+
+void Robot::UpdateAlarmsToDb() {
+  auto config_db = config_db_.lock();
+  if (!config_db) {
+    LOG(WARNING) << "[Robot " << robot_id_ << "] ConfigDb不可用，无法更新告警到数据库";
+    return;
+  }
+
+  ConfigDb::AlarmData alarms;
+  alarms.alarm_fa = data_.alarm_fa;
+  alarms.alarm_fb = data_.alarm_fb;
+  alarms.alarm_fc = data_.alarm_fc;
+  alarms.alarm_fd = data_.alarm_fd;
+
+  if (config_db->UpdateRobotAlarms(robot_id_, alarms)) {
+    LOG(INFO) << "[Robot " << robot_id_ << "] 告警已更新到数据库: "
+              << "FA=0x" << std::hex << alarms.alarm_fa
+              << ", FB=0x" << alarms.alarm_fb
+              << ", FC=0x" << alarms.alarm_fc
+              << ", FD=0x" << alarms.alarm_fd;
+  } else {
+    LOG(ERROR) << "[Robot " << robot_id_ << "] 告警更新到数据库失败";
+  }
 }
 
 void Robot::HandleMessage(const std::string& data) {

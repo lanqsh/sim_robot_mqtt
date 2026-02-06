@@ -114,3 +114,4 @@
 .modal-header h2 { color:#333; font-size:1.5em; }
 .close-btn { font-size:2em; cursor:pointer; color:#999; line-height:1; transition:color 0.2s; }
 .close-btn:hover { color: var(--color-primary); }
+.modal-footer { padding: 15px 0; border-top: 1px solid #e0e0e0; display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
