@@ -256,10 +256,12 @@ export function clearAllAlarms() {
 
 // 加载机器人告警数据并更新复选框
 export async function loadAlarmData() {
-    const robotId = document.getElementById('alarmRobotId').value.trim();
-    const serialNumber = document.getElementById('alarmSerial').value.trim();
+    // 优先使用模态框中存储的机器人信息
+    let robotId = window.currentAlarmRobotId || document.getElementById('alarmRobotId')?.value.trim();
+    let serialNumber = window.currentAlarmSerial || document.getElementById('alarmSerial')?.value.trim();
 
     console.log('loadAlarmData 被调用, robotId:', robotId, 'serialNumber:', serialNumber);
+    console.log('模态框机器人信息:', window.currentAlarmRobotId, window.currentAlarmSerial);
 
     if (!robotId && !serialNumber) {
         // 如果没有输入机器人信息，显示所有告警列表但不勾选任何项
@@ -310,17 +312,23 @@ export async function loadAlarmData() {
 }
 
 // 切换告警标签页
-export async function switchAlarmTab(type) {
-    console.log('switchAlarmTab 被调用, type:', type);
+export async function switchAlarmTab(type, container = null) {
+    console.log('switchAlarmTab 被调用, type:', type, 'container:', container);
 
-    // 隐藏所有告警面板
-    const panels = document.querySelectorAll('[id^="alarm-"]');
+    // 确定操作的容器：如果在模态框中，则操作模态框；否则操作页面固定区域
+    const isInModal = document.getElementById('alarmModal')?.classList.contains('active');
+    const targetContainer = isInModal ? '#alarmModalContent' : '#alarmFormContent';
+
+    console.log('操作容器:', targetContainer, '是否在模态框中:', isInModal);
+
+    // 隐藏所有告警面板（只在目标容器内）
+    const panels = document.querySelectorAll(`${targetContainer} [id^="alarm-"]`);
     panels.forEach(panel => {
         panel.style.display = 'none';
     });
 
     // 显示选中的面板
-    const selectedPanel = document.getElementById(`alarm-${type}`);
+    const selectedPanel = document.querySelector(`${targetContainer} #alarm-${type}`);
     if (selectedPanel) {
         selectedPanel.style.display = 'block';
         console.log(`显示面板: alarm-${type}`);
@@ -328,8 +336,8 @@ export async function switchAlarmTab(type) {
         console.error(`未找到面板: alarm-${type}`);
     }
 
-    // 更新标签状态
-    const tabs = document.querySelectorAll('.alarm-tab');
+    // 更新标签状态（只在目标容器内）
+    const tabs = document.querySelectorAll(`${targetContainer} .alarm-tab`);
     tabs.forEach(tab => {
         tab.classList.remove('active');
         // 检查按钮文本是否匹配当前类型
@@ -339,9 +347,13 @@ export async function switchAlarmTab(type) {
         }
     });
 
-    // 自动加载告警数据
-    console.log('准备调用 loadAlarmData');
-    await loadAlarmData();
-    console.log('loadAlarmData 调用完成');
+    // 只在页面固定区域时才需要重新加载数据，模态框已经有数据了
+    if (!isInModal) {
+        console.log('页面固定区域，准备调用 loadAlarmData');
+        await loadAlarmData();
+        console.log('loadAlarmData 调用完成');
+    } else {
+        console.log('模态框中，已有数据，无需重新加载');
+    }
 }
 
