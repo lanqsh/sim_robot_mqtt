@@ -154,6 +154,32 @@ function renderObject(obj) {
     return html;
 }
 
+// 将对象或数组渲染为表格（键/值对），用于 motor_params, environment_info 等
+function renderKeyValueTable(obj) {
+    if (obj === null) return '<span class="data-value">null</span>';
+    if (Array.isArray(obj)) {
+        let html = '<table class="clean-records-table"><thead><tr><th>#</th><th>值</th></tr></thead><tbody>';
+        for (let i = 0; i < obj.length; i++) {
+            const v = obj[i];
+            html += `<tr><td>${i + 1}</td><td>${typeof v === 'object' ? renderObject(v) : String(v)}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    let html = '<table class="clean-records-table"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody>';
+    for (const k of Object.keys(obj)) {
+        const v = obj[k];
+        if (v !== null && typeof v === 'object') {
+            html += `<tr><td>${k}</td><td>${renderObject(v)}</td></tr>`;
+        } else {
+            html += `<tr><td>${k}</td><td>${formatValue(k, v)}</td></tr>`;
+        }
+    }
+    html += '</tbody></table>';
+    return html;
+}
+
 // 渲染机器人详细数据
 export function renderRobotData(data) {
     const details = document.getElementById('robotDetails');
@@ -194,13 +220,18 @@ export function renderRobotData(data) {
     html += '<h3 style="margin-bottom: 15px;">数据</h3>';
 
     const robotData = lastData.data || lastData;
+    const TABLE_KEYS = ['motor_params','environment_info','temp_voltage_protection','lora_params','master_currents','slave_currents','position_info'];
     for (const key of Object.keys(robotData)) {
         if (key === 'current_timestamp' || key === 'local_time' || key === 'clean_records' || key === 'cleanRecords' || key === 'schedules' || key === 'schedule' || key === 'timers' || key === 'schedule_tasks') continue;
 
         const label = LABEL_MAP[key] || key;
         const value = robotData[key];
         if (value !== null && typeof value === 'object') {
-            html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
+            if (TABLE_KEYS.includes(key)) {
+                html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderKeyValueTable(value)}</div>`;
+            } else {
+                html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
+            }
         } else {
             html += `<div class="data-item"><span class="data-label">${label}:</span> <span class="data-value">${formatValue(key, value)}</span></div>`;
         }
