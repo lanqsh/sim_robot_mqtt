@@ -59,6 +59,9 @@ Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
   if (uplink_template_.empty()) {
     uplink_template_ = LoadUplinkTemplate();
   }
+
+  // 初始化清扫记录，保留5条
+  data_.clean_records.resize(5);
 }
 
 Robot::~Robot() {
@@ -336,8 +339,9 @@ void Robot::ReportThreadFunc() {
 
     if (stop_report_.load()) break;
 
-    // 生成并发送机器人数据上报
+    // 生成并发送机器人数据上报和清扫记录上报
     SendRobotDataReport();
+    SendCleanRecordReport();
   }
 
   LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
@@ -679,6 +683,84 @@ void Robot::SendRobotDataReport() {
   sequence_.fetch_add(1);
 }
 
+void Robot::SendCleanRecordReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送清扫记录上报";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(0xE9) + 清扫记录 + 机器人编码信息 + 本地时间 + 主板温湿度
+  std::vector<uint8_t> data_field;
+
+  // 标识符
+  data_field.push_back(0xE9);
+
+  // 清扫记录5条，每条: 日(1) 时(1) 分(1) 清扫分钟数(2, 高字节先)
+  // `clean_records` 已在构造时初始化为5个元素，直接读取
+  for (size_t i = 0; i < 5; ++i) {
+    const auto& rec = data_.clean_records[i];
+    data_field.push_back(static_cast<uint8_t>(rec.day));
+    data_field.push_back(static_cast<uint8_t>(rec.hour));
+    data_field.push_back(static_cast<uint8_t>(rec.minute));
+    uint16_t mins = static_cast<uint16_t>(rec.minutes);
+    data_field.push_back(static_cast<uint8_t>(mins >> 8));
+    data_field.push_back(static_cast<uint8_t>(mins & 0xFF));
+    // 清扫结果 (1字节)
+    data_field.push_back(static_cast<uint8_t>(rec.result));
+    // 耗电量 (1字节)
+    data_field.push_back(static_cast<uint8_t>(rec.energy));
+  }
+
+  // 机器人编码信息 6 字节：取 robot_id_ 的后6个字符（不足左填0）
+  std::string dev_addr = robot_id_.length() >= 6 ? robot_id_.substr(robot_id_.length() - 6) : robot_id_;
+  // 保证6字节
+  while (dev_addr.size() < 6) dev_addr = std::string("\0") + dev_addr;
+  for (size_t i = 0; i < 6; ++i) {
+    char c = dev_addr[i];
+    data_field.push_back(static_cast<uint8_t>(c));
+  }
+
+  // 机器人本地时间 (年, 月, 日, 时, 分, 秒) - 年取两位
+  int year = data_.local_time.year % 100;
+  data_field.push_back(static_cast<uint8_t>(year));
+  data_field.push_back(static_cast<uint8_t>(data_.local_time.month));
+  data_field.push_back(static_cast<uint8_t>(data_.local_time.day));
+  data_field.push_back(static_cast<uint8_t>(data_.local_time.hour));
+  data_field.push_back(static_cast<uint8_t>(data_.local_time.minute));
+  data_field.push_back(static_cast<uint8_t>(data_.local_time.second));
+
+  // 主板温度 (2字节, 大端序)
+  uint16_t board_temp16 = static_cast<uint16_t>(data_.board_temperature);
+  data_field.push_back(static_cast<uint8_t>(board_temp16 >> 8));
+  data_field.push_back(static_cast<uint8_t>(board_temp16 & 0xFF));
+
+  // 主板湿度 (1字节)
+  data_field.push_back(static_cast<uint8_t>(data_.board_humidity & 0xFF));
+
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  // 使用Protocol编码：控制码0x82（机器人主动上报）
+  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  // 转换为Base64并发送
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  清扫记录上报已加入发送队列";
+
+  // 帧计数累加
+  sequence_.fetch_add(1);
+}
+
 std::string Robot::GetLastData() const {
   nlohmann::json j;
 
@@ -739,6 +821,16 @@ std::string Robot::GetLastData() const {
     });
   }
   d["schedule_tasks"] = tasks;
+
+  // 清扫记录序列化
+  nlohmann::json clean_arr = nlohmann::json::array();
+  for (const auto& r : data_.clean_records) {
+    clean_arr.push_back({
+      {"day", r.day}, {"hour", r.hour}, {"minute", r.minute},
+      {"minutes", r.minutes}, {"result", r.result}, {"energy", r.energy}
+    });
+  }
+  d["clean_records"] = clean_arr;
 
   d["enabled"] = data_.enabled;
 
