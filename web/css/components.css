@@ -37,6 +37,10 @@
 
 .inline-form span { color: var(--color-muted); font-size: 0.9em; }
 
+.inline-form .btn {
+    margin-left: auto;
+}
+
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
 .form-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 1em; transition: border-color 0.3s; }
