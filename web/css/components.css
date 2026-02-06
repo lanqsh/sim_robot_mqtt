@@ -27,6 +27,9 @@
 .schedule-inline-form,
 .start-inline-form,
 .timesync-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     flex-wrap: nowrap;
     overflow-x: auto;
 }
