@@ -64,6 +64,18 @@ export class PaginationManager {
 
         html += '</div>';
 
+        // 中间：页面大小和总数信息
+        html += '<div class="page-info">';
+        html += '<label for="pageSize">每页显示：</label>';
+        html += '<select id="pageSize" onchange="window.changePageSize()">';
+        html += '<option value="10"' + (this.pageSize === 10 ? ' selected' : '') + '>10</option>';
+        html += '<option value="20"' + (this.pageSize === 20 ? ' selected' : '') + '>20</option>';
+        html += '<option value="50"' + (this.pageSize === 50 ? ' selected' : '') + '>50</option>';
+        html += '<option value="100"' + (this.pageSize === 100 ? ' selected' : '') + '>100</option>';
+        html += '</select>';
+        html += `<span class="total-info">共 ${this.totalCount} 个机器人</span>`;
+        html += '</div>';
+
         // 右侧：上一页/下一页按钮
         html += '<div class="page-nav-buttons">';
 

@@ -72,6 +72,45 @@
     flex-wrap: wrap;
 }
 
+.page-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    padding: 0 20px;
+}
+
+.page-info label {
+    font-size: 0.95em;
+    color: #555;
+    font-weight: 500;
+}
+
+.page-info select {
+    padding: 8px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.page-info select:hover {
+    border-color: var(--color-primary);
+}
+
+.page-info select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.total-info {
+    color: #666;
+    font-size: 0.95em;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
 .page-btn {
     padding: 10px 16px;
     border: 2px solid #e0e0e0;
