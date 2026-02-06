@@ -67,10 +67,10 @@
             </div>
             <div class="schedule-controls start-controls" id="scheduleFormContent" style="display: none;">
                 <div class="schedule-inline-form start-inline-form">
-                    <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 120px;">
                     <span class="or-text">或</span>
-                    <input type="number" id="scheduleSerial" min="1" placeholder="序号" style="width: 80px;">
-                    <input type="number" id="scheduleId" min="1" max="255" placeholder="定时编号" style="width: 110px;">
+                    <input type="number" id="scheduleSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="number" id="scheduleId" min="1" max="255" placeholder="定时编号" style="width: 100px;">
                     <select id="scheduleWeekday" style="width: 120px;">
                         <option value="0">星期日</option>
                         <option value="1">星期一</option>
@@ -80,9 +80,9 @@
                         <option value="5">星期五</option>
                         <option value="6">星期六</option>
                     </select>
-                    <input type="number" id="scheduleHour" min="0" max="23" placeholder="时" style="width: 70px;">
-                    <input type="number" id="scheduleMinute" min="0" max="59" placeholder="分" style="width: 70px;">
-                    <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 110px;">
+                    <input type="number" id="scheduleHour" min="0" max="23" placeholder="时" style="width: 100px;">
+                    <input type="number" id="scheduleMinute" min="0" max="59" placeholder="分" style="width: 100px;">
+                    <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 100px;">
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendScheduleRequest()">发送请求</button>
                 </div>
@@ -97,9 +97,9 @@
             </div>
             <div class="start-controls" id="startFormContent" style="display: none;">
                 <div class="start-inline-form">
-                    <input type="text" id="startRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <input type="text" id="startRobotId" placeholder="机器人ID" style="width: 120px;">
                     <span class="or-text">或</span>
-                    <input type="number" id="startSerial" min="1" placeholder="序号" style="width: 80px;">
+                    <input type="number" id="startSerial" min="1" placeholder="序号" style="width: 100px;">
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendStartRequest()">发送请求</button>
                 </div>
@@ -114,9 +114,9 @@
             </div>
             <div class="timesync-controls" id="timeSyncFormContent" style="display: none;">
                 <div class="timesync-inline-form">
-                    <input type="text" id="timeSyncRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <input type="text" id="timeSyncRobotId" placeholder="机器人ID" style="width: 120px;">
                     <span class="or-text">或</span>
-                    <input type="number" id="timeSyncSerial" min="1" placeholder="序号" style="width: 80px;">
+                    <input type="number" id="timeSyncSerial" min="1" placeholder="序号" style="width: 100px;">
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendTimeSyncRequest()">发送请求</button>
                 </div>
