@@ -81,9 +81,10 @@
     display: inline-block;
     background: var(--color-primary);
     color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.85em;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.9em;
     font-weight: bold;
-    margin-right: 8px;
+    text-align: center;
+    min-width: 45px;
 }
