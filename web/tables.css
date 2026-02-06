@@ -1,5 +1,0 @@
-/* Table styles */
-.clean-records-table { width:100%; border-collapse:collapse; margin-top:8px; }
-.clean-records-table th, .clean-records-table td { border:1px solid #eee; padding:8px 10px; text-align:center; font-size:0.95em; }
-.clean-records-table thead th { background:#f7f9ff; color:#333; font-weight:600; }
-.clean-records-table tbody tr:nth-child(odd) { background:#fafafa; }
