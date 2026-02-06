@@ -40,6 +40,7 @@ class ConfigDb {
   bool RemoveRobot(const std::string& robot_id);
   bool UpdateRobotStatus(const std::string& robot_id, bool enabled);  // 更新机器人启用状态
   bool IsSerialNumberExists(int serial_number);  // 检查序号是否已存在
+  int GetMaxSerialNumber();  // 获取当前最大序号
   std::string GetRobotIdBySerial(int serial_number);  // 通过序号获取机器人ID
   std::vector<RobotInfo> GetAllRobots();  // 获取所有机器人（包括禁用的）
 

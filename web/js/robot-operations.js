@@ -28,16 +28,15 @@ export async function toggleRobotStatus(robotId, currentStatus, reloadCallback) 
 
 // 添加机器人
 export async function addRobot(robotName, serialNumber, reloadCallback) {
-    if (!serialNumber || serialNumber < 1) {
-        alert('序号必须填写且大于0');
-        return false;
-    }
+    // 序号可选，如果为空或<=0，后端会自动生成
+    const serial = serialNumber && serialNumber > 0 ? parseInt(serialNumber) : 0;
 
     try {
-        const result = await api.addRobot(robotName, serialNumber);
+        const result = await api.addRobot(robotName, serial);
 
         if (result.success) {
-            alert('机器人添加成功!');
+            const serialInfo = serial === 0 ? '（自动生成序号）' : '';
+            alert('机器人添加成功!' + serialInfo);
             reloadCallback();
             return true;
         } else {

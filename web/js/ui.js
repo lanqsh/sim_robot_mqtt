@@ -26,37 +26,42 @@ export function renderRobots(robots) {
         console.warn('元素 #robotsList 未找到，跳过渲染机器人列表');
         return;
     }
-    container.innerHTML = '<div class="robots-grid"></div>';
-    const grid = container.querySelector('.robots-grid');
+    container.innerHTML = '<div class="robots-list"></div>';
+    const list = container.querySelector('.robots-list');
 
     robots.forEach(robot => {
-        const card = document.createElement('div');
-        card.className = 'robot-card';
-        card.innerHTML = `
-            <div class="robot-header">
-                <div class="robot-name">
-                    <span class="serial-badge">#${robot.serial_number}</span>
-                    ${robot.robot_name || '未命名'}
-                </div>
-                <div class="robot-status ${robot.enabled ? 'enabled' : 'disabled'}">
-                    ${robot.enabled ? '已启用' : '已禁用'}
-                </div>
+        const row = document.createElement('div');
+        row.className = `robot-row ${robot.enabled ? 'enabled' : 'disabled'}`;
+        row.innerHTML = `
+            <div class="robot-serial">
+                <span class="serial-badge">#${robot.serial_number}</span>
             </div>
-            <div class="robot-id">ID: ${robot.robot_id}</div>
+            <div class="robot-name-col">
+                ${robot.robot_name || '未命名'}
+            </div>
+            <div class="robot-id-col">
+                <span class="robot-id-label">ID:</span>
+                <span class="robot-id-value">${robot.robot_id}</span>
+            </div>
+            <div class="robot-status-col">
+                <span class="robot-status ${robot.enabled ? 'enabled' : 'disabled'}">
+                    ${robot.enabled ? '已启用' : '已禁用'}
+                </span>
+            </div>
             <div class="robot-actions">
-                <button class="btn ${robot.enabled ? 'btn-warning' : 'btn-success'} ${!robot.enabled ? 'disabled-btn' : ''}"
+                <button class="btn btn-sm ${robot.enabled ? 'btn-warning' : 'btn-success'} ${!robot.enabled ? 'disabled-btn' : ''}"
                         onclick="window.toggleRobotStatus('${robot.robot_id}', ${robot.enabled})">
                     ${robot.enabled ? '禁用' : '启用'}
                 </button>
-                <button class="btn btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
+                <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
                     查看数据
                 </button>
-                <button class="btn btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
+                <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
                     删除
                 </button>
             </div>
         `;
-        grid.appendChild(card);
+        list.appendChild(row);
     });
 }
 
@@ -71,7 +76,6 @@ export function showEmptyState() {
         </div>
     `;
     document.getElementById('pagination').innerHTML = '';
-    document.getElementById('totalCount').textContent = '';
 }
 
 // 显示错误信息

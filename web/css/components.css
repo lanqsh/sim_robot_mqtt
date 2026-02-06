@@ -24,8 +24,24 @@
     flex-wrap: wrap;
 }
 
+.schedule-inline-form,
+.start-inline-form,
+.timesync-inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
 .inline-form input,
-.inline-form select {
+.inline-form select,
+.schedule-inline-form input,
+.schedule-inline-form select,
+.start-inline-form input,
+.start-inline-form select,
+.timesync-inline-form input,
+.timesync-inline-form select {
     padding: 10px;
     border: 2px solid #ddd;
     border-radius: 5px;
@@ -33,9 +49,22 @@
 }
 
 .inline-form input:focus,
-.inline-form select:focus { outline: none; border-color: var(--color-primary); }
+.inline-form select:focus,
+.schedule-inline-form input:focus,
+.schedule-inline-form select:focus,
+.start-inline-form input:focus,
+.start-inline-form select:focus,
+.timesync-inline-form input:focus,
+.timesync-inline-form select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
 
 .inline-form span { color: var(--color-muted); font-size: 0.9em; }
+
+.form-spacer {
+    flex: 1;
+}
 
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
