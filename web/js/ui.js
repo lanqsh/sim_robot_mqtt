@@ -170,10 +170,11 @@ function renderKeyValueTable(obj) {
     let html = '<table class="clean-records-table"><thead><tr><th>字段</th><th>值</th></tr></thead><tbody>';
     for (const k of Object.keys(obj)) {
         const v = obj[k];
+        const keyLabel = LABEL_MAP[k] || k;
         if (v !== null && typeof v === 'object') {
-            html += `<tr><td>${k}</td><td>${renderObject(v)}</td></tr>`;
+            html += `<tr><td>${keyLabel}</td><td>${renderObject(v)}</td></tr>`;
         } else {
-            html += `<tr><td>${k}</td><td>${formatValue(k, v)}</td></tr>`;
+            html += `<tr><td>${keyLabel}</td><td>${formatValue(k, v)}</td></tr>`;
         }
     }
     html += '</tbody></table>';
