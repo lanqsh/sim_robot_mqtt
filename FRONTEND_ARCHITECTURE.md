@@ -4,17 +4,19 @@
 
 ```
 web/
-├── index.html          # HTML 主页面
-├── style.css           # 样式文件
-├── js/                 # JavaScript 模块目录
-│   ├── app.js         # 主入口文件（协调各模块）
-│   ├── config.js      # 配置常量（API地址、字段映射等）
-│   ├── api.js         # API 调用封装
-│   ├── ui.js          # UI 渲染和更新
-│   ├── pagination.js  # 分页管理
-│   ├── robot-operations.js  # 机器人操作（增删改查）
-│   └── commands.js    # 命令发送（定时启动、启动、校时）
-└── app.js.bak         # 原始单文件备份
+├── html/
+│   └── index.html     # HTML 主页面
+├── css/               # 样式文件目录
+│   ├── layout.css     # 布局样式
+│   └── components.css # 组件样式
+└── js/                # JavaScript 模块目录
+    ├── app.js         # 主入口文件（协调各模块）
+    ├── config.js      # 配置常量（API地址、字段映射等）
+    ├── api.js         # API 调用封装
+    ├── ui.js          # UI 渲染和更新
+    ├── pagination.js  # 分页管理
+    ├── robot-operations.js  # 机器人操作（增删改查）
+    └── commands.js    # 命令发送（定时启动、启动、校时、告警）
 ```
 
 ## 模块职责
@@ -37,16 +39,20 @@ web/
 - `sendScheduleStartRequest()` - 定时启动请求
 - `sendStartRequest()` - 启动请求
 - `sendTimeSyncRequest()` - 校时请求
+- `getRobotAlarms(identifier, type)` - 获取机器人告警配置
+- `setRobotAlarms(identifier, type, alarmData)` - 设置机器人告警
 
 ### 3. ui.js - UI 渲染模块
 负责所有UI更新和渲染：
 - `updateStatistics(statistics)` - 更新统计信息
 - `renderRobots(robots)` - 渲染机器人列表
 - `renderRobotData(data)` - 渲染详细数据
+- `renderAlarmSettings(alarmData)` - 渲染告警设置界面
 - `showEmptyState()` - 显示空状态
 - `showError(message)` - 显示错误
 - `showLoading(text)` / `hideLoading()` - 加载提示
 - `closeModal()` - 关闭模态框
+- `openAlarmModal()` / `closeAlarmModal()` - 打开/关闭告警模态框
 - `toggleForm(contentId, iconId)` - 切换表单显示
 
 ### 4. pagination.js - 分页管理模块
@@ -67,10 +73,12 @@ web/
 - `batchDelete()` - 批量删除
 
 ### 6. commands.js - 命令发送模块
-机器人命令发送：
+机器人命令发送和告警管理：
 - `sendScheduleRequest()` - 发送定时启动请求
 - `sendStartRequest()` - 发送启动请求
 - `sendTimeSyncRequest()` - 发送校时请求
+- `loadAlarmData()` - 加载机器人告警数据并更新复选框
+- `switchAlarmTab(type)` - 切换告警标签页（FA/FB/FC/FD）
 
 ### 7. app.js - 主入口模块
 - 导入所有模块
@@ -78,6 +86,13 @@ web/
 - 暴露全局函数供 HTML 调用
 - 设置事件监听器
 - 定时刷新任务
+
+**全局函数：**
+- `window.openAlarmSettings(robotId, serialNumber)` - 打开告警设置模态框
+- `window.saveAlarmSettings()` - 保存告警配置
+- `window.closeAlarmModal()` - 关闭告警模态框
+- `window.switchAlarmTab(type)` - 切换告警标签页
+- 其他机器人操作和命令发送函数
 
 ## 模块依赖关系
 
