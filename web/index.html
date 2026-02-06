@@ -51,13 +51,13 @@
         <!-- 已移除主区的最近定时任务容器，详情模态中显示 -->
 
         <!-- 定时启动请求区域 -->
-        <div class="schedule-start-section">
+        <div class="schedule-request-section">
             <div class="collapsible-header" onclick="toggleScheduleForm()">
                 <h2>定时启动请求</h2>
                 <span class="collapse-icon" id="scheduleCollapseIcon">▼</span>
             </div>
-            <div class="schedule-controls" id="scheduleFormContent" style="display: none;">
-                <div class="schedule-inline-form">
+            <div class="schedule-controls start-controls" id="scheduleFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
                     <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 150px;">
                     <span class="or-text">或</span>
                     <input type="number" id="scheduleSerial" min="1" placeholder="序号" style="width: 80px;">
@@ -74,7 +74,7 @@
                     <input type="number" id="scheduleHour" min="0" max="23" placeholder="时" style="width: 70px;">
                     <input type="number" id="scheduleMinute" min="0" max="59" placeholder="分" style="width: 70px;">
                     <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 110px;">
-                    <button class="btn btn-success" onclick="sendScheduleRequest()">发送定时启动请求</button>
+                    <button class="btn btn-primary" onclick="sendScheduleRequest()">发送定时启动请求</button>
                 </div>
             </div>
         </div>
