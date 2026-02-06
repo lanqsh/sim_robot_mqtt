@@ -48,13 +48,7 @@
             </div>
         </div>
 
-        <!-- 最近定时任务（改为表格展示） -->
-        <div class="schedule-request-section">
-            <div class="collapsible-header">
-                <h2>最近定时任务</h2>
-            </div>
-            <div id="recentSchedulesSection" style="padding: 16px 0; display: none;"></div>
-        </div>
+        <!-- 已移除主区的最近定时任务容器，详情模态中显示 -->
 
         <!-- 启动请求区域 -->
         <div class="start-request-section">
@@ -145,6 +139,8 @@
             </div>
             <!-- 清扫记录展示区域，由 JS 在详情渲染后填充 -->
             <div id="cleanRecordsSection" style="padding: 16px 24px; display: none;"></div>
+            <!-- 最近定时任务展示区域（与清扫记录并列） -->
+            <div id="recentSchedulesSection" style="padding: 16px 24px; display: none;"></div>
         </div>
     </div>
 
