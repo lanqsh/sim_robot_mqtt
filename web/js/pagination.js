@@ -16,6 +16,10 @@ export class PaginationManager {
     // 渲染分页控件
     renderPagination() {
         const pagination = document.getElementById('pagination');
+        if (!pagination) {
+            console.warn('元素 #pagination 未找到，跳过渲染分页控件');
+            return;
+        }
 
         if (this.totalPages <= 1) {
             pagination.innerHTML = '';

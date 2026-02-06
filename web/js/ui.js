@@ -3,21 +3,29 @@ import { LABEL_MAP } from './config.js';
 
 // 更新统计信息
 export function updateStatistics(statistics) {
+    const totalEl = document.getElementById('statTotal');
+    const enabledEl = document.getElementById('statEnabled');
+    const disabledEl = document.getElementById('statDisabled');
+
     if (!statistics) {
-        document.getElementById('statTotal').textContent = 0;
-        document.getElementById('statEnabled').textContent = 0;
-        document.getElementById('statDisabled').textContent = 0;
+        if (totalEl) totalEl.textContent = 0;
+        if (enabledEl) enabledEl.textContent = 0;
+        if (disabledEl) disabledEl.textContent = 0;
         return;
     }
 
-    document.getElementById('statTotal').textContent = statistics.total;
-    document.getElementById('statEnabled').textContent = statistics.enabled;
-    document.getElementById('statDisabled').textContent = statistics.disabled;
+    if (totalEl) totalEl.textContent = statistics.total;
+    if (enabledEl) enabledEl.textContent = statistics.enabled;
+    if (disabledEl) disabledEl.textContent = statistics.disabled;
 }
 
 // 渲染机器人列表
 export function renderRobots(robots) {
     const container = document.getElementById('robotsList');
+    if (!container) {
+        console.warn('元素 #robotsList 未找到，跳过渲染机器人列表');
+        return;
+    }
     container.innerHTML = '<div class="robots-grid"></div>';
     const grid = container.querySelector('.robots-grid');
 
@@ -55,6 +63,7 @@ export function renderRobots(robots) {
 // 显示空状态
 export function showEmptyState() {
     const container = document.getElementById('robotsList');
+    if (!container) return;
     container.innerHTML = `
         <div class="empty-state">
             <h3>暂无机器人</h3>
@@ -68,25 +77,33 @@ export function showEmptyState() {
 // 显示错误信息
 export function showError(message) {
     const container = document.getElementById('robotsList');
-    container.innerHTML = `
-        <div class="error-message">加载机器人列表失败: ${message}</div>
-    `;
+    if (container) {
+        container.innerHTML = `
+            <div class="error-message">加载机器人列表失败: ${message}</div>
+        `;
+    } else {
+        console.error('加载机器人列表失败: DOM 元素 #robotsList 未找到 —', message);
+    }
 }
 
 // 显示加载提示
 export function showLoading(text = '处理中...') {
-    document.getElementById('loadingText').textContent = text;
-    document.getElementById('loadingModal').classList.add('active');
+    const loadingTextEl = document.getElementById('loadingText');
+    const loadingModalEl = document.getElementById('loadingModal');
+    if (loadingTextEl) loadingTextEl.textContent = text;
+    if (loadingModalEl) loadingModalEl.classList.add('active');
 }
 
 // 隐藏加载提示
 export function hideLoading() {
-    document.getElementById('loadingModal').classList.remove('active');
+    const loadingModalEl = document.getElementById('loadingModal');
+    if (loadingModalEl) loadingModalEl.classList.remove('active');
 }
 
 // 关闭模态框
 export function closeModal() {
-    document.getElementById('robotModal').classList.remove('active');
+    const modalEl = document.getElementById('robotModal');
+    if (modalEl) modalEl.classList.remove('active');
 }
 
 // 格式化时间对象为字符串
@@ -186,6 +203,11 @@ export function renderRobotData(data) {
     const details = document.getElementById('robotDetails');
     const modal = document.getElementById('robotModal');
 
+    if (!details) {
+        console.warn('元素 #robotDetails 未找到，跳过渲染机器人详情');
+        return;
+    }
+
     if (!data.robot_id) {
         details.innerHTML = `<div class="error-message">${data.error || '无法获取机器人数据'}</div>`;
         return;
@@ -271,7 +293,7 @@ export function renderRobotData(data) {
     }
 
     details.innerHTML = html;
-    modal.classList.add('active');
+    if (modal) modal.classList.add('active');
     // 渲染清扫记录表格（收集到 tablesHtml）
     const cleanSection = document.getElementById('cleanRecordsSection');
     const cleanRecords = robotData.clean_records || robotData.cleanRecords || lastData.clean_records || lastData.cleanRecords || null;
@@ -304,11 +326,15 @@ export function renderRobotData(data) {
         }
         tableHtml += '</tbody></table>';
         tablesHtml += tableHtml;
-        cleanSection.innerHTML = '';
-        cleanSection.style.display = 'none';
+        if (cleanSection) {
+            cleanSection.innerHTML = '';
+            cleanSection.style.display = 'none';
+        }
     } else {
-        cleanSection.innerHTML = '';
-        cleanSection.style.display = 'none';
+        if (cleanSection) {
+            cleanSection.innerHTML = '';
+            cleanSection.style.display = 'none';
+        }
     }
 
     // 渲染最近定时任务（如果存在）
@@ -343,21 +369,29 @@ export function renderRobotData(data) {
         }
         sHtml += '</tbody></table>';
         tablesHtml += sHtml;
-        schedSection.innerHTML = '';
-        schedSection.style.display = 'none';
+        if (schedSection) {
+            schedSection.innerHTML = '';
+            schedSection.style.display = 'none';
+        }
     } else {
-        schedSection.innerHTML = '';
-        schedSection.style.display = 'none';
+        if (schedSection) {
+            schedSection.innerHTML = '';
+            schedSection.style.display = 'none';
+        }
     }
 
     // 把收集的所有表格一次性渲染到底部容器
     const tablesContainer = document.getElementById('detailsTables');
-    if (tablesHtml) {
-        tablesContainer.innerHTML = tablesHtml;
-        tablesContainer.style.display = 'block';
-    } else {
-        tablesContainer.innerHTML = '';
-        tablesContainer.style.display = 'none';
+    if (tablesContainer) {
+        if (tablesHtml) {
+            tablesContainer.innerHTML = tablesHtml;
+            tablesContainer.style.display = 'block';
+        } else {
+            tablesContainer.innerHTML = '';
+            tablesContainer.style.display = 'none';
+        }
+    } else if (tablesHtml) {
+        console.warn('元素 #detailsTables 未找到，但存在表格要渲染');
     }
 }
 
