@@ -37,8 +37,8 @@
 
 .inline-form span { color: var(--color-muted); font-size: 0.9em; }
 
-.inline-form .btn {
-    margin-left: auto;
+.form-spacer {
+    flex: 1;
 }
 
 .form-group { margin-bottom: 15px; }
