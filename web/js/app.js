@@ -291,10 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
         alarmRobotIdInput.addEventListener('blur', async () => {
             if (alarmRobotIdInput.value.trim()) {
                 await commands.loadAlarmData();
-            } else if (!alarmSerialInput.value.trim()) {
-                // 如果两个输入框都为空，清空所有告警选择
-                commands.clearAllAlarms();
             }
+            // 移除自动清空逻辑，保持告警列表始终显示
         });
     }
 
@@ -309,10 +307,8 @@ document.addEventListener('DOMContentLoaded', () => {
         alarmSerialInput.addEventListener('blur', async () => {
             if (alarmSerialInput.value.trim()) {
                 await commands.loadAlarmData();
-            } else if (!alarmRobotIdInput.value.trim()) {
-                // 如果两个输入框都为空，清空所有告警选择
-                commands.clearAllAlarms();
             }
+            // 移除自动清空逻辑，保持告警列表始终显示
         });
     }
 });

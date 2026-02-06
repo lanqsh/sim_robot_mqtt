@@ -262,9 +262,12 @@ export async function loadAlarmData() {
     console.log('loadAlarmData 被调用, robotId:', robotId, 'serialNumber:', serialNumber);
 
     if (!robotId && !serialNumber) {
-        // 如果没有输入机器人信息，清空所有复选框
-        console.log('没有输入机器人信息，清空所有复选框');
-        clearAllAlarms();
+        // 如果没有输入机器人信息，显示所有告警列表但不勾选任何项
+        console.log('没有输入机器人信息，告警列表已显示，可填写机器人ID或序号以加载当前告警状态');
+        // 不调用clearAllAlarms()，保持复选框显示
+        // 确保所有复选框都不被勾选
+        const allCheckboxes = document.querySelectorAll('.alarm-checkboxes input[type="checkbox"]');
+        allCheckboxes.forEach(checkbox => checkbox.checked = false);
         return;
     }
 
