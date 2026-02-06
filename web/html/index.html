@@ -28,9 +28,9 @@
                 <form id="addRobotForm">
                     <div class="inline-form">
                         <input type="number" id="serialNumber" name="serialNumber" min="1"
-                               placeholder="序号（可选，不填自动生成）" style="width: 220px;">
+                               placeholder="序号（可选，不填自动生成）" style="width: 120px;">
                         <input type="text" id="robotName" name="robotName"
-                               placeholder="机器人名称（可选）" style="width: 200px;">
+                               placeholder="机器人名称（可选）" style="width: 180px;">
                         <div class="form-spacer"></div>
                         <button type="submit" class="btn btn-success">发送请求</button>
                     </div>
@@ -46,10 +46,10 @@
             </div>
             <div class="batch-controls" id="batchFormContent" style="display: none;">
                 <div class="inline-form">
-                    <input type="number" id="batchStartSerial" min="1" placeholder="起始序号" style="width: 110px;">
+                    <input type="number" id="batchStartSerial" min="1" placeholder="起始序号" style="width: 120px;">
                     <span>~</span>
-                    <input type="number" id="batchEndSerial" min="1" placeholder="结束序号" style="width: 110px;">
-                    <input type="text" id="batchNamePrefix" placeholder="名称前缀（可选）" style="width: 150px;">
+                    <input type="number" id="batchEndSerial" min="1" placeholder="结束序号" style="width: 120px;">
+                    <input type="text" id="batchNamePrefix" placeholder="名称前缀（可选）" style="width: 180px;">
                     <div class="form-spacer"></div>
                     <button class="btn btn-primary" onclick="batchAddRobots()">批量添加</button>
                     <button class="btn btn-danger" onclick="batchDeleteRobots()">批量删除</button>
