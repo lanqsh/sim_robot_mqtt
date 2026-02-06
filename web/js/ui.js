@@ -268,12 +268,13 @@ export function renderRobotData(data) {
         sHtml += '<table class="clean-records-table">';
         sHtml += '<thead><tr><th>#</th><th>编号</th><th>星期</th><th>时间</th><th>运行次数</th><th>状态</th></tr></thead>';
         sHtml += '<tbody>';
-        for (let i = 0; i < 5; i++) {
-            const item = schedules[i] || null;
-            if (!item) {
-                sHtml += `<tr><td>${i + 1}</td><td colspan="5">无数据</td></tr>`;
-                continue;
-            }
+            for (let i = 0; i < schedules.length; i++) {
+                const item = schedules[i];
+                const idx = i + 1;
+                if (!item) {
+                    sHtml += `<tr><td>${idx}</td><td colspan="5">无数据</td></tr>`;
+                    continue;
+                }
             const id = item.id !== undefined ? item.id : item.schedule_id || '';
             const weekday = item.weekday !== undefined ? item.weekday : item.week || '';
             const hour = item.hour !== undefined ? String(item.hour).padStart(2, '0') : '00';
