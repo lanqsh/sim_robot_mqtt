@@ -391,26 +391,8 @@ export function renderRobotData(data) {
             tablesContainer.style.display = 'none';
         }
     } else if (tablesHtml) {
-        // 诊断：尝试在 document 中查找元素（可能被移出或未渲染）
-        const globalFind = document.querySelector('[id="detailsTables"]');
-        console.warn('元素 #detailsTables 未找到，但存在表格要渲染', { foundElsewhere: !!globalFind, modalPresent: !!modal });
-        // 如果在模态内不存在，创建一个标准容器放入模态的 .modal-content
-        if (modal) {
-            const modalContent = modal.querySelector('.modal-content') || modal;
-            const newContainer = document.createElement('div');
-            newContainer.id = 'detailsTables';
-            newContainer.style.padding = '16px 24px';
-            newContainer.innerHTML = tablesHtml;
-            modalContent.appendChild(newContainer);
-            console.info('已在模态中创建 #detailsTables 容器并渲染表格');
-        } else if (globalFind) {
-            // 如果找到在别处，直接使用它
-            globalFind.innerHTML = tablesHtml;
-            globalFind.style.display = 'block';
-            console.info('在文档其他位置找到 #detailsTables 并渲染表格');
-        } else {
-            console.error('无法定位或创建 #detailsTables 容器，表格未渲染');
-        }
+        // 容器缺失：只记录警告并保持现有防御性检查
+        console.warn('元素 #detailsTables 未找到，表格未渲染（已保留防御性检查，建议确保 index.html 包含 #detailsTables）');
     }
 }
 
