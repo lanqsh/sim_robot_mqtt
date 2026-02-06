@@ -97,3 +97,12 @@ export async function sendTimeSyncRequest(identifier, type) {
     return await response.json();
 }
 
+// 设置机器人告警
+export async function setRobotAlarms(identifier, type, alarmData) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/alarms?type=${type}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(alarmData)
+    });
+    return await response.json();
+}

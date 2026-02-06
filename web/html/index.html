@@ -123,6 +123,122 @@
             </div>
         </div>
 
+        <!-- FA告警设置区域 -->
+        <div class="alarm-section">
+            <div class="collapsible-header" onclick="toggleAlarmForm()">
+                <h2>告警设置</h2>
+                <span class="collapse-icon" id="alarmCollapseIcon">▼</span>
+            </div>
+            <div class="alarm-controls" id="alarmFormContent" style="display: none;">
+                <div class="alarm-top-inputs">
+                    <input type="text" id="alarmRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="alarmSerial" min="1" placeholder="序号" style="width: 120px;">
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="setAlarm()">应用告警</button>
+                    <button class="btn btn-secondary" onclick="clearAllAlarms()">清除所有</button>
+                </div>
+
+                <!-- 告警类型标签页 -->
+                <div class="alarm-tabs">
+                    <button class="alarm-tab active" onclick="switchAlarmTab('FA')">FA告警</button>
+                    <button class="alarm-tab" onclick="switchAlarmTab('FB')">FB告警</button>
+                    <button class="alarm-tab" onclick="switchAlarmTab('FC')">FC告警</button>
+                    <button class="alarm-tab" onclick="switchAlarmTab('FD')">FD告警</button>
+                </div>
+
+                <!-- FA告警 -->
+                <div class="alarm-checkboxes" id="alarm-FA" style="display: block;">
+                    <label><input type="checkbox" data-type="FA" data-bit="0"> 设备启用/停用</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="1"> 启动队列切换中</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="2"> 自动/手动</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="3"> 启动失败</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="4"> 自动运行中(指清扫中)</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="5"> 自动运行完成(指清扫完成)</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="6"> 自动运行失败</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="7"> 前进</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="8"> 后退</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="9"> 运行停止</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="10"> 近端触发</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="11"> 远端触发</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="12"> 急停状态</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="13"> 自动复位中</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="14"> 自动复位完成</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="15"> 低电量返回停靠位成功</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="16"> 上限停机返回成功</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="17"> 白天防误扫触发</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="18"> 白夜状态(光线传感器状态)</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="19"> 运行结束（含正常异常停止）</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="20"> 有无授权</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="21"> 上限停机返回原位成功</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="22"> 上限停机返回停机平台成功</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="23"> 机身卡套</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="24"> 机身卡套恢复</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="25"> 平台不允许运行</label>
+                    <label><input type="checkbox" data-type="FA" data-bit="26"> 自动运行请求回复超时</label>
+                </div>
+
+                <!-- FB告警 -->
+                <div class="alarm-checkboxes" id="alarm-FB" style="display: none;">
+                    <label><input type="checkbox" data-type="FB" data-bit="0"> 遥控器启动</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="1"> app控制启动</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="2"> 串口控制启动</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="3"> scada主动控制启动</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="4"> 机器人定时启动</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="5"> 机器人异常回退请求启动</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="6"> 断电或者重启之后等致复启动</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="7"> 长时间无法通信等致重启</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="8"> 机器人本人入网等致重启</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="9"> 升级成功导致重启</label>
+                    <label><input type="checkbox" data-type="FB" data-bit="10"> 命令重启</label>
+                </div>
+
+                <!-- FC告警 -->
+                <div class="alarm-checkboxes" id="alarm-FC" style="display: none;">
+                    <label><input type="checkbox" data-type="FC" data-bit="0"> 充放电控制器通信故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="1"> 电池包通信故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="2"> SPI存储模块通信故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="3"> 低手保护电量预警</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="4"> 温湿度传感器通信故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="5"> 电池电压保护</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="6"> 电池温度保护（高温）</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="7"> 电池电流保护</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="8"> 低电量保护</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="9"> 主电机上限故障（上限停机）</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="10"> 从电机上限故障（上限停机）</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="11"> 远近端无信号</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="12"> 自动运行超时</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="13"> Lora通信故障(离线)</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="14"> 大风保护</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="15"> 湿度保护</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="16"> 电池放电欠压</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="17"> 电池放电温度故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="18"> 电池放电过流</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="19"> 电池放电短路</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="20"> 电池充电过压</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="21"> 电池充电过温</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="22"> 电池超低压或者断线</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="23"> 电池寿命到期</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="24"> 角度传感器故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="25"> 二次运行超时</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="26"> 主末保护</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="27"> 环境温度故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="28"> 主板温度故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="29"> 主电机瞬时电流过大故障</label>
+                    <label><input type="checkbox" data-type="FC" data-bit="30"> 从电机瞬时电流过大故障</label>
+                </div>
+
+                <!-- FD告警 -->
+                <div class="alarm-checkboxes" id="alarm-FD" style="display: none;">
+                    <label><input type="checkbox" data-type="FD" data-bit="0"> 主电机上限电流预警</label>
+                    <label><input type="checkbox" data-type="FD" data-bit="1"> 从电机上限电流预警</label>
+                    <label><input type="checkbox" data-type="FD" data-bit="2"> 电池高温预警</label>
+                    <label><input type="checkbox" data-type="FD" data-bit="3"> 电池低温预警</label>
+                    <label><input type="checkbox" data-type="FD" data-bit="4"> 设备掉电预警</label>
+                </div>
+            </div>
+        </div>
+
         <!-- 机器人列表 -->
         <div class="robots-container">
             <!-- 统计信息 -->

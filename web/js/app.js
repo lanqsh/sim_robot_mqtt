@@ -91,6 +91,7 @@ window.closeModal = function() {
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
+window.toggleAlarmForm = () => ui.toggleForm('alarmFormContent', 'alarmCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
 
@@ -121,6 +122,21 @@ window.sendTimeSyncRequest = async function() {
     const serialNumber = document.getElementById('timeSyncSerial').value.trim();
 
     await commands.sendTimeSyncRequest(robotId, serialNumber);
+};
+
+// 全局函数：设置告警
+window.setAlarm = async function() {
+    await commands.setAlarm();
+};
+
+// 全局函数：清除所有告警选择
+window.clearAllAlarms = function() {
+    commands.clearAllAlarms();
+};
+
+// 全局函数：切换告警标签页
+window.switchAlarmTab = function(type) {
+    commands.switchAlarmTab(type);
 };
 
 // 页面加载完成后初始化

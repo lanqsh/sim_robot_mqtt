@@ -154,3 +154,125 @@ export async function sendTimeSyncRequest(robotId, serialNumber) {
         return false;
     }
 }
+
+// 设置告警
+export async function setAlarm() {
+    const robotId = document.getElementById('alarmRobotId').value.trim();
+    const serialNumber = document.getElementById('alarmSerial').value.trim();
+
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return false;
+    }
+
+    // 收集所有告警类型的选中告警位
+    const alarmTypes = ['FA', 'FB', 'FC', 'FD'];
+    const alarmData = {};
+    const alarmSummary = {};
+    let totalSelected = 0;
+
+    alarmTypes.forEach(type => {
+        const checkboxes = document.querySelectorAll(`#alarm-${type} input[type="checkbox"]`);
+        let value = 0;
+        let selected = [];
+
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                const bit = parseInt(checkbox.getAttribute('data-bit'));
+                value |= (1 << bit);
+                const label = checkbox.parentElement.textContent.trim();
+                selected.push(label);
+                totalSelected++;
+            }
+        });
+
+        alarmData[`alarm_f${type[1].toLowerCase()}`] = value;
+        alarmSummary[type] = { value, selected };
+    });
+
+    if (totalSelected === 0) {
+        if (!confirm('未选中任何告警，这将清除所有告警。是否继续？')) {
+            return false;
+        }
+    }
+
+    // 构建确认信息
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    let alarmInfo = totalSelected > 0 ? `已选中 ${totalSelected} 个告警:\n\n` : '清除所有告警\n\n';
+
+    alarmTypes.forEach(type => {
+        const summary = alarmSummary[type];
+        if (summary.selected.length > 0 || summary.value > 0) {
+            alarmInfo += `${type}: 0x${summary.value.toString(16).toUpperCase().padStart(8, '0')}\n`;
+            if (summary.selected.length > 0) {
+                alarmInfo += summary.selected.map(s => `  • ${s}`).join('\n') + '\n';
+            }
+            alarmInfo += '\n';
+        }
+    });
+
+    const confirmMsg = `确定设置告警吗？\n\n${robotInfo}\n\n${alarmInfo}`;
+
+    if (!confirm(confirmMsg)) {
+        return false;
+    }
+
+    try {
+        ui.showLoading('正在设置告警...');
+
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const result = await api.setRobotAlarms(identifier, identifierType, alarmData);
+
+        ui.hideLoading();
+
+        if (result.success) {
+            let successMsg = `告警设置成功！\n\n机器人: ${result.robot_id}\n\n`;
+            alarmTypes.forEach(type => {
+                const summary = alarmSummary[type];
+                successMsg += `${type}: 0x${summary.value.toString(16).toUpperCase().padStart(8, '0')}\n`;
+            });
+            alert(successMsg);
+            return true;
+        } else {
+            alert('设置失败: ' + result.error);
+            return false;
+        }
+    } catch (error) {
+        ui.hideLoading();
+        console.error('设置告警失败:', error);
+        alert('设置失败: ' + error.message);
+        return false;
+    }
+}
+
+// 清除所有告警选择
+export function clearAllAlarms() {
+    const checkboxes = document.querySelectorAll('.alarm-checkboxes input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+// 切换告警标签页
+export function switchAlarmTab(type) {
+    // 隐藏所有告警面板
+    const panels = document.querySelectorAll('[id^="alarm-"]');
+    panels.forEach(panel => {
+        panel.style.display = 'none';
+    });
+
+    // 显示选中的面板
+    const selectedPanel = document.getElementById(`alarm-${type}`);
+    if (selectedPanel) {
+        selectedPanel.style.display = 'block';
+    }
+
+    // 更新标签状态
+    const tabs = document.querySelectorAll('.alarm-tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.classList.add('active');
+}
+

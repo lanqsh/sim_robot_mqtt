@@ -515,6 +515,76 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // API: 设置机器人告警
+  svr.Patch(R"(/api/robots/([^/]+)/alarms)", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string identifier = req.matches[1];
+      json body = json::parse(req.body);
+
+      // 判断是通过ID还是序号查找
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        // 通过序号查找机器人ID
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 更新告警值
+      if (body.contains("alarm_fa")) {
+        robot->GetData().alarm_fa = body["alarm_fa"].get<uint32_t>();
+      }
+      if (body.contains("alarm_fb")) {
+        robot->GetData().alarm_fb = body["alarm_fb"].get<uint16_t>();
+      }
+      if (body.contains("alarm_fc")) {
+        robot->GetData().alarm_fc = body["alarm_fc"].get<uint32_t>();
+      }
+      if (body.contains("alarm_fd")) {
+        robot->GetData().alarm_fd = body["alarm_fd"].get<uint16_t>();
+      }
+
+      json response;
+      response["success"] = true;
+      response["message"] = "告警设置成功";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置机器人告警 - " << robot_id
+                << ", FA=0x" << std::hex << robot->GetData().alarm_fa
+                << ", FB=0x" << robot->GetData().alarm_fb
+                << ", FC=0x" << robot->GetData().alarm_fc
+                << ", FD=0x" << robot->GetData().alarm_fd;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "设置机器人告警失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   // POST /api/robots/{id}/schedule_start - 发送定时启动请求
   svr.Post(R"(/api/robots/([^/]+)/schedule_start)", [this](const httplib::Request& req, httplib::Response& res) {
     std::string identifier = req.matches[1];
