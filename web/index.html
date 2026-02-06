@@ -50,6 +50,35 @@
 
         <!-- 已移除主区的最近定时任务容器，详情模态中显示 -->
 
+        <!-- 定时启动请求区域 -->
+        <div class="schedule-start-section">
+            <div class="collapsible-header" onclick="toggleScheduleForm()">
+                <h2>定时启动请求</h2>
+                <span class="collapse-icon" id="scheduleCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls" id="scheduleFormContent" style="display: none;">
+                <div class="schedule-inline-form">
+                    <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 150px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="scheduleSerial" min="1" placeholder="序号" style="width: 80px;">
+                    <input type="number" id="scheduleId" min="1" max="255" placeholder="定时编号" style="width: 110px;">
+                    <select id="scheduleWeekday" style="width: 120px;">
+                        <option value="0">星期日</option>
+                        <option value="1">星期一</option>
+                        <option value="2">星期二</option>
+                        <option value="3">星期三</option>
+                        <option value="4">星期四</option>
+                        <option value="5">星期五</option>
+                        <option value="6">星期六</option>
+                    </select>
+                    <input type="number" id="scheduleHour" min="0" max="23" placeholder="时" style="width: 70px;">
+                    <input type="number" id="scheduleMinute" min="0" max="59" placeholder="分" style="width: 70px;">
+                    <input type="number" id="scheduleRunCount" min="1" max="255" placeholder="运行次数" style="width: 110px;">
+                    <button class="btn btn-success" onclick="sendScheduleRequest()">发送定时启动请求</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 启动请求区域 -->
         <div class="start-request-section">
             <div class="collapsible-header" onclick="toggleStartForm()">
