@@ -32,7 +32,7 @@ class MqttManager : public virtual mqtt::callback,
                     public std::enable_shared_from_this<MqttManager> {
  public:
   MqttManager(const std::string& broker, const std::string& client_id, int qos,
-              ConfigDb& config_db);
+              std::shared_ptr<ConfigDb> config_db);
   ~MqttManager();
 
   // 连接到broker
@@ -78,7 +78,7 @@ class MqttManager : public virtual mqtt::callback,
   std::string broker_;
   std::string client_id_;
   int qos_;
-  ConfigDb& config_db_;
+  std::shared_ptr<ConfigDb> config_db_;
   std::unique_ptr<mqtt::async_client> client_;
   std::map<std::string, std::shared_ptr<Robot>> robots_;  // robot_id -> Robot
   std::map<std::string, std::string>

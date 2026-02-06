@@ -515,6 +515,56 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // API: 获取机器人告警
+  svr.Get(R"(/api/robots/([^/]+)/alarms)", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string identifier = req.matches[1];
+      std::string type = req.get_param_value("type");
+      std::string robot_id = identifier;
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      // 从robot对象获取告警
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      json response;
+      response["success"] = true;
+      response["robot_id"] = robot_id;
+      response["alarm_fa"] = robot->GetData().alarm_fa;
+      response["alarm_fb"] = robot->GetData().alarm_fb;
+      response["alarm_fc"] = robot->GetData().alarm_fc;
+      response["alarm_fd"] = robot->GetData().alarm_fd;
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "获取机器人告警失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   // API: 设置机器人告警
   svr.Patch(R"(/api/robots/([^/]+)/alarms)", [this](const httplib::Request& req, httplib::Response& res) {
     try {
@@ -565,16 +615,15 @@ void HttpServer::ServerThreadFunc() {
         robot->GetData().alarm_fd = body["alarm_fd"].get<uint16_t>();
       }
 
+      // 通过Robot统一接口更新告警到数据库
+      robot->UpdateAlarmsToDb();
+
       json response;
       response["success"] = true;
       response["message"] = "告警设置成功";
       response["robot_id"] = robot_id;
       res.set_content(response.dump(), "application/json");
-      LOG(INFO) << "API: 设置机器人告警 - " << robot_id
-                << ", FA=0x" << std::hex << robot->GetData().alarm_fa
-                << ", FB=0x" << robot->GetData().alarm_fb
-                << ", FC=0x" << robot->GetData().alarm_fc
-                << ", FD=0x" << robot->GetData().alarm_fd;
+      LOG(INFO) << "API: 设置机器人告警 - " << robot_id;
     } catch (const std::exception& e) {
       LOG(ERROR) << "设置机器人告警失败: " << e.what();
       json error;

@@ -106,3 +106,9 @@ export async function setRobotAlarms(identifier, type, alarmData) {
     });
     return await response.json();
 }
+
+// 获取机器人告警
+export async function getRobotAlarms(identifier, type) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/alarms?type=${type}`);
+    return await response.json();
+}

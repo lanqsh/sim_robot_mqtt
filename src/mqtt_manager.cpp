@@ -8,7 +8,7 @@ using json = nlohmann::json;
 
 MqttManager::MqttManager(const std::string& broker,
                          const std::string& client_id, int qos,
-                         ConfigDb& config_db)
+                         std::shared_ptr<ConfigDb> config_db)
     : broker_(broker), client_id_(client_id), qos_(qos), config_db_(config_db) {
   client_ = std::make_unique<mqtt::async_client>(broker_, client_id_);
   client_->set_callback(*this);
@@ -49,14 +49,14 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
   std::string robot_id = robot->GetId();
 
   // 从配置获取主题模板并拼接
-  std::string publish_topic = config_db_.GetPublishTopic(robot_id);
-  std::string subscribe_topic = config_db_.GetSubscribeTopic(robot_id);
+  std::string publish_topic = config_db_->GetPublishTopic(robot_id);
+  std::string subscribe_topic = config_db_->GetSubscribeTopic(robot_id);
 
   // 设置机器人的主题
   robot->SetTopics(publish_topic, subscribe_topic);
 
   // 设置上报间隔
-  int report_interval = config_db_.GetIntValue("publish_interval", 10);
+  int report_interval = config_db_->GetIntValue("publish_interval", 10);
   robot->SetReportInterval(report_interval);
 
   // 设置MQTT管理器（启动上报线程）
@@ -87,12 +87,12 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
 }
 
 void MqttManager::AddRobot(const std::string& robot_id) {
-  std::string publish_topic = config_db_.GetPublishTopic(robot_id);
-  std::string subscribe_topic = config_db_.GetSubscribeTopic(robot_id);
+  std::string publish_topic = config_db_->GetPublishTopic(robot_id);
+  std::string subscribe_topic = config_db_->GetSubscribeTopic(robot_id);
 
   // 从数据库获取机器人序号
   uint16_t robot_number = 0;
-  auto all_robots = config_db_.GetAllRobots();
+  auto all_robots = config_db_->GetAllRobots();
   for (const auto& robot_info : all_robots) {
     if (robot_info.robot_id == robot_id) {
       robot_number = static_cast<uint16_t>(robot_info.serial_number);
@@ -106,9 +106,24 @@ void MqttManager::AddRobot(const std::string& robot_id) {
   auto robot = std::make_shared<Robot>(robot_id, robot_number);
   robot->SetTopics(publish_topic, subscribe_topic);
 
+  // 从数据库加载告警值
+  ConfigDb::AlarmData alarms = config_db_->GetRobotAlarms(robot_id);
+  robot->GetData().alarm_fa = alarms.alarm_fa;
+  robot->GetData().alarm_fb = alarms.alarm_fb;
+  robot->GetData().alarm_fc = alarms.alarm_fc;
+  robot->GetData().alarm_fd = alarms.alarm_fd;
+  LOG(INFO) << "加载机器人告警 - " << robot_id
+            << ", FA=0x" << std::hex << alarms.alarm_fa
+            << ", FB=0x" << alarms.alarm_fb
+            << ", FC=0x" << alarms.alarm_fc
+            << ", FD=0x" << alarms.alarm_fd << std::dec;
+
   // 设置上报间隔
-  int report_interval = config_db_.GetIntValue("publish_interval", 10);
+  int report_interval = config_db_->GetIntValue("publish_interval", 10);
   robot->SetReportInterval(report_interval);
+
+  // 设置ConfigDb（用于告警持久化）
+  robot->SetConfigDb(config_db_);
 
   // 设置MQTT管理器（启动上报线程）
   robot->SetMqttManager(shared_from_this());
@@ -206,7 +221,7 @@ void MqttManager::Publish(const std::string& robot_id) {
 }
 
 void MqttManager::RefreshRobots() {
-  auto enabled = config_db_.GetEnabledRobots();
+  auto enabled = config_db_->GetEnabledRobots();
   std::vector<std::string> to_add;
   {
     std::lock_guard<std::mutex> lock(robots_mutex_);

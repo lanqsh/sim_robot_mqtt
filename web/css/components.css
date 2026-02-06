@@ -79,6 +79,8 @@
 .btn-success { background: var(--color-success); color: white; }
 .btn-success:hover { background: var(--color-success-dark); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4); }
 .btn-warning { background: var(--color-warning); color: #333; }
+.btn-info { background: #17a2b8; color: white; }
+.btn-info:hover { background: #138496; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4); }
 .btn.disabled-btn { opacity: 0.5; }
 
 /* Pagination */

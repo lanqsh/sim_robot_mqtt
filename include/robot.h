@@ -270,6 +270,7 @@ struct RobotData {
 
 // 前向声明
 class MqttManager;
+class ConfigDb;
 
 class Robot {
  public:
@@ -285,6 +286,12 @@ class Robot {
 
   // 设置MQTT管理器（用于发送消息）
   void SetMqttManager(std::shared_ptr<MqttManager> manager);
+
+  // 设置配置数据库（用于持久化告警数据）
+  void SetConfigDb(std::shared_ptr<ConfigDb> config_db);
+
+  // 更新告警到数据库（当告警内容发生变化时调用）
+  void UpdateAlarmsToDb();
 
   // 设置上报间隔（秒）
   void SetReportInterval(int interval_seconds);
@@ -341,6 +348,9 @@ class Robot {
 
   // MQTT管理器（用于发送消息）
   std::weak_ptr<MqttManager> mqtt_manager_;
+
+  // 配置数据库（用于持久化告警数据）
+  std::weak_ptr<ConfigDb> config_db_;
 
   // 上报线程相关
   std::thread report_thread_;              // 上报线程
