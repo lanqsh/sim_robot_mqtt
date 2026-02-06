@@ -222,13 +222,31 @@ export function renderRobotData(data) {
 
     const robotData = lastData.data || lastData;
     const TABLE_KEYS = ['motor_params','environment_info','temp_voltage_protection','lora_params','master_currents','slave_currents','position_info'];
+    let currentsCombinedRendered = false;
     for (const key of Object.keys(robotData)) {
         if (key === 'current_timestamp' || key === 'local_time' || key === 'clean_records' || key === 'cleanRecords' || key === 'schedules' || key === 'schedule' || key === 'timers' || key === 'schedule_tasks') continue;
 
         const label = LABEL_MAP[key] || key;
         const value = robotData[key];
         if (value !== null && typeof value === 'object') {
-            if (TABLE_KEYS.includes(key)) {
+            // special-case: combine master_currents + slave_currents into one table
+            if (key === 'master_currents' && !currentsCombinedRendered) {
+                const masters = robotData.master_currents || lastData.master_currents || [];
+                const slaves = robotData.slave_currents || lastData.slave_currents || [];
+                const maxLen = Math.max(masters.length, slaves.length, 16);
+                let table = '<table class="clean-records-table">';
+                table += '<thead><tr><th>#</th><th>主机电流</th><th>从机电流</th></tr></thead><tbody>';
+                for (let i = 0; i < maxLen; i++) {
+                    const m = masters[i] !== undefined ? formatValue('master_currents', masters[i]) : '';
+                    const s = slaves[i] !== undefined ? formatValue('slave_currents', slaves[i]) : '';
+                    table += `<tr><td>${i + 1}</td><td>${m}</td><td>${s}</td></tr>`;
+                }
+                table += '</tbody></table>';
+                html += `<div class="data-item"><span class="data-label">${label}:</span> ${table}</div>`;
+                currentsCombinedRendered = true;
+            } else if (key === 'slave_currents' && currentsCombinedRendered) {
+                // already rendered with master, skip
+            } else if (TABLE_KEYS.includes(key)) {
                 html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderKeyValueTable(value)}</div>`;
             } else {
                 html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
