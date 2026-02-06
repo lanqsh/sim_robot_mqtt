@@ -16,7 +16,7 @@
 #define PLACEHOLDER_DATA "{{DATA}}"
 
 // 上行数据模板文件路径
-#define UPLINK_TEMPLATE_FILE "uplink_template.json"
+#define UPLINK_TEMPLATE_FILE "doc/uplink_template.json"
 
 // 静态成员初始化
 std::string Robot::uplink_template_ = "";
