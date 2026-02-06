@@ -10,6 +10,7 @@
 #include <mutex>
 
 #include "protocol.h"
+#include <chrono>
 
 // 指令类型
 enum class MessageDirection {
@@ -157,6 +158,18 @@ struct RobotData {
   int position = 0;                  // 位置
   int direction = 0;                 // 方向
 
+  // 清扫记录（最多5条）
+  struct CleanRecord {
+    uint8_t day = 0;       // 日
+    uint8_t hour = 0;      // 时
+    uint8_t minute = 0;    // 分
+    uint16_t minutes = 0;  // 清扫分钟数（uint16_t，高低字节）
+    uint8_t result = 0;    // 清扫结果 (1字节)
+    uint8_t energy = 0;    // 耗电量 (1字节, 单位按协议定义)
+  };
+  std::vector<CleanRecord> clean_records; // 最多5条清扫记录
+
+  int board_humidity = 0; // 主板湿度（％，可用1字节或按需扩展）
   // 设备标识
   std::string module_eui;            // 模组EUI
   int domestic_foreign_flag = 0;     // 国内外版本标识
@@ -221,6 +234,7 @@ class Robot {
   // 上报类指令
   void SendLoraAndCleanSettingsReport();  // Lora参数&清扫设置上报
   void SendRobotDataReport();             // 机器人数据上报
+  void SendCleanRecordReport();           // 清扫记录上报 (标识符 0xE9)
 
  private:
   std::string robot_id_;                   // 机器人ID
@@ -237,6 +251,12 @@ class Robot {
   std::atomic<bool> stop_report_{false};   // 停止上报标志
   int report_interval_seconds_{10};        // 上报间隔（秒）
   Protocol protocol_;                      // 协议编解码器
+
+  // 机器人创建时间（用于计算工作时长）
+  std::chrono::system_clock::time_point creation_time_;
+
+  // 更新时间相关字段（本地时间、当前时间戳、工作时长）
+  void UpdateTimeFields();
 
   // 上报线程函数
   void ReportThreadFunc();

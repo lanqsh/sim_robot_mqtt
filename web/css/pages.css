@@ -1,0 +1,89 @@
+/* Page / Section specific styles */
+
+/* Statistics cards */
+.statistics {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.stat-card {
+    flex: 1;
+    min-width: 120px;
+    background: white;
+    border-radius: 8px;
+    padding: 15px 20px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+}
+
+.stat-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.stat-value {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #333;
+}
+
+.stat-total { border-left: 4px solid var(--color-primary); }
+.stat-enabled { border-left: 4px solid var(--color-success); }
+.stat-disabled { border-left: 4px solid var(--color-danger); }
+
+.batch-operations {
+    background: #e3f2fd;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.batch-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: end;
+    margin-top: 15px;
+}
+
+.schedule-request-section {
+    background: #f3e5f5;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.start-request-section {
+    background: #e8f5e9;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.timesync-request-section {
+    background: #fff3e0;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.serial-badge {
+    display: inline-block;
+    background: var(--color-primary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: bold;
+    margin-right: 8px;
+}

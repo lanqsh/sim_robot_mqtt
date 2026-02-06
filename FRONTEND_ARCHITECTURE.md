@@ -1,282 +1,119 @@
-# 前端架构说明
+# 前端模块化结构说明
 
 ## 文件结构
 
 ```
 web/
-├── index.html    # HTML结构 (52行)
-├── style.css     # CSS样式 (268行)
-└── app.js        # JavaScript逻辑 (234行)
+├── index.html          # HTML 主页面
+├── style.css           # 样式文件
+├── js/                 # JavaScript 模块目录
+│   ├── app.js         # 主入口文件（协调各模块）
+│   ├── config.js      # 配置常量（API地址、字段映射等）
+│   ├── api.js         # API 调用封装
+│   ├── ui.js          # UI 渲染和更新
+│   ├── pagination.js  # 分页管理
+│   ├── robot-operations.js  # 机器人操作（增删改查）
+│   └── commands.js    # 命令发送（定时启动、启动、校时）
+└── app.js.bak         # 原始单文件备份
 ```
 
-## 设计理念
+## 模块职责
 
-采用**分离式架构**设计，将HTML结构、CSS样式和JavaScript逻辑完全分离：
+### 1. config.js - 配置模块
+- API 基础地址
+- 字段中文映射表
+- 星期名称映射
+- 其他全局常量
 
-- **便于维护**: 每个文件职责单一，修改样式不影响逻辑
-- **易于扩展**: 可以独立添加新功能或样式
-- **代码复用**: CSS和JS可以被其他页面引用
-- **性能优化**: 浏览器可以缓存静态资源
+### 2. api.js - API 调用模块
+封装所有后端 API 调用：
+- `fetchRobots(page, pageSize)` - 获取机器人列表
+- `addRobot(robotName, serialNumber)` - 添加机器人
+- `deleteRobot(robotId)` - 删除机器人
+- `updateRobotStatus(robotId, enabled)` - 更新状态
+- `fetchRobotData(robotId)` - 获取详细数据
+- `batchAddRobots(robots)` - 批量添加
+- `batchDeleteRobots(robotIds)` - 批量删除
+- `sendScheduleStartRequest()` - 定时启动请求
+- `sendStartRequest()` - 启动请求
+- `sendTimeSyncRequest()` - 校时请求
 
-## 文件详解
+### 3. ui.js - UI 渲染模块
+负责所有UI更新和渲染：
+- `updateStatistics(statistics)` - 更新统计信息
+- `renderRobots(robots)` - 渲染机器人列表
+- `renderRobotData(data)` - 渲染详细数据
+- `showEmptyState()` - 显示空状态
+- `showError(message)` - 显示错误
+- `showLoading(text)` / `hideLoading()` - 加载提示
+- `closeModal()` - 关闭模态框
+- `toggleForm(contentId, iconId)` - 切换表单显示
 
-### 1. index.html - HTML结构
+### 4. pagination.js - 分页管理模块
+分页逻辑封装在 `PaginationManager` 类中：
+- `updatePagination(pagination)` - 更新分页信息
+- `renderPagination()` - 渲染分页控件
+- `goToPage(page)` - 跳转页码
+- `changePageSize(newPageSize)` - 改变页面大小
+- `getCurrentPage()` / `getPageSize()` - 获取当前状态
 
-**职责**: 定义页面结构和DOM元素
+### 5. robot-operations.js - 机器人操作模块
+机器人管理相关操作：
+- `toggleRobotStatus()` - 切换启用/禁用
+- `addRobot()` - 添加单个机器人
+- `deleteRobot()` - 删除机器人
+- `viewRobotData()` - 查看详细数据
+- `batchAdd()` - 批量添加
+- `batchDelete()` - 批量删除
 
-**主要内容**:
-- `<head>`: 引用外部CSS和JS文件
-- `.container`: 主容器
-- `.add-robot-form`: 添加机器人表单
-  - `#robotId`: 机器人ID输入框
-  - `#robotName`: 机器人名称输入框
-  - `#addRobotForm`: 表单元素
-  - `#message`: 消息显示区域
-- `#robotsList`: 机器人列表容器
-- `.modal#robotModal`: 详情模态框
-  - `#robotDetails`: 详情内容区域
+### 6. commands.js - 命令发送模块
+机器人命令发送：
+- `sendScheduleRequest()` - 发送定时启动请求
+- `sendStartRequest()` - 发送启动请求
+- `sendTimeSyncRequest()` - 发送校时请求
 
-**特点**:
-- 语义化HTML标签
-- 无内联样式和脚本
-- 清晰的ID和class命名
+### 7. app.js - 主入口模块
+- 导入所有模块
+- 初始化应用
+- 暴露全局函数供 HTML 调用
+- 设置事件监听器
+- 定时刷新任务
 
-### 2. style.css - CSS样式
-
-**职责**: 定义视觉样式和交互效果
-
-**样式组织**:
-
-1. **全局样式** (1-20行)
-   - 重置默认样式 (`* {}`)
-   - body渐变背景
-
-2. **容器样式** (21-50行)
-   - `.container`: 主容器白色背景、圆角、阴影
-   - `h1`: 标题样式
-
-3. **表单样式** (51-80行)
-   - `.add-robot-form`: 表单背景
-   - `.form-group`: 表单项布局
-   - `input`: 输入框样式和focus效果
-
-4. **按钮样式** (81-110行)
-   - `.btn`: 基础按钮样式
-   - `.btn-primary`: 主要按钮（紫色）
-   - `.btn-danger`: 危险按钮（红色）
-   - hover和transition动画
-
-5. **机器人列表** (111-180行)
-   - `.robots-grid`: CSS Grid布局
-   - `.robot-card`: 卡片样式
-   - `.robot-header`, `.robot-name`, `.robot-status`: 卡片内部元素
-   - 启用/禁用状态颜色
-
-6. **模态框** (181-220行)
-   - `.modal`: 全屏遮罩
-   - `.modal-content`: 内容容器
-   - `.data-item`: 数据项布局
-
-7. **状态提示** (221-268行)
-   - `.loading`: 加载状态
-   - `.empty-state`: 空状态
-   - `.error-message`, `.success-message`: 提示消息
-
-**设计特点**:
-- 响应式设计（Grid自动填充）
-- 平滑过渡动画
-- 渐变和阴影增强视觉效果
-- 一致的配色方案
-
-### 3. app.js - JavaScript逻辑
-
-**职责**: 实现所有交互功能和API调用
-
-**核心功能**:
-
-1. **API配置** (1-2行)
-   ```javascript
-   const API_BASE = window.location.origin;
-   ```
-
-2. **loadRobots()** (4-55行)
-   - 从API获取机器人列表
-   - 动态生成机器人卡片
-   - 处理空状态和错误状态
-   - 绑定事件处理器
-
-3. **表单提交处理** (57-102行)
-   - DOMContentLoaded事件监听
-   - 表单验证
-   - POST请求添加机器人
-   - 成功/失败消息显示
-   - 自动刷新列表
-
-4. **deleteRobot()** (104-128行)
-   - 确认对话框
-   - DELETE请求
-   - 成功后刷新列表
-
-5. **viewRobotData()** (130-210行)
-   - 打开模态框
-   - GET请求获取数据
-   - 动态渲染详细信息
-   - 数值格式化（电压/10等）
-
-6. **closeModal()** (212-214行)
-   - 关闭模态框
-
-7. **初始化逻辑** (57-102行内)
-   - 页面加载时调用loadRobots()
-   - 设置定时器（10秒刷新）
-   - 模态框背景点击关闭
-
-**代码特点**:
-- async/await异步处理
-- try-catch错误捕获
-- 模板字符串动态生成HTML
-- 事件委托和监听器
-
-## HTTP服务器配置
-
-在 `src/http_server.cpp` 中，服务器配置了三个静态文件路由：
-
-```cpp
-// 主页
-svr.Get("/", [...]) -> 读取 web/index.html
-
-// CSS样式
-svr.Get("/style.css", [...]) -> 读取 web/style.css
-
-// JavaScript
-svr.Get("/app.js", [...]) -> 读取 web/app.js
-```
-
-**工作流程**:
-1. 用户访问 `http://localhost:8080/`
-2. 服务器返回 `web/index.html`
-3. 浏览器解析HTML，发现引用：
-   - `<link rel="stylesheet" href="style.css">`
-   - `<script src="app.js"></script>`
-4. 浏览器请求 `/style.css` 和 `/app.js`
-5. 服务器分别返回对应文件
-6. 页面渲染完成，JavaScript开始执行
-
-## 数据流
+## 模块依赖关系
 
 ```
-┌─────────────┐
-│   Browser   │
-└──────┬──────┘
-       │
-       │ HTTP GET /
-       ▼
-┌─────────────────┐
-│  HTTP Server    │
-│  (http_server)  │
-└──────┬──────────┘
-       │
-       │ Read files from web/
-       ▼
-┌─────────────────┐
-│   web/          │
-│ ├─ index.html   │
-│ ├─ style.css    │
-│ └─ app.js       │
-└─────────────────┘
-
-JavaScript (app.js):
-       │
-       │ fetch('/api/robots')
-       ▼
-┌─────────────────┐
-│   REST API      │
-│ ├─ GET  /api/robots
-│ ├─ POST /api/robots
-│ ├─ DELETE /api/robots/{id}
-│ └─ GET  /api/robots/{id}/data
-└──────┬──────────┘
-       │
-       ▼
-┌─────────────────┐
-│  MqttManager    │
-│  ConfigDb       │
-└─────────────────┘
+app.js (主入口)
+├── api.js (API调用)
+│   └── config.js (配置)
+├── ui.js (UI渲染)
+│   └── config.js (配置)
+├── pagination.js (分页管理)
+├── robot-operations.js (机器人操作)
+│   ├── api.js
+│   └── ui.js
+└── commands.js (命令发送)
+    ├── api.js
+    ├── ui.js
+    └── config.js
 ```
 
-## 扩展指南
+## 使用 ES6 模块
 
-### 添加新页面
+所有 JavaScript 文件使用 ES6 模块语法：
+- 使用 `export` 导出函数、类、常量
+- 使用 `import` 导入依赖
+- HTML 中使用 `<script type="module">` 引入
 
-1. 在 `web/` 目录创建新的HTML文件
-2. 在 `http_server.cpp` 添加路由：
-   ```cpp
-   svr.Get("/new-page", [](const httplib::Request&, httplib::Response& res) {
-     std::ifstream file("web/new-page.html");
-     // ...
-   });
-   ```
+## 优势
 
-### 添加新样式
+1. **模块化清晰**：每个文件职责单一，易于维护
+2. **代码复用**：API、UI 等模块可独立复用
+3. **易于测试**：模块间解耦，便于单元测试
+4. **便于扩展**：添加新功能只需修改对应模块
+5. **减少冲突**：模块作用域隔离，避免全局变量污染
 
-1. 在 `web/style.css` 末尾添加新的CSS规则
-2. 或创建新的CSS文件并在HTML中引用
+## 注意事项
 
-### 添加新功能
-
-1. 在 `web/app.js` 添加新函数
-2. 在HTML中添加对应的DOM元素
-3. 绑定事件处理器
-
-### 添加新API
-
-1. 在 `src/http_server.cpp` 添加新的路由处理
-2. 在 `app.js` 中调用新API
-3. 更新UI显示结果
-
-## 性能优化建议
-
-1. **CSS压缩**: 生产环境可以压缩CSS减小文件大小
-2. **JS模块化**: 大型项目可以使用ES6模块拆分app.js
-3. **缓存策略**: 添加HTTP缓存头提高加载速度
-4. **CDN加速**: 可以将静态资源放到CDN
-5. **懒加载**: 大量数据可以使用分页或虚拟滚动
-
-## 浏览器兼容性
-
-- **Chrome/Edge**: 完全支持
-- **Firefox**: 完全支持
-- **Safari**: 完全支持
-- **IE11**: 不支持（需要polyfill）
-
-使用的现代特性:
-- CSS Grid
-- Flexbox
-- async/await
-- fetch API
-- Template literals
-- Arrow functions
-
-## 安全考虑
-
-1. **XSS防护**: 使用textContent而非innerHTML（需要时）
-2. **CORS配置**: 服务器端已配置CORS头
-3. **输入验证**: 前后端都需要验证用户输入
-4. **HTTPS**: 生产环境建议使用HTTPS
-
-## 总结
-
-这个前端架构采用经典的三层分离设计：
-
-- **HTML**: 结构层
-- **CSS**: 表现层
-- **JavaScript**: 行为层
-
-优点:
-✅ 代码清晰易读
-✅ 便于团队协作
-✅ 易于维护和扩展
-✅ 符合Web标准
-✅ 性能良好
-
-适用于中小型Web应用，如果项目规模扩大，可以考虑使用Vue/React等现代框架。
+- 使用 ES6 模块需要通过 HTTP 服务器访问，不能直接打开 HTML 文件
+- 全局函数通过 `window.xxx = function()` 暴露给 HTML 内联事件调用
+- 模块间通过 import/export 进行通信，避免全局变量

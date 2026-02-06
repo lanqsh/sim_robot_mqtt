@@ -16,6 +16,10 @@ export class PaginationManager {
     // 渲染分页控件
     renderPagination() {
         const pagination = document.getElementById('pagination');
+        if (!pagination) {
+            console.warn('元素 #pagination 未找到，跳过渲染分页控件');
+            return;
+        }
 
         if (this.totalPages <= 1) {
             pagination.innerHTML = '';
@@ -24,12 +28,8 @@ export class PaginationManager {
 
         let html = '<div class="pagination-buttons">';
 
-        // 上一页按钮
-        if (this.currentPage > 1) {
-            html += `<button class="page-btn" onclick="window.goToPage(${this.currentPage - 1})">上一页</button>`;
-        } else {
-            html += '<button class="page-btn" disabled>上一页</button>';
-        }
+        // 左侧：页码区域
+        html += '<div class="page-numbers">';
 
         // 页码按钮
         const maxButtons = 7;
@@ -62,12 +62,38 @@ export class PaginationManager {
             html += `<button class="page-btn" onclick="window.goToPage(${this.totalPages})">${this.totalPages}</button>`;
         }
 
+        html += '</div>';
+
+        // 中间：页面大小和总数信息
+        html += '<div class="page-info">';
+        html += '<label for="pageSize">每页显示：</label>';
+        html += '<select id="pageSize" onchange="window.changePageSize()">';
+        html += '<option value="10"' + (this.pageSize === 10 ? ' selected' : '') + '>10</option>';
+        html += '<option value="20"' + (this.pageSize === 20 ? ' selected' : '') + '>20</option>';
+        html += '<option value="50"' + (this.pageSize === 50 ? ' selected' : '') + '>50</option>';
+        html += '<option value="100"' + (this.pageSize === 100 ? ' selected' : '') + '>100</option>';
+        html += '</select>';
+        html += `<span class="total-info">共 ${this.totalCount} 个机器人</span>`;
+        html += '</div>';
+
+        // 右侧：上一页/下一页按钮
+        html += '<div class="page-nav-buttons">';
+
+        // 上一页按钮
+        if (this.currentPage > 1) {
+            html += `<button class="page-nav-btn" onclick="window.goToPage(${this.currentPage - 1})">上一页</button>`;
+        } else {
+            html += '<button class="page-nav-btn" disabled>上一页</button>';
+        }
+
         // 下一页按钮
         if (this.currentPage < this.totalPages) {
-            html += `<button class="page-btn" onclick="window.goToPage(${this.currentPage + 1})">下一页</button>`;
+            html += `<button class="page-nav-btn" onclick="window.goToPage(${this.currentPage + 1})">下一页</button>`;
         } else {
-            html += '<button class="page-btn" disabled>下一页</button>';
+            html += '<button class="page-nav-btn" disabled>下一页</button>';
         }
+
+        html += '</div>';
 
         html += '</div>';
         pagination.innerHTML = html;

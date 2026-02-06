@@ -84,20 +84,22 @@ void HttpServer::ServerThreadFunc() {
 
   // 主页 - 返回HTML页面
   svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
-    std::ifstream file("web/index.html");
+    std::ifstream file("web/html/index.html");
     if (file.is_open()) {
       std::stringstream buffer;
       buffer << file.rdbuf();
       res.set_content(buffer.str(), "text/html; charset=utf-8");
     } else {
       res.status = 404;
-      res.set_content("web/index.html not found", "text/plain");
+      res.set_content("web/html/index.html not found", "text/plain");
     }
   });
 
   // CSS样式文件
-  svr.Get("/style.css", [](const httplib::Request&, httplib::Response& res) {
-    std::ifstream file("web/style.css");
+  svr.Get(R"(/css/(.+\.css))", [](const httplib::Request& req, httplib::Response& res) {
+    std::string filename = req.matches[1];
+    std::string filepath = "web/css/" + filename;
+    std::ifstream file(filepath);
     if (file.is_open()) {
       std::stringstream buffer;
       buffer << file.rdbuf();

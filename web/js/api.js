@@ -93,11 +93,3 @@ export async function sendTimeSyncRequest(identifier, type) {
     return await response.json();
 }
 
-// 发送机器人数据上报
-export async function sendRobotDataReport(identifier, type) {
-    const response = await fetch(`${API_BASE}/api/robots/${identifier}/robot_data?type=${type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    });
-    return await response.json();
-}

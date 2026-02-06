@@ -1,0 +1,183 @@
+/* Components: forms, buttons, collapse headers */
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 15px;
+    transition: all 0.3s;
+}
+
+.collapsible-header:hover {
+    opacity: 0.8;
+}
+
+.collapsible-header h2 { margin: 0; }
+
+.collapse-icon { font-size: 1.2em; font-weight: bold; color: #666; transition: transform 0.3s; }
+
+.inline-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.inline-form input,
+.inline-form select {
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.inline-form input:focus,
+.inline-form select:focus { outline: none; border-color: var(--color-primary); }
+
+.inline-form span { color: var(--color-muted); font-size: 0.9em; }
+
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+.form-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 1em; transition: border-color 0.3s; }
+.form-group input:focus { outline: none; border-color: var(--color-primary); }
+
+.btn { padding: 12px 30px; border: none; border-radius: 5px; font-size: 1em; cursor: pointer; transition: all 0.3s; }
+.btn-primary { background: var(--color-primary); color: white; }
+.btn-primary:hover { background: var(--color-primary-dark); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+.btn-danger { background: var(--color-danger); color: white; }
+.btn-danger:hover { background: #c82333; }
+.btn-success { background: var(--color-success); color: white; }
+.btn-success:hover { background: var(--color-success-dark); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4); }
+.btn-warning { background: var(--color-warning); color: #333; }
+.btn.disabled-btn { opacity: 0.5; }
+
+/* Pagination */
+.pagination {
+    margin-top: 30px;
+    margin-bottom: 20px;
+}
+
+.pagination-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+.page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.page-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    padding: 0 20px;
+}
+
+.page-info label {
+    font-size: 0.95em;
+    color: #555;
+    font-weight: 500;
+}
+
+.page-info select {
+    padding: 8px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.page-info select:hover {
+    border-color: var(--color-primary);
+}
+
+.page-info select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.total-info {
+    color: #666;
+    font-size: 0.95em;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.page-btn {
+    padding: 10px 16px;
+    border: 2px solid #e0e0e0;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95em;
+    font-weight: 500;
+    color: #555;
+    transition: all 0.3s;
+    min-width: 42px;
+}
+
+.page-btn:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 3px 10px rgba(102, 126, 234, 0.2);
+}
+
+.page-btn.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+    font-weight: bold;
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-ellipsis {
+    padding: 0 8px;
+    color: #999;
+    font-weight: bold;
+}
+
+.page-nav-buttons {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.page-nav-btn {
+    padding: 12px 24px;
+    border: 2px solid var(--color-primary);
+    background: white;
+    color: var(--color-primary);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    transition: all 0.3s;
+    min-width: 90px;
+}
+
+.page-nav-btn:hover:not(:disabled) {
+    background: var(--color-primary);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.page-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #e0e0e0;
+    color: #999;
+}
