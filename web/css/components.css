@@ -268,7 +268,7 @@
 
 .alarm-checkboxes {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     padding: 15px;
     background: #f8f9fa;
@@ -313,4 +313,11 @@
     background: #5a6268;
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
+}
+
+/* 响应式布局：小屏幕上告警列表显示为单列 */
+@media (max-width: 768px) {
+    .alarm-checkboxes {
+        grid-template-columns: 1fr;
+    }
 }
