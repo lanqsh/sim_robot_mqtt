@@ -90,7 +90,20 @@ void MqttManager::AddRobot(const std::string& robot_id) {
   std::string publish_topic = config_db_.GetPublishTopic(robot_id);
   std::string subscribe_topic = config_db_.GetSubscribeTopic(robot_id);
 
-  auto robot = std::make_shared<Robot>(robot_id);
+  // 从数据库获取机器人序号
+  uint16_t robot_number = 0;
+  auto all_robots = config_db_.GetAllRobots();
+  for (const auto& robot_info : all_robots) {
+    if (robot_info.robot_id == robot_id) {
+      robot_number = static_cast<uint16_t>(robot_info.serial_number);
+      break;
+    }
+  }
+  if (robot_number == 0) {
+    LOG(WARNING) << "未找到机器人序号，使用默认值0: " << robot_id;
+  }
+
+  auto robot = std::make_shared<Robot>(robot_id, robot_number);
   robot->SetTopics(publish_topic, subscribe_topic);
 
   // 设置上报间隔
@@ -204,8 +217,7 @@ void MqttManager::RefreshRobots() {
 
   for (const auto& id : to_add) {
     LOG(INFO) << "检测到新机器人, 添加: " << id;
-    auto robot = std::make_shared<Robot>(id);
-    AddRobot(robot);
+    AddRobot(id);  // 使用带robot_id参数的重载，会自动从数据库获取serial_number
   }
 }
 

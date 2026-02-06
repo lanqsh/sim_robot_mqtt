@@ -20,7 +20,7 @@
 // 静态成员初始化
 std::string Robot::uplink_template_ = "";
 
-Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
+Robot::Robot(const std::string& robot_id, uint16_t robot_number) : robot_id_(robot_id), sequence_(0) {
   // 初始化机器人数据
   data_.alarm_fa = 0;
   data_.alarm_fb = 0;
@@ -70,8 +70,8 @@ Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
   // 记录创建时间（用于计算工作时长）
   creation_time_ = std::chrono::system_clock::now();
 
-  // 默认将 robot_number 设为传入的 robot_id（可根据需要解析为数字）
-  data_.robot_number = robot_id_;
+  // 设置机器人序号（数字）
+  data_.robot_number = std::to_string(robot_number);
 
   // 将软件版本设为 CMake 中定义的 PROJECT_VERSION（如果存在）
 #ifdef PROJECT_VERSION
@@ -339,10 +339,10 @@ void Robot::HandleMessage(const std::string& data) {
             SendControlResponse(0xB6);
             break;
 
-          case 0xBA:  // 控制命令BA（简单响应）
-            LOG(INFO) << "    命令类型: 控制命令BA";
+          case 0xBA:  // 重启指令
+            LOG(INFO) << "    命令类型: 重启";
             // 发送简单响应（只包含标识符，不含机器人数据）
-            SendSimpleControlResponse(0xBA);
+            SendRestartResponse(0xBA);
             break;
 
           default:
@@ -791,7 +791,12 @@ void Robot::SendRobotDataReport() {
   LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
 
   // 使用Protocol编码：控制码0x82（机器人主动上报）
-  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
 
@@ -875,7 +880,12 @@ void Robot::SendCleanRecordReport() {
   LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
 
   // 使用Protocol编码：控制码0x82（机器人主动上报）
-  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
 
@@ -910,7 +920,12 @@ void Robot::SendControlResponse(uint8_t control_identifier) {
   LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
 
   // 使用Protocol编码：控制码0x82（机器人主动上报）
-  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
 
@@ -930,8 +945,8 @@ void Robot::SendControlResponse(uint8_t control_identifier) {
   sequence_.fetch_add(1);
 }
 
-void Robot::SendSimpleControlResponse(uint8_t control_identifier) {
-  LOG(INFO) << "[Robot " << robot_id_ << "] 发送简单控制响应 (标识符: 0x"
+void Robot::SendRestartResponse(uint8_t control_identifier) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送重启响应 (标识符: 0x"
             << std::hex << static_cast<int>(control_identifier) << ")";
 
   auto mqtt_manager = mqtt_manager_.lock();
@@ -947,7 +962,12 @@ void Robot::SendSimpleControlResponse(uint8_t control_identifier) {
   LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
 
   // 使用Protocol编码：控制码0x82（机器人主动上报）
-  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
 
@@ -961,7 +981,7 @@ void Robot::SendSimpleControlResponse(uint8_t control_identifier) {
   std::string payload = GenerateUplinkPayload(base64_data);
   mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
 
-  LOG(INFO) << "  简单控制响应已加入发送队列";
+  LOG(INFO) << "  重启响应已加入发送队列";
 
   // 帧计数累加
   sequence_.fetch_add(1);

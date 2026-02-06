@@ -183,7 +183,7 @@ class MqttManager;
 
 class Robot {
  public:
-  explicit Robot(const std::string& robot_id);
+  explicit Robot(const std::string& robot_id, uint16_t robot_number);
   ~Robot();
 
   // 获取机器人ID
@@ -239,8 +239,8 @@ class Robot {
   // 控制类指令响应（使用机器人数据格式，但标识符不同）
   void SendControlResponse(uint8_t control_identifier);
 
-  // 简单控制响应（仅包含标识符，无机器人数据）
-  void SendSimpleControlResponse(uint8_t control_identifier);
+  // 重启响应（仅包含标识符，无机器人数据）
+  void SendRestartResponse(uint8_t control_identifier);
 
  private:
   std::string robot_id_;                   // 机器人ID
