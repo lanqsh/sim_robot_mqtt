@@ -315,8 +315,11 @@ export async function switchAlarmTab(type) {
     const tabs = document.querySelectorAll('.alarm-tab');
     tabs.forEach(tab => {
         tab.classList.remove('active');
+        // 检查按钮文本是否匹配当前类型
+        if (tab.textContent.includes(`${type}告警`)) {
+            tab.classList.add('active');
+        }
     });
-    event.target.classList.add('active');
 
     // 自动加载告警数据
     await loadAlarmData();
