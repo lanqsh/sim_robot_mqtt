@@ -75,15 +75,30 @@ export async function deleteRobot(robotId, reloadCallback) {
 // 查看机器人数据
 export async function viewRobotData(robotId) {
     ui.renderRobotData({ robot_id: null });
-    document.getElementById('robotDetails').innerHTML = '<div class="loading">加载中...</div>';
-    document.getElementById('robotModal').classList.add('active');
+    const detailsEl = document.getElementById('robotDetails');
+    if (detailsEl) {
+        detailsEl.innerHTML = '<div class="loading">加载中...</div>';
+    } else {
+        console.warn('元素 #robotDetails 未找到，跳过加载状态渲染');
+    }
+    const modalEl = document.getElementById('robotModal');
+    if (modalEl) {
+        modalEl.classList.add('active');
+    } else {
+        console.warn('元素 #robotModal 未找到，无法显示模态框');
+    }
 
     try {
         const data = await api.fetchRobotData(robotId);
         ui.renderRobotData(data);
     } catch (error) {
         console.error('获取机器人数据失败:', error);
-        document.getElementById('robotDetails').innerHTML = `<div class="error-message">获取数据失败: ${error.message}</div>`;
+        const detailsErrEl = document.getElementById('robotDetails');
+        if (detailsErrEl) {
+            detailsErrEl.innerHTML = `<div class="error-message">获取数据失败: ${error.message}</div>`;
+        } else {
+            alert(`获取数据失败: ${error.message}`);
+        }
     }
 }
 
