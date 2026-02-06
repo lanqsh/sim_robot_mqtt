@@ -10,6 +10,7 @@
 #include <mutex>
 
 #include "protocol.h"
+#include <chrono>
 
 // 指令类型
 enum class MessageDirection {
@@ -250,6 +251,12 @@ class Robot {
   std::atomic<bool> stop_report_{false};   // 停止上报标志
   int report_interval_seconds_{10};        // 上报间隔（秒）
   Protocol protocol_;                      // 协议编解码器
+
+  // 机器人创建时间（用于计算工作时长）
+  std::chrono::system_clock::time_point creation_time_;
+
+  // 更新时间相关字段（本地时间、当前时间戳、工作时长）
+  void UpdateTimeFields();
 
   // 上报线程函数
   void ReportThreadFunc();

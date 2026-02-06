@@ -66,6 +66,19 @@ Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
   // 初始化主/从机电流，保留16个元素
   data_.master_currents.resize(16);
   data_.slave_currents.resize(16);
+
+  // 记录创建时间（用于计算工作时长）
+  creation_time_ = std::chrono::system_clock::now();
+
+  // 默认将 robot_number 设为传入的 robot_id（可根据需要解析为数字）
+  data_.robot_number = robot_id_;
+
+  // 将软件版本设为 CMake 中定义的 PROJECT_VERSION（如果存在）
+#ifdef PROJECT_VERSION
+  data_.software_version = PROJECT_VERSION;
+#else
+  data_.software_version = "0.0";
+#endif
 }
 
 Robot::~Robot() {
@@ -351,6 +364,39 @@ void Robot::ReportThreadFunc() {
   LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
 }
 
+// 更新时间相关字段（本地时间、当前时间戳、工作时长）
+void Robot::UpdateTimeFields() {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  std::time_t t = system_clock::to_time_t(now);
+  std::tm tm;
+#ifdef _WIN32
+  localtime_s(&tm, &t);
+#else
+  localtime_r(&t, &tm);
+#endif
+
+  data_.local_time.year = tm.tm_year + 1900;
+  data_.local_time.month = tm.tm_mon + 1;
+  data_.local_time.day = tm.tm_mday;
+  data_.local_time.hour = tm.tm_hour;
+  data_.local_time.minute = tm.tm_min;
+  data_.local_time.second = tm.tm_sec;
+  data_.local_time.weekday = tm.tm_wday;  // 0-6
+
+  data_.current_timestamp.hour = tm.tm_hour;
+  data_.current_timestamp.minute = tm.tm_min;
+  data_.current_timestamp.second = tm.tm_sec;
+
+  // 工作时长：以小时为单位，从创建时间算起
+  if (creation_time_.time_since_epoch().count() > 0) {
+    auto dur = duration_cast<hours>(now - creation_time_);
+    data_.working_duration = static_cast<int>(dur.count());
+  } else {
+    data_.working_duration = 0;
+  }
+}
+
 void Robot::SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                      uint8_t hour, uint8_t minute, uint8_t run_count) {
   LOG(INFO) << "[Robot " << robot_id_ << "] 发送定时启动请求";
@@ -377,7 +423,12 @@ void Robot::SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
   };
 
   // 使用Protocol编码：控制码0x82（机器人主动发送请求）
-  uint16_t robot_num = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_num = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
 
@@ -412,7 +463,12 @@ void Robot::SendStartRequest() {
   };
 
   // 使用Protocol编码：控制码0x82（机器人主动发送请求）
-  uint16_t robot_num = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_num = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
 
@@ -447,7 +503,12 @@ void Robot::SendTimeSyncRequest() {
   };
 
   // 使用Protocol编码：控制码0x82（机器人主动发送请求）
-  uint16_t robot_num = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_num = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
 
@@ -487,10 +548,15 @@ void Robot::SendLoraAndCleanSettingsReport() {
   data_field.push_back(static_cast<uint8_t>(data_.lora_params.frequency));  // 频率
   data_field.push_back(static_cast<uint8_t>(data_.lora_params.rate));       // 速率
 
-  // 机器人编号 (2字节) - 从robot_number字符串转换
-  uint16_t robot_num = 2;  // TODO: 从data_.robot_number解析
+  // 机器人编号 (2字节) - 从data_.robot_number字符串转换为数字（若非数字则为0）
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_num = 0;
+  }
   data_field.push_back(static_cast<uint8_t>(robot_num >> 8));   // 高字节
-  data_field.push_back(static_cast<uint8_t>(robot_num));        // 低字节
+  data_field.push_back(static_cast<uint8_t>(robot_num & 0xFF)); // 低字节
 
   // 软件版本 (2字节) - 例如 "1.0" -> 0x01 0x00
   uint8_t major_version = 1;
@@ -527,7 +593,12 @@ void Robot::SendLoraAndCleanSettingsReport() {
   LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
 
   // 使用Protocol编码：控制码0x82（机器人主动上报）
-  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
   uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
   std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
 
@@ -658,6 +729,9 @@ void Robot::SendRobotDataReport() {
   data_field.push_back(static_cast<uint8_t>(data_.current_timestamp.minute));
   data_field.push_back(static_cast<uint8_t>(data_.current_timestamp.second));
 
+  // 在上报前更新时间字段与工作时长
+  UpdateTimeFields();
+
   // 主板温度 (2字节)
   uint16_t board_temp = static_cast<uint16_t>(data_.board_temperature);
   data_field.push_back(static_cast<uint8_t>(board_temp >> 8));
@@ -727,6 +801,9 @@ void Robot::SendCleanRecordReport() {
     data_field.push_back(static_cast<uint8_t>(c));
   }
 
+  // 在上报前更新时间字段与工作时长
+  UpdateTimeFields();
+
   // 机器人本地时间 (年, 月, 日, 时, 分, 秒) - 年取两位
   int year = data_.local_time.year % 100;
   data_field.push_back(static_cast<uint8_t>(year));
@@ -775,6 +852,9 @@ std::string Robot::GetLastData() const {
   j["sequence"] = sequence_.load();
   j["report_interval_seconds"] = report_interval_seconds_;
   j["running"] = IsRunning();
+
+  // 在获取最后数据前更新时间字段（允许修改内部缓存以保证返回的是最新时间）
+  const_cast<Robot*>(this)->UpdateTimeFields();
 
   // RobotData 全量序列化
   nlohmann::json d;
