@@ -292,6 +292,25 @@ bool ConfigDb::IsSerialNumberExists(int serial_number) {
   return exists;
 }
 
+int ConfigDb::GetMaxSerialNumber() {
+  if (!initialized_) return 0;
+
+  const char* sql = "SELECT MAX(serial_number) FROM robots";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return 0;
+  }
+
+  int max_serial = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    max_serial = sqlite3_column_int(stmt, 0);
+  }
+
+  sqlite3_finalize(stmt);
+  return max_serial;
+}
+
 std::string ConfigDb::GetRobotIdBySerial(int serial_number) {
   if (!initialized_) return "";
 

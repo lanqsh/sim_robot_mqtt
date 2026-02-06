@@ -210,13 +210,10 @@ void HttpServer::ServerThreadFunc() {
       std::string robot_name = body.value("robot_name", "");
       int serial_number = body.value("serial_number", 0);
 
+      // 如果未提供序号或序号为0，自动生成
       if (serial_number <= 0) {
-        json error;
-        error["success"] = false;
-        error["error"] = "序号必须大于0";
-        res.status = 400;
-        res.set_content(error.dump(), "application/json");
-        return;
+        serial_number = config_db_->GetMaxSerialNumber() + 1;
+        LOG(INFO) << "自动生成序号: " << serial_number;
       }
 
       // 检查序号是否已存在

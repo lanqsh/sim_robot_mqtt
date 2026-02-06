@@ -10,13 +10,17 @@ export async function fetchRobots(page, pageSize) {
 
 // 添加单个机器人
 export async function addRobot(robotName, serialNumber) {
+    const body = {
+        robot_name: robotName || ''
+    };
+
+    // 如果提供了序号且大于0，才发送序号；否则发送0让后端自动生成
+    body.serial_number = (serialNumber && serialNumber > 0) ? parseInt(serialNumber) : 0;
+
     const response = await fetch(`${API_BASE}/api/robots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            robot_name: robotName || `Robot ${serialNumber}`,
-            serial_number: serialNumber
-        })
+        body: JSON.stringify(body)
     });
     return await response.json();
 }
