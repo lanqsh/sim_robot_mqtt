@@ -87,7 +87,11 @@ export const LABEL_MAP = {
     minute: '分钟',
     run_count: '运行次数',
     robot_name: '机器人名称',
-    serial_number: '序号'
+    serial_number: '序号',
+    alarm_fa: 'FA',
+    alarm_fb: 'FB',
+    alarm_fc: 'FC',
+    alarm_fd: 'FD'
 };
 
 // 星期名称映射
