@@ -339,6 +339,12 @@ void Robot::HandleMessage(const std::string& data) {
             SendControlResponse(0xB6);
             break;
 
+          case 0xBA:  // 控制命令BA（简单响应）
+            LOG(INFO) << "    命令类型: 控制命令BA";
+            // 发送简单响应（只包含标识符，不含机器人数据）
+            SendSimpleControlResponse(0xBA);
+            break;
+
           default:
             LOG(WARNING) << "    未知命令标识: 0x" << std::hex << static_cast<int>(identifier);
             break;
@@ -919,6 +925,43 @@ void Robot::SendControlResponse(uint8_t control_identifier) {
   mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
 
   LOG(INFO) << "  控制响应已加入发送队列";
+
+  // 帧计数累加
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendSimpleControlResponse(uint8_t control_identifier) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送简单控制响应 (标识符: 0x"
+            << std::hex << static_cast<int>(control_identifier) << ")";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：仅包含标识符（1字节）
+  std::vector<uint8_t> data_field = {control_identifier};
+
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  // 使用Protocol编码：控制码0x82（机器人主动上报）
+  uint16_t robot_number = 2;  // TODO: 使用实际的robot_number
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  // 转换为Base64
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  LOG(INFO) << "  Base64编码: " << base64_data;
+
+  // 填入上行模板并发送
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  简单控制响应已加入发送队列";
 
   // 帧计数累加
   sequence_.fetch_add(1);

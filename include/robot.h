@@ -239,6 +239,9 @@ class Robot {
   // 控制类指令响应（使用机器人数据格式，但标识符不同）
   void SendControlResponse(uint8_t control_identifier);
 
+  // 简单控制响应（仅包含标识符，无机器人数据）
+  void SendSimpleControlResponse(uint8_t control_identifier);
+
  private:
   std::string robot_id_;                   // 机器人ID
   std::string publish_topic_;              // 发布主题
