@@ -24,6 +24,13 @@
     flex-wrap: wrap;
 }
 
+.schedule-inline-form,
+.start-inline-form,
+.timesync-inline-form {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
 .inline-form input,
 .inline-form select {
     padding: 10px;
