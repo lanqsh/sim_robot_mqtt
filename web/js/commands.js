@@ -254,8 +254,51 @@ export function clearAllAlarms() {
     });
 }
 
+// 加载机器人告警数据并更新复选框
+export async function loadAlarmData() {
+    const robotId = document.getElementById('alarmRobotId').value.trim();
+    const serialNumber = document.getElementById('alarmSerial').value.trim();
+
+    if (!robotId && !serialNumber) {
+        // 如果没有输入机器人信息，显示所有复选框但不勾选
+        return;
+    }
+
+    try {
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const result = await api.getRobotAlarms(identifier, identifierType);
+
+        if (result.success) {
+            // 更新所有告警类型的复选框
+            const alarmMapping = {
+                'FA': result.alarm_fa || 0,
+                'FB': result.alarm_fb || 0,
+                'FC': result.alarm_fc || 0,
+                'FD': result.alarm_fd || 0
+            };
+
+            Object.keys(alarmMapping).forEach(type => {
+                const value = alarmMapping[type];
+                const checkboxes = document.querySelectorAll(`#alarm-${type} input[type="checkbox"]`);
+
+                checkboxes.forEach(checkbox => {
+                    const bit = parseInt(checkbox.getAttribute('data-bit'));
+                    checkbox.checked = (value & (1 << bit)) !== 0;
+                });
+            });
+
+            console.log('告警数据加载成功:', result);
+        } else {
+            console.warn('获取告警数据失败:', result.error);
+        }
+    } catch (error) {
+        console.error('加载告警数据失败:', error);
+    }
+}
+
 // 切换告警标签页
-export function switchAlarmTab(type) {
+export async function switchAlarmTab(type) {
     // 隐藏所有告警面板
     const panels = document.querySelectorAll('[id^="alarm-"]');
     panels.forEach(panel => {
@@ -274,5 +317,8 @@ export function switchAlarmTab(type) {
         tab.classList.remove('active');
     });
     event.target.classList.add('active');
+
+    // 自动加载告警数据
+    await loadAlarmData();
 }
 
