@@ -194,6 +194,7 @@ export function renderRobotData(data) {
     const lastData = typeof data.last_data === 'string' ? JSON.parse(data.last_data) : data.last_data;
 
     let html = '';
+    let tablesHtml = '';
     html += `<div class="data-item"><span class="data-label">机器人ID:</span><span class="data-value">${data.robot_id}</span></div>`;
 
     if (data.serial_number !== undefined) {
@@ -242,12 +243,12 @@ export function renderRobotData(data) {
                     table += `<tr><td>${i + 1}</td><td>${m}</td><td>${s}</td></tr>`;
                 }
                 table += '</tbody></table>';
-                html += `<div class="data-item"><span class="data-label">${label}:</span> ${table}</div>`;
+                tablesHtml += `<div class="data-item"><span class="data-label">${label}:</span> ${table}</div>`;
                 currentsCombinedRendered = true;
             } else if (key === 'slave_currents' && currentsCombinedRendered) {
                 // already rendered with master, skip
             } else if (TABLE_KEYS.includes(key)) {
-                html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderKeyValueTable(value)}</div>`;
+                tablesHtml += `<div class="data-item"><span class="data-label">${label}:</span> ${renderKeyValueTable(value)}</div>`;
             } else {
                 html += `<div class="data-item"><span class="data-label">${label}:</span> ${renderObject(value)}</div>`;
             }
@@ -271,8 +272,7 @@ export function renderRobotData(data) {
 
     details.innerHTML = html;
     modal.classList.add('active');
-
-    // 渲染清扫记录表格（如果存在）
+    // 渲染清扫记录表格（收集到 tablesHtml）
     const cleanSection = document.getElementById('cleanRecordsSection');
     const cleanRecords = robotData.clean_records || robotData.cleanRecords || lastData.clean_records || lastData.cleanRecords || null;
     if (Array.isArray(cleanRecords) && cleanRecords.length > 0) {
@@ -303,8 +303,9 @@ export function renderRobotData(data) {
                 `</tr>`;
         }
         tableHtml += '</tbody></table>';
-        cleanSection.innerHTML = tableHtml;
-        cleanSection.style.display = 'block';
+        tablesHtml += tableHtml;
+        cleanSection.innerHTML = '';
+        cleanSection.style.display = 'none';
     } else {
         cleanSection.innerHTML = '';
         cleanSection.style.display = 'none';
@@ -341,11 +342,22 @@ export function renderRobotData(data) {
                 `</tr>`;
         }
         sHtml += '</tbody></table>';
-        schedSection.innerHTML = sHtml;
-        schedSection.style.display = 'block';
+        tablesHtml += sHtml;
+        schedSection.innerHTML = '';
+        schedSection.style.display = 'none';
     } else {
         schedSection.innerHTML = '';
         schedSection.style.display = 'none';
+    }
+
+    // 把收集的所有表格一次性渲染到底部容器
+    const tablesContainer = document.getElementById('detailsTables');
+    if (tablesHtml) {
+        tablesContainer.innerHTML = tablesHtml;
+        tablesContainer.style.display = 'block';
+    } else {
+        tablesContainer.innerHTML = '';
+        tablesContainer.style.display = 'none';
     }
 }
 
