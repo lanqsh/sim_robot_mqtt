@@ -62,6 +62,13 @@ export function renderRobots(robots) {
             </div>
         `;
         list.appendChild(row);
+    });
+}
+
+// 显示空状态
+export function showEmptyState() {
+    const container = document.getElementById('robotsList');
+    if (!container) return;
     container.innerHTML = `
         <div class="empty-state">
             <h3>暂无机器人</h3>
@@ -69,7 +76,6 @@ export function renderRobots(robots) {
         </div>
     `;
     document.getElementById('pagination').innerHTML = '';
-    document.getElementById('totalCount').textContent = '';
 }
 
 // 显示错误信息
