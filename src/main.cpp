@@ -24,8 +24,8 @@ void TestAddRemoveRobot(std::shared_ptr<MqttManager> mqtt_manager,
   std::this_thread::sleep_for(std::chrono::seconds(30));
 
   LOG(INFO) << "=== 测试：新增机器人 " << test_robot_id << " ===";
-  // 添加到数据库
-  if (config_db->AddRobot(test_robot_id, "Test Robot", true)) {
+  // 添加到数据库（serial_number使用99作为测试值）
+  if (config_db->AddRobot(test_robot_id, "Test Robot", 99, true)) {
     LOG(INFO) << "数据库中已添加机器人";
 
     // 添加到MqttManager
