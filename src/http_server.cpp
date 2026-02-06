@@ -96,8 +96,10 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // CSS样式文件
-  svr.Get("/style.css", [](const httplib::Request&, httplib::Response& res) {
-    std::ifstream file("web/style.css");
+  svr.Get(R"(/css/(.+\.css))", [](const httplib::Request& req, httplib::Response& res) {
+    std::string filename = req.matches[1];
+    std::string filepath = "web/css/" + filename;
+    std::ifstream file(filepath);
     if (file.is_open()) {
       std::stringstream buffer;
       buffer << file.rdbuf();
