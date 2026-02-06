@@ -260,14 +260,8 @@ export async function loadAlarmData() {
     let robotId = window.currentAlarmRobotId || document.getElementById('alarmRobotId')?.value.trim();
     let serialNumber = window.currentAlarmSerial || document.getElementById('alarmSerial')?.value.trim();
 
-    console.log('loadAlarmData 被调用, robotId:', robotId, 'serialNumber:', serialNumber);
-    console.log('模态框机器人信息:', window.currentAlarmRobotId, window.currentAlarmSerial);
-
     if (!robotId && !serialNumber) {
         // 如果没有输入机器人信息，显示所有告警列表但不勾选任何项
-        console.log('没有输入机器人信息，告警列表已显示，可填写机器人ID或序号以加载当前告警状态');
-        // 不调用clearAllAlarms()，保持复选框显示
-        // 确保所有复选框都不被勾选
         const allCheckboxes = document.querySelectorAll('.alarm-checkboxes input[type="checkbox"]');
         allCheckboxes.forEach(checkbox => checkbox.checked = false);
         return;
@@ -276,10 +270,7 @@ export async function loadAlarmData() {
     try {
         const identifier = robotId || serialNumber;
         const identifierType = robotId ? 'id' : 'serial';
-        console.log('准备调用API, identifier:', identifier, 'type:', identifierType);
-
         const result = await api.getRobotAlarms(identifier, identifierType);
-        console.log('API返回结果:', result);
 
         if (result.success) {
             // 更新所有告警类型的复选框
@@ -299,27 +290,17 @@ export async function loadAlarmData() {
                     checkbox.checked = (value & (1 << bit)) !== 0;
                 });
             });
-
-            console.log('告警数据加载成功:', alarmMapping);
-        } else {
-            console.warn('获取告警数据失败:', result.error);
-            alert('获取告警数据失败: ' + (result.error || '未知错误'));
         }
     } catch (error) {
         console.error('加载告警数据失败:', error);
-        alert('加载告警数据失败: ' + error.message);
     }
 }
 
 // 切换告警标签页
 export async function switchAlarmTab(type, container = null) {
-    console.log('switchAlarmTab 被调用, type:', type, 'container:', container);
-
     // 确定操作的容器：如果在模态框中，则操作模态框；否则操作页面固定区域
     const isInModal = document.getElementById('alarmModal')?.classList.contains('active');
     const targetContainer = isInModal ? '#alarmModalContent' : '#alarmFormContent';
-
-    console.log('操作容器:', targetContainer, '是否在模态框中:', isInModal);
 
     // 隐藏所有告警面板（只在目标容器内）
     const panels = document.querySelectorAll(`${targetContainer} [id^="alarm-"]`);
@@ -331,9 +312,6 @@ export async function switchAlarmTab(type, container = null) {
     const selectedPanel = document.querySelector(`${targetContainer} #alarm-${type}`);
     if (selectedPanel) {
         selectedPanel.style.display = 'block';
-        console.log(`显示面板: alarm-${type}`);
-    } else {
-        console.error(`未找到面板: alarm-${type}`);
     }
 
     // 更新标签状态（只在目标容器内）
@@ -343,17 +321,12 @@ export async function switchAlarmTab(type, container = null) {
         // 检查按钮文本是否匹配当前类型
         if (tab.textContent.includes(`${type}告警`)) {
             tab.classList.add('active');
-            console.log('设置active标签:', tab.textContent);
         }
     });
 
     // 只在页面固定区域时才需要重新加载数据，模态框已经有数据了
     if (!isInModal) {
-        console.log('页面固定区域，准备调用 loadAlarmData');
         await loadAlarmData();
-        console.log('loadAlarmData 调用完成');
-    } else {
-        console.log('模态框中，已有数据，无需重新加载');
     }
 }
 

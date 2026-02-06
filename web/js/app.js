@@ -141,12 +141,7 @@ window.loadAlarmData = async function() {
 
 // 全局函数：切换告警标签页
 window.switchAlarmTab = async function(type) {
-    console.log('window.switchAlarmTab 被调用, type:', type);
-    try {
-        await commands.switchAlarmTab(type);
-    } catch (error) {
-        console.error('switchAlarmTab 执行错误:', error);
-    }
+    await commands.switchAlarmTab(type);
 };
 
 // 全局函数：打开告警设置
