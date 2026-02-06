@@ -259,15 +259,22 @@ export async function loadAlarmData() {
     const robotId = document.getElementById('alarmRobotId').value.trim();
     const serialNumber = document.getElementById('alarmSerial').value.trim();
 
+    console.log('loadAlarmData 被调用, robotId:', robotId, 'serialNumber:', serialNumber);
+
     if (!robotId && !serialNumber) {
-        // 如果没有输入机器人信息，显示所有复选框但不勾选
+        // 如果没有输入机器人信息，清空所有复选框
+        console.log('没有输入机器人信息，清空所有复选框');
+        clearAllAlarms();
         return;
     }
 
     try {
         const identifier = robotId || serialNumber;
         const identifierType = robotId ? 'id' : 'serial';
+        console.log('准备调用API, identifier:', identifier, 'type:', identifierType);
+
         const result = await api.getRobotAlarms(identifier, identifierType);
+        console.log('API返回结果:', result);
 
         if (result.success) {
             // 更新所有告警类型的复选框
@@ -288,17 +295,21 @@ export async function loadAlarmData() {
                 });
             });
 
-            console.log('告警数据加载成功:', result);
+            console.log('告警数据加载成功:', alarmMapping);
         } else {
             console.warn('获取告警数据失败:', result.error);
+            alert('获取告警数据失败: ' + (result.error || '未知错误'));
         }
     } catch (error) {
         console.error('加载告警数据失败:', error);
+        alert('加载告警数据失败: ' + error.message);
     }
 }
 
 // 切换告警标签页
 export async function switchAlarmTab(type) {
+    console.log('switchAlarmTab 被调用, type:', type);
+
     // 隐藏所有告警面板
     const panels = document.querySelectorAll('[id^="alarm-"]');
     panels.forEach(panel => {
@@ -309,6 +320,9 @@ export async function switchAlarmTab(type) {
     const selectedPanel = document.getElementById(`alarm-${type}`);
     if (selectedPanel) {
         selectedPanel.style.display = 'block';
+        console.log(`显示面板: alarm-${type}`);
+    } else {
+        console.error(`未找到面板: alarm-${type}`);
     }
 
     // 更新标签状态
@@ -318,10 +332,13 @@ export async function switchAlarmTab(type) {
         // 检查按钮文本是否匹配当前类型
         if (tab.textContent.includes(`${type}告警`)) {
             tab.classList.add('active');
+            console.log('设置active标签:', tab.textContent);
         }
     });
 
     // 自动加载告警数据
+    console.log('准备调用 loadAlarmData');
     await loadAlarmData();
+    console.log('loadAlarmData 调用完成');
 }
 
