@@ -236,6 +236,9 @@ class Robot {
   void SendRobotDataReport();             // 机器人数据上报
   void SendCleanRecordReport();           // 清扫记录上报 (标识符 0xE9)
 
+  // 控制类指令响应（使用机器人数据格式，但标识符不同）
+  void SendControlResponse(uint8_t control_identifier);
+
  private:
   std::string robot_id_;                   // 机器人ID
   std::string publish_topic_;              // 发布主题
@@ -257,6 +260,9 @@ class Robot {
 
   // 更新时间相关字段（本地时间、当前时间戳、工作时长）
   void UpdateTimeFields();
+
+  // 构建机器人数据域（标识符 + 46字节机器人状态数据）
+  std::vector<uint8_t> BuildRobotDataField(uint8_t identifier);
 
   // 上报线程函数
   void ReportThreadFunc();
