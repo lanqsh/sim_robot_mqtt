@@ -62,6 +62,10 @@ Robot::Robot(const std::string& robot_id) : robot_id_(robot_id), sequence_(0) {
 
   // 初始化清扫记录，保留5条
   data_.clean_records.resize(5);
+
+  // 初始化主/从机电流，保留16个元素
+  data_.master_currents.resize(16);
+  data_.slave_currents.resize(16);
 }
 
 Robot::~Robot() {
