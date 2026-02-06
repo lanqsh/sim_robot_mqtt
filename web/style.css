@@ -11,129 +11,8 @@ body {
     padding: 20px;
     font-size: 14px;
 }
+/* styles migrated to split files: variables.css, base.css, pages.css, components.css, layout.css, tables.css, utils.css */
 
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-h1 {
-    color: #333;
-    margin-bottom: 30px;
-    text-align: center;
-    font-size: 2.5em;
-}
-
-.add-robot-form {
-    background: #f8f9fa;
-    padding: 25px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-}
-
-.add-robot-form #addRobotContent {
-    margin-top: 15px;
-}
-
-.batch-operations {
-    background: #e3f2fd;
-    padding: 25px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-}
-
-.batch-controls {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    align-items: end;
-    margin-top: 15px;
-}
-.schedule-request-section {
-    background: #f3e5f5;
-    padding: 25px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-}
-
-.collapsible-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    user-select: none;
-    margin-bottom: 15px;
-    transition: all 0.3s;
-}
-
-.collapsible-header:hover {
-    opacity: 0.8;
-}
-
-.collapsible-header h2 {
-    margin: 0;
-}
-
-.collapse-icon {
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #666;
-    transition: transform 0.3s;
-}
-
-.schedule-controls {
-    margin-top: 15px;
-}
-
-.schedule-inline-form {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.schedule-inline-form input,
-.schedule-inline-form select {
-    padding: 8px;
-    border: 2px solid #ddd;
-    border-radius: 5px;
-    font-size: 0.95em;
-}
-
-.schedule-inline-form input:focus,
-.schedule-inline-form select:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.schedule-inline-form .or-text {
-    color: #999;
-    font-size: 0.9em;
-    margin: 0 -5px;
-}
-
-.schedule-inline-form .btn:first-of-type {
-    margin-left: auto;
-}
-
-/* 启动请求区域样式 */
-.start-request-section {
-    background: #e8f5e9;
-    padding: 25px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-}
-
-.start-controls {
-    margin-top: 15px;
-}
-
-.start-inline-form {
-    display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
@@ -567,8 +446,13 @@ h1 {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .loading-text {
@@ -755,6 +639,7 @@ h1 {
     border-collapse: collapse;
     margin-top: 8px;
 }
+
 .clean-records-table th,
 .clean-records-table td {
     border: 1px solid #eee;
@@ -762,11 +647,13 @@ h1 {
     text-align: center;
     font-size: 0.95em;
 }
+
 .clean-records-table thead th {
     background: #f7f9ff;
     color: #333;
     font-weight: 600;
 }
+
 .clean-records-table tbody tr:nth-child(odd) {
     background: #fafafa;
 }
