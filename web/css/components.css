@@ -267,8 +267,8 @@
 }
 
 .alarm-checkboxes {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     padding: 15px;
     background: #f8f9fa;

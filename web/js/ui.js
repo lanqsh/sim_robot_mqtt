@@ -459,7 +459,7 @@ export function renderAlarmSettings(alarmData) {
 
     alarmTypes.forEach((type, index) => {
         const value = alarmData[`alarm_f${type.key[1].toLowerCase()}`] || 0;
-        html += `<div class="alarm-checkboxes" id="alarm-${type.key}" style="display: ${index === 0 ? 'block' : 'none'};">`;
+        html += `<div class="alarm-checkboxes" id="alarm-${type.key}" style="display: ${index === 0 ? 'grid' : 'none'};">`;
 
         for (let bit = 0; bit < type.bits; bit++) {
             const checked = (value & (1 << bit)) ? 'checked' : '';

@@ -91,7 +91,6 @@ window.closeModal = function() {
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
-window.toggleAlarmForm = () => ui.toggleForm('alarmFormContent', 'alarmCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
 
@@ -122,16 +121,6 @@ window.sendTimeSyncRequest = async function() {
     const serialNumber = document.getElementById('timeSyncSerial').value.trim();
 
     await commands.sendTimeSyncRequest(robotId, serialNumber);
-};
-
-// 全局函数：设置告警
-window.setAlarm = async function() {
-    await commands.setAlarm();
-};
-
-// 全局函数：清除所有告警选择
-window.clearAllAlarms = function() {
-    commands.clearAllAlarms();
 };
 
 // 全局函数：加载告警数据
@@ -271,39 +260,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 告警设置输入框变化时自动加载告警数据
-    const alarmRobotIdInput = document.getElementById('alarmRobotId');
-    const alarmSerialInput = document.getElementById('alarmSerial');
-
-    if (alarmRobotIdInput) {
-        alarmRobotIdInput.addEventListener('input', () => {
-            // 当输入机器人ID时，清空序号输入框
-            if (alarmRobotIdInput.value.trim()) {
-                alarmSerialInput.value = '';
-            }
-        });
-
-        alarmRobotIdInput.addEventListener('blur', async () => {
-            if (alarmRobotIdInput.value.trim()) {
-                await commands.loadAlarmData();
-            }
-            // 移除自动清空逻辑，保持告警列表始终显示
-        });
-    }
-
-    if (alarmSerialInput) {
-        alarmSerialInput.addEventListener('input', () => {
-            // 当输入序号时，清空机器人ID输入框
-            if (alarmSerialInput.value.trim()) {
-                alarmRobotIdInput.value = '';
-            }
-        });
-
-        alarmSerialInput.addEventListener('blur', async () => {
-            if (alarmSerialInput.value.trim()) {
-                await commands.loadAlarmData();
-            }
-            // 移除自动清空逻辑，保持告警列表始终显示
-        });
-    }
 });
