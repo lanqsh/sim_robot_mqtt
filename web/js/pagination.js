@@ -28,12 +28,8 @@ export class PaginationManager {
 
         let html = '<div class="pagination-buttons">';
 
-        // 上一页按钮
-        if (this.currentPage > 1) {
-            html += `<button class="page-btn" onclick="window.goToPage(${this.currentPage - 1})">上一页</button>`;
-        } else {
-            html += '<button class="page-btn" disabled>上一页</button>';
-        }
+        // 左侧：页码区域
+        html += '<div class="page-numbers">';
 
         // 页码按钮
         const maxButtons = 7;
@@ -66,12 +62,26 @@ export class PaginationManager {
             html += `<button class="page-btn" onclick="window.goToPage(${this.totalPages})">${this.totalPages}</button>`;
         }
 
+        html += '</div>';
+
+        // 右侧：上一页/下一页按钮
+        html += '<div class="page-nav-buttons">';
+
+        // 上一页按钮
+        if (this.currentPage > 1) {
+            html += `<button class="page-nav-btn" onclick="window.goToPage(${this.currentPage - 1})">上一页</button>`;
+        } else {
+            html += '<button class="page-nav-btn" disabled>上一页</button>';
+        }
+
         // 下一页按钮
         if (this.currentPage < this.totalPages) {
-            html += `<button class="page-btn" onclick="window.goToPage(${this.currentPage + 1})">下一页</button>`;
+            html += `<button class="page-nav-btn" onclick="window.goToPage(${this.currentPage + 1})">下一页</button>`;
         } else {
-            html += '<button class="page-btn" disabled>下一页</button>';
+            html += '<button class="page-nav-btn" disabled>下一页</button>';
         }
+
+        html += '</div>';
 
         html += '</div>';
         pagination.innerHTML = html;
