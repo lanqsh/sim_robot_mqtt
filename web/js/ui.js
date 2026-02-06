@@ -195,7 +195,7 @@ export function renderRobotData(data) {
 
     const robotData = lastData.data || lastData;
     for (const key of Object.keys(robotData)) {
-        if (key === 'current_timestamp' || key === 'local_time') continue;
+        if (key === 'current_timestamp' || key === 'local_time' || key === 'clean_records' || key === 'cleanRecords' || key === 'schedules' || key === 'schedule' || key === 'timers' || key === 'schedule_tasks') continue;
 
         const label = LABEL_MAP[key] || key;
         const value = robotData[key];
@@ -258,6 +258,43 @@ export function renderRobotData(data) {
     } else {
         cleanSection.innerHTML = '';
         cleanSection.style.display = 'none';
+    }
+
+    // 渲染最近定时任务（如果存在）
+    const schedSection = document.getElementById('recentSchedulesSection');
+    const schedules = robotData.schedules || robotData.timers || robotData.schedule_tasks || robotData.scheduleList || null;
+    if (Array.isArray(schedules) && schedules.length > 0) {
+        let sHtml = '<h3 style="margin: 10px 0 8px;">最近定时任务</h3>';
+        sHtml += '<table class="clean-records-table">';
+        sHtml += '<thead><tr><th>#</th><th>编号</th><th>星期</th><th>时间</th><th>运行次数</th><th>状态</th></tr></thead>';
+        sHtml += '<tbody>';
+        for (let i = 0; i < 5; i++) {
+            const item = schedules[i] || null;
+            if (!item) {
+                sHtml += `<tr><td>${i + 1}</td><td colspan="5">无数据</td></tr>`;
+                continue;
+            }
+            const id = item.id !== undefined ? item.id : item.schedule_id || '';
+            const weekday = item.weekday !== undefined ? item.weekday : item.week || '';
+            const hour = item.hour !== undefined ? String(item.hour).padStart(2, '0') : '00';
+            const minute = item.minute !== undefined ? String(item.minute).padStart(2, '0') : '00';
+            const runs = item.run_count !== undefined ? item.run_count : item.runTimes !== undefined ? item.runTimes : '';
+            const status = item.enabled !== undefined ? (item.enabled ? '启用' : '禁用') : (item.active !== undefined ? (item.active ? '启用' : '禁用') : '');
+            sHtml += `<tr>` +
+                `<td>${i + 1}</td>` +
+                `<td>${id}</td>` +
+                `<td>${weekday}</td>` +
+                `<td>${hour}:${minute}</td>` +
+                `<td>${runs}</td>` +
+                `<td>${status}</td>` +
+                `</tr>`;
+        }
+        sHtml += '</tbody></table>';
+        schedSection.innerHTML = sHtml;
+        schedSection.style.display = 'block';
+    } else {
+        schedSection.innerHTML = '';
+        schedSection.style.display = 'none';
     }
 }
 
