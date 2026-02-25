@@ -1,10 +1,13 @@
 #include <glog/logging.h>
 #include <sys/stat.h>
 
+#include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "config_db.h"
@@ -13,6 +16,74 @@
 #include "robot.h"
 
 using namespace std::chrono_literals;
+
+namespace {
+constexpr size_t kMaxLogFilesPerSeverity = 10;
+constexpr auto kLogCleanupInterval = std::chrono::minutes(5);
+
+void CleanupOldLogFiles(const std::string& log_dir,
+                        size_t max_files_per_severity) {
+  namespace fs = std::filesystem;
+
+  std::error_code ec;
+  if (!fs::exists(log_dir, ec) || !fs::is_directory(log_dir, ec)) {
+    return;
+  }
+
+  const std::vector<std::string> severities = {"INFO", "WARNING", "ERROR", "FATAL"};
+  std::unordered_map<std::string, std::vector<fs::directory_entry>> files_by_severity;
+
+  for (const auto& entry : fs::directory_iterator(log_dir, ec)) {
+    if (ec || !entry.is_regular_file(ec)) {
+      continue;
+    }
+
+    const std::string filename = entry.path().filename().string();
+    for (const auto& severity : severities) {
+      if (filename.find("." + severity + ".") != std::string::npos) {
+        files_by_severity[severity].push_back(entry);
+        break;
+      }
+    }
+  }
+
+  for (const auto& severity : severities) {
+    auto it = files_by_severity.find(severity);
+    if (it == files_by_severity.end() || it->second.size() <= max_files_per_severity) {
+      continue;
+    }
+
+    auto& files = it->second;
+    std::sort(files.begin(), files.end(), [](const fs::directory_entry& a,
+                                             const fs::directory_entry& b) {
+      std::error_code a_ec;
+      std::error_code b_ec;
+      const auto a_time = a.last_write_time(a_ec);
+      const auto b_time = b.last_write_time(b_ec);
+      if (a_ec || b_ec) {
+        return a.path().filename().string() > b.path().filename().string();
+      }
+      return a_time > b_time;
+    });
+
+    for (size_t i = max_files_per_severity; i < files.size(); ++i) {
+      std::error_code remove_ec;
+      fs::remove(files[i].path(), remove_ec);
+    }
+  }
+}
+
+void StartPeriodicLogCleanup(const std::string& log_dir,
+                             size_t max_files_per_severity,
+                             std::chrono::minutes interval) {
+  std::thread([log_dir, max_files_per_severity, interval]() {
+    while (true) {
+      CleanupOldLogFiles(log_dir, max_files_per_severity);
+      std::this_thread::sleep_for(interval);
+    }
+  }).detach();
+}
+}  // namespace
 
   // 测试函数：动态添加和删除机器人
 void TestAddRemoveRobot(std::shared_ptr<MqttManager> mqtt_manager,
@@ -66,6 +137,11 @@ int main(int argc, char* argv[]) {
   FLAGS_log_dir = "./logs";                // 日志文件目录
   FLAGS_max_log_size = 100;                // 单个日志文件最大100MB
   FLAGS_stop_logging_if_full_disk = true;  // 磁盘满时停止日志
+
+  // 按级别定时清理日志文件（每个级别最多保留10个）
+  CleanupOldLogFiles(FLAGS_log_dir, kMaxLogFilesPerSeverity);
+  StartPeriodicLogCleanup(FLAGS_log_dir, kMaxLogFilesPerSeverity,
+                          kLogCleanupInterval);
 
   // 打印版本信息
   LOG(INFO) << "Robot MQTT Simulator v" << PROJECT_VERSION;
