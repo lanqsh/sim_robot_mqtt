@@ -3,6 +3,7 @@
 #include <glog/logging.h>
 
 #include <nlohmann/json.hpp>
+#include <chrono>
 
 using json = nlohmann::json;
 
@@ -304,6 +305,22 @@ void MqttManager::SenderThreadFunc() {
 
       // 发送消息
       try {
+        if (!client_ || !client_->is_connected()) {
+          LOG(WARNING) << "客户端未连接，尝试重连...";
+          // 尝试重连一次（使用默认的 keepalive 60 秒）
+          if (!Connect(60)) {
+            LOG(ERROR) << "重连失败，消息重新入队并等待";
+            // 将消息重新入队并短暂等待，避免忙循环
+            {
+              std::lock_guard<std::mutex> push_lock(queue_mutex_);
+              message_queue_.push(msg);
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            break;  // 退出当前处理，让外层循环等待/重新调度
+          } else {
+            LOG(INFO) << "重连成功";
+          }
+        }
         auto mqtt_msg = mqtt::make_message(msg.topic, msg.payload);
         mqtt_msg->set_qos(msg.qos);
         client_->publish(mqtt_msg);
