@@ -305,28 +305,59 @@ void MqttManager::SenderThreadFunc() {
 
       // 发送消息
       try {
-        if (!client_ || !client_->is_connected()) {
-          LOG(WARNING) << "客户端未连接，尝试重连...";
-          // 尝试重连一次（使用默认的 keepalive 60 秒）
-          if (!Connect(60)) {
-            LOG(ERROR) << "重连失败，消息重新入队并等待";
-            // 将消息重新入队并短暂等待，避免忙循环
-            {
-              std::lock_guard<std::mutex> push_lock(queue_mutex_);
-              message_queue_.push(msg);
-            }
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            break;  // 退出当前处理，让外层循环等待/重新调度
-          } else {
-            LOG(INFO) << "重连成功";
-          }
-        }
+        const int kMaxAttempts = 3;
+        int attempts = 0;
+        bool sent = false;
+
         auto mqtt_msg = mqtt::make_message(msg.topic, msg.payload);
         mqtt_msg->set_qos(msg.qos);
-        client_->publish(mqtt_msg);
-        LOG(INFO) << "已从队列发送消息到主题: " << msg.topic;
+
+        while (attempts < kMaxAttempts && !stop_sender_.load()) {
+          // 确保连接，如无连接则尝试重连
+          if (!client_ || !client_->is_connected()) {
+            LOG(WARNING) << "客户端未连接，尝试重连... (尝试 " << (attempts + 1) << ")";
+            if (!Connect(60)) {
+              LOG(WARNING) << "重连失败";
+              attempts++;
+              std::this_thread::sleep_for(std::chrono::milliseconds(200 * attempts));
+              continue;
+            }
+            LOG(INFO) << "重连成功";
+          }
+
+          try {
+            auto tok = client_->publish(mqtt_msg);
+            // 等待发布完成（短超时），若需要可以调整为更长时间或不等待
+            if (tok) tok->wait_for(std::chrono::seconds(5));
+            LOG(INFO) << "已从队列发送消息到主题: " << msg.topic;
+            sent = true;
+            break;
+          } catch (const mqtt::exception& exc_inner) {
+            LOG(WARNING) << "发布尝试失败: " << exc_inner.what();
+            attempts++;
+            // 等待指数退避的短暂停顿
+            std::this_thread::sleep_for(std::chrono::milliseconds(200 * attempts));
+            // 下一轮会尝试重连或再次 publish
+          }
+        }
+
+        if (!sent) {
+          LOG(ERROR) << "多次尝试后发送失败，消息重新入队: " << msg.topic;
+          std::lock_guard<std::mutex> push_lock(queue_mutex_);
+          message_queue_.push(msg);
+          // 等待以避免忙循环
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+          break;  // 退出当前处理，让外层循环等待/重新调度
+        }
       } catch (const mqtt::exception& exc) {
-        LOG(ERROR) << "发送队列消息失败: " << exc.what();
+        LOG(ERROR) << "发送队列消息失败（外层捕获）: " << exc.what();
+        // 出现不可预期的异常时，也将消息放回队列
+        {
+          std::lock_guard<std::mutex> push_lock(queue_mutex_);
+          message_queue_.push(msg);
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        break;
       }
 
       lock.lock();  // 重新获取锁以检查队列
