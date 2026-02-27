@@ -3,6 +3,68 @@ import * as api from './api.js';
 import * as ui from './ui.js';
 import { WEEKDAY_NAMES } from './config.js';
 
+// 发送电机参数设置请求
+export async function sendMotorParamsRequest(robotId, serialNumber, params) {
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return false;
+    }
+
+    const requiredFields = [
+        'walk_motor_speed',
+        'brush_motor_speed',
+        'windproof_motor_speed',
+        'walk_motor_max_current_ma',
+        'brush_motor_max_current_ma',
+        'windproof_motor_max_current_ma',
+        'walk_motor_warning_current_ma',
+        'brush_motor_warning_current_ma',
+        'windproof_motor_warning_current_ma',
+        'walk_motor_mileage_m',
+        'brush_motor_timeout_s',
+        'windproof_motor_timeout_s',
+        'reverse_time_s',
+        'protection_angle'
+    ];
+
+    for (const field of requiredFields) {
+        const value = params[field];
+        if (Number.isNaN(value) || value === null || value === undefined) {
+            alert(`参数无效: ${field}`);
+            return false;
+        }
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送电机参数设置请求吗？\n\n${robotInfo}`;
+    if (!confirm(confirmMsg)) {
+        return false;
+    }
+
+    try {
+        ui.showLoading('正在发送电机参数设置请求...');
+
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const result = await api.sendMotorParamsRequest(identifier, identifierType, params);
+
+        ui.hideLoading();
+
+        if (result.success) {
+            alert(`电机参数设置请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            return true;
+        }
+
+        alert('发送失败: ' + result.error);
+        return false;
+    } catch (error) {
+        ui.hideLoading();
+        console.error('发送电机参数设置请求失败:', error);
+        alert('发送失败: ' + error.message);
+        return false;
+    }
+}
+
 // 发送定时启动请求
 export async function sendScheduleRequest(robotId, serialNumber, scheduleId, weekday, hour, minute, runCount) {
     // 验证必填字段

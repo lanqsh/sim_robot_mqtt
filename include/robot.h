@@ -325,6 +325,20 @@ class Robot {
   bool LoadDataSnapshot(const std::string& data_json);  // 从JSON快照恢复RobotData
 
   // 请求类指令
+  void SendMotorParamsRequest(uint8_t walk_motor_speed,
+                              uint8_t brush_motor_speed,
+                              uint8_t windproof_motor_speed,
+                              uint16_t walk_motor_max_current_ma,
+                              uint16_t brush_motor_max_current_ma,
+                              uint16_t windproof_motor_max_current_ma,
+                              uint16_t walk_motor_warning_current_ma,
+                              uint16_t brush_motor_warning_current_ma,
+                              uint16_t windproof_motor_warning_current_ma,
+                              uint16_t walk_motor_mileage_m,
+                              uint16_t brush_motor_timeout_s,
+                              uint16_t windproof_motor_timeout_s,
+                              uint8_t reverse_time_s,
+                              uint8_t protection_angle);
   void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                 uint8_t hour, uint8_t minute, uint8_t run_count);
   void SendStartRequest();  // 启动请求

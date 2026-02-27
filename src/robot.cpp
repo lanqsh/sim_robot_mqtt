@@ -655,6 +655,72 @@ std::vector<uint8_t> Robot::BuildRobotDataField(uint8_t identifier) {
   return data_field;
 }
 
+void Robot::SendMotorParamsRequest(
+    uint8_t walk_motor_speed, uint8_t brush_motor_speed,
+    uint8_t windproof_motor_speed, uint16_t walk_motor_max_current_ma,
+    uint16_t brush_motor_max_current_ma, uint16_t windproof_motor_max_current_ma,
+    uint16_t walk_motor_warning_current_ma,
+    uint16_t brush_motor_warning_current_ma,
+    uint16_t windproof_motor_warning_current_ma, uint16_t walk_motor_mileage_m,
+    uint16_t brush_motor_timeout_s, uint16_t windproof_motor_timeout_s,
+    uint8_t reverse_time_s, uint8_t protection_angle) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送电机参数设置请求";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<uint8_t> data_field = {
+      0xA0,  // 标识：电机参数设置
+      walk_motor_speed,
+      brush_motor_speed,
+      windproof_motor_speed,
+      static_cast<uint8_t>(walk_motor_max_current_ma >> 8),
+      static_cast<uint8_t>(walk_motor_max_current_ma & 0xFF),
+      static_cast<uint8_t>(brush_motor_max_current_ma >> 8),
+      static_cast<uint8_t>(brush_motor_max_current_ma & 0xFF),
+      static_cast<uint8_t>(windproof_motor_max_current_ma >> 8),
+      static_cast<uint8_t>(windproof_motor_max_current_ma & 0xFF),
+      static_cast<uint8_t>(walk_motor_warning_current_ma >> 8),
+      static_cast<uint8_t>(walk_motor_warning_current_ma & 0xFF),
+      static_cast<uint8_t>(brush_motor_warning_current_ma >> 8),
+      static_cast<uint8_t>(brush_motor_warning_current_ma & 0xFF),
+      static_cast<uint8_t>(windproof_motor_warning_current_ma >> 8),
+      static_cast<uint8_t>(windproof_motor_warning_current_ma & 0xFF),
+      static_cast<uint8_t>(walk_motor_mileage_m >> 8),
+      static_cast<uint8_t>(walk_motor_mileage_m & 0xFF),
+      static_cast<uint8_t>(brush_motor_timeout_s >> 8),
+      static_cast<uint8_t>(brush_motor_timeout_s & 0xFF),
+      static_cast<uint8_t>(windproof_motor_timeout_s >> 8),
+      static_cast<uint8_t>(windproof_motor_timeout_s & 0xFF),
+      reverse_time_s,
+      protection_angle,
+  };
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  电机参数设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  sequence_.fetch_add(1);
+}
+
 void Robot::SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                      uint8_t hour, uint8_t minute, uint8_t run_count) {
   LOG(INFO) << "[Robot " << robot_id_ << "] 发送定时启动请求";

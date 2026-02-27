@@ -89,6 +89,43 @@
             </div>
         </div>
 
+        <!-- 电机参数设置区域 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleMotorParamsForm()">
+                <h2>电机参数设置</h2>
+                <span class="collapse-icon" id="motorParamsCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="motorParamsFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
+                    <input type="text" id="motorRobotId" placeholder="机器人ID" style="width: 120px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="motorSerial" min="1" placeholder="序号" style="width: 100px;">
+
+                    <input type="number" id="walkMotorSpeed" min="0" max="255" placeholder="行走电机速率" style="width: 120px;">
+                    <input type="number" id="brushMotorSpeed" min="0" max="255" placeholder="毛刷电机速率" style="width: 120px;">
+                    <input type="number" id="windproofMotorSpeed" min="0" max="255" placeholder="防风电机速率" style="width: 120px;">
+
+                    <input type="number" id="walkMotorMaxCurrent" min="0" max="65535" placeholder="行走上限电流(mA)" style="width: 150px;">
+                    <input type="number" id="brushMotorMaxCurrent" min="0" max="65535" placeholder="毛刷上限电流(mA)" style="width: 150px;">
+                    <input type="number" id="windproofMotorMaxCurrent" min="0" max="65535" placeholder="防风上限电流(mA)" style="width: 150px;">
+
+                    <input type="number" id="walkMotorWarningCurrent" min="0" max="65535" placeholder="行走预警电流(mA)" style="width: 150px;">
+                    <input type="number" id="brushMotorWarningCurrent" min="0" max="65535" placeholder="毛刷预警电流(mA)" style="width: 150px;">
+                    <input type="number" id="windproofMotorWarningCurrent" min="0" max="65535" placeholder="防风预警电流(mA)" style="width: 150px;">
+
+                    <input type="number" id="walkMotorMileage" min="0" max="65535" placeholder="设置总里程(m)" style="width: 130px;">
+                    <input type="number" id="brushMotorTimeout" min="0" max="65535" placeholder="毛刷运行超时(s)" style="width: 130px;">
+                    <input type="number" id="windproofMotorTimeout" min="0" max="65535" placeholder="防风运行超时(s)" style="width: 130px;">
+
+                    <input type="number" id="reverseTime" min="0" max="255" placeholder="反转时间(s)" style="width: 120px;">
+                    <input type="number" id="protectionAngle" min="0" max="255" placeholder="保护角度" style="width: 100px;">
+
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="sendMotorParamsRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 启动请求区域 -->
         <div class="start-request-section">
             <div class="collapsible-header" onclick="toggleStartForm()">

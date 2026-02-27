@@ -89,10 +89,36 @@ window.closeModal = function() {
 
 // 全局函数：切换表单
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
+window.toggleMotorParamsForm = () => ui.toggleForm('motorParamsFormContent', 'motorParamsCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
+
+// 全局函数：发送电机参数设置请求
+window.sendMotorParamsRequest = async function() {
+    const robotId = document.getElementById('motorRobotId').value.trim();
+    const serialNumber = document.getElementById('motorSerial').value.trim();
+
+    const params = {
+        walk_motor_speed: parseInt(document.getElementById('walkMotorSpeed').value),
+        brush_motor_speed: parseInt(document.getElementById('brushMotorSpeed').value),
+        windproof_motor_speed: parseInt(document.getElementById('windproofMotorSpeed').value),
+        walk_motor_max_current_ma: parseInt(document.getElementById('walkMotorMaxCurrent').value),
+        brush_motor_max_current_ma: parseInt(document.getElementById('brushMotorMaxCurrent').value),
+        windproof_motor_max_current_ma: parseInt(document.getElementById('windproofMotorMaxCurrent').value),
+        walk_motor_warning_current_ma: parseInt(document.getElementById('walkMotorWarningCurrent').value),
+        brush_motor_warning_current_ma: parseInt(document.getElementById('brushMotorWarningCurrent').value),
+        windproof_motor_warning_current_ma: parseInt(document.getElementById('windproofMotorWarningCurrent').value),
+        walk_motor_mileage_m: parseInt(document.getElementById('walkMotorMileage').value),
+        brush_motor_timeout_s: parseInt(document.getElementById('brushMotorTimeout').value),
+        windproof_motor_timeout_s: parseInt(document.getElementById('windproofMotorTimeout').value),
+        reverse_time_s: parseInt(document.getElementById('reverseTime').value),
+        protection_angle: parseInt(document.getElementById('protectionAngle').value)
+    };
+
+    await commands.sendMotorParamsRequest(robotId, serialNumber, params);
+};
 
 // 全局函数：发送定时启动请求
 window.sendScheduleRequest = async function() {
