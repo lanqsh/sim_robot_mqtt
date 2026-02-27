@@ -107,6 +107,16 @@ void MqttManager::AddRobot(const std::string& robot_id) {
   auto robot = std::make_shared<Robot>(robot_id, robot_number);
   robot->SetTopics(publish_topic, subscribe_topic);
 
+  // 从数据库回填机器人全量数据快照
+  const std::string snapshot = config_db_->GetRobotDataSnapshot(robot_id);
+  if (!snapshot.empty() && snapshot != "{}") {
+    if (robot->LoadDataSnapshot(snapshot)) {
+      LOG(INFO) << "已加载机器人数据快照: " << robot_id;
+    } else {
+      LOG(WARNING) << "机器人数据快照解析失败，继续使用默认数据: " << robot_id;
+    }
+  }
+
   // 从数据库加载告警值
   ConfigDb::AlarmData alarms = config_db_->GetRobotAlarms(robot_id);
   robot->GetData().alarm_fa = alarms.alarm_fa;
@@ -419,6 +429,11 @@ void MqttManager::ReceiverThreadFunc() {
         if (robot) {
           LOG(INFO) << "将消息路由到机器人: " << dev_eui;
           robot->HandleMessage(data);
+
+          if (!config_db_->UpdateRobotDataSnapshot(dev_eui,
+                                                   robot->SerializeDataSnapshot())) {
+            LOG(WARNING) << "机器人数据快照写入失败: " << dev_eui;
+          }
         } else {
           LOG(WARNING) << "未找到devEui对应的机器人: " << dev_eui;
         }

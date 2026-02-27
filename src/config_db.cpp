@@ -4,6 +4,29 @@
 #include <fstream>
 #include <string>
 
+namespace {
+bool TableColumnExists(sqlite3* db, const std::string& table,
+                       const std::string& column) {
+  sqlite3_stmt* stmt = nullptr;
+  std::string pragma_sql = "PRAGMA table_info(" + table + ")";
+  if (sqlite3_prepare_v2(db, pragma_sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  bool exists = false;
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    if (name && column == name) {
+      exists = true;
+      break;
+    }
+  }
+
+  sqlite3_finalize(stmt);
+  return exists;
+}
+}  // namespace
+
 ConfigDb::ConfigDb(const std::string& path)
     : db_(nullptr), db_path_(path), initialized_(false) {
   initialized_ = Init();
@@ -56,7 +79,8 @@ bool ConfigDb::Init() {
       alarm_fa INTEGER DEFAULT 0,
       alarm_fb INTEGER DEFAULT 0,
       alarm_fc INTEGER DEFAULT 0,
-      alarm_fd INTEGER DEFAULT 0
+      alarm_fd INTEGER DEFAULT 0,
+      robot_data_json TEXT DEFAULT '{}'
     );
   )";
 
@@ -69,6 +93,19 @@ bool ConfigDb::Init() {
   }
 
   LOG(INFO) << "表结构创建成功";
+
+  if (!TableColumnExists(db_, "robots", "robot_data_json")) {
+    const char* alter_sql =
+        "ALTER TABLE robots ADD COLUMN robot_data_json TEXT DEFAULT '{}'";
+    char* alter_err = nullptr;
+    rc = sqlite3_exec(db_, alter_sql, nullptr, nullptr, &alter_err);
+    if (rc != SQLITE_OK) {
+      LOG(ERROR) << "为robots表添加robot_data_json字段失败: " << alter_err;
+      sqlite3_free(alter_err);
+      return false;
+    }
+    LOG(INFO) << "已为robots表添加robot_data_json字段";
+  }
 
   // 插入默认配置（如果不存在）
   InsertDefaultConfig();
@@ -218,8 +255,8 @@ bool ConfigDb::AddRobot(const std::string& robot_id,
   if (!initialized_) return false;
 
   const char* sql =
-      "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled) VALUES "
-      "(?, ?, ?, ?)";
+    "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled, robot_data_json) VALUES "
+    "(?, ?, ?, ?, COALESCE((SELECT robot_data_json FROM robots WHERE robot_id = ?), '{}'))";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -230,6 +267,7 @@ bool ConfigDb::AddRobot(const std::string& robot_id,
   sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 3, serial_number);
   sqlite3_bind_int(stmt, 4, enabled ? 1 : 0);
+  sqlite3_bind_text(stmt, 5, robot_id.c_str(), -1, SQLITE_STATIC);
 
   bool success = sqlite3_step(stmt) == SQLITE_DONE;
   sqlite3_finalize(stmt);
@@ -373,7 +411,9 @@ bool ConfigDb::AddRobotsBatch(const std::vector<RobotInfo>& robots) {
     return false;
   }
 
-  const char* sql = "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled) VALUES (?, ?, ?, ?)";
+  const char* sql =
+      "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled, robot_data_json) "
+      "VALUES (?, ?, ?, ?, COALESCE((SELECT robot_data_json FROM robots WHERE robot_id = ?), '{}'))";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -386,6 +426,7 @@ bool ConfigDb::AddRobotsBatch(const std::vector<RobotInfo>& robots) {
     sqlite3_bind_text(stmt, 2, robot.robot_name.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 3, robot.serial_number);
     sqlite3_bind_int(stmt, 4, robot.enabled ? 1 : 0);
+    sqlite3_bind_text(stmt, 5, robot.robot_id.c_str(), -1, SQLITE_STATIC);
 
     if (sqlite3_step(stmt) != SQLITE_DONE) {
       LOG(ERROR) << "批量添加机器人失败: " << robot.robot_id;
@@ -395,6 +436,7 @@ bool ConfigDb::AddRobotsBatch(const std::vector<RobotInfo>& robots) {
     }
 
     sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
   }
 
   sqlite3_finalize(stmt);
@@ -508,4 +550,48 @@ ConfigDb::AlarmData ConfigDb::GetRobotAlarms(const std::string& robot_id) {
 
   sqlite3_finalize(stmt);
   return alarms;
+}
+
+bool ConfigDb::UpdateRobotDataSnapshot(const std::string& robot_id,
+                                       const std::string& data_json) {
+  const char* sql = "UPDATE robots SET robot_data_json = ? WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    LOG(ERROR) << "准备更新机器人数据快照SQL失败: " << sqlite3_errmsg(db_);
+    return false;
+  }
+
+  sqlite3_bind_text(stmt, 1, data_json.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, robot_id.c_str(), -1, SQLITE_STATIC);
+
+  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  sqlite3_finalize(stmt);
+
+  if (!success) {
+    LOG(ERROR) << "更新机器人数据快照失败: " << sqlite3_errmsg(db_);
+  }
+
+  return success;
+}
+
+std::string ConfigDb::GetRobotDataSnapshot(const std::string& robot_id) {
+  const char* sql = "SELECT robot_data_json FROM robots WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    LOG(ERROR) << "准备查询机器人数据快照SQL失败: " << sqlite3_errmsg(db_);
+    return "";
+  }
+
+  sqlite3_bind_text(stmt, 1, robot_id.c_str(), -1, SQLITE_STATIC);
+
+  std::string snapshot;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    const char* raw = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    if (raw) snapshot = raw;
+  }
+
+  sqlite3_finalize(stmt);
+  return snapshot;
 }

@@ -321,6 +321,8 @@ class Robot {
   // HTTP API支持
   bool IsRunning() const { return !stop_report_; }
   std::string GetLastData() const;  // 获取最后一次上报的数据（JSON格式）
+  std::string SerializeDataSnapshot() const;  // RobotData快照（JSON对象字符串）
+  bool LoadDataSnapshot(const std::string& data_json);  // 从JSON快照恢复RobotData
 
   // 请求类指令
   void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,

@@ -181,6 +181,10 @@ void Robot::UpdateAlarmsToDb() {
               << ", FB=0x" << alarms.alarm_fb
               << ", FC=0x" << alarms.alarm_fc
               << ", FD=0x" << alarms.alarm_fd;
+
+    if (!config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+      LOG(WARNING) << "[Robot " << robot_id_ << "] 告警更新后写入快照失败";
+    }
   } else {
     LOG(ERROR) << "[Robot " << robot_id_ << "] 告警更新到数据库失败";
   }
@@ -1017,21 +1021,10 @@ void Robot::SendRestartResponse(uint8_t control_identifier) {
   sequence_.fetch_add(1);
 }
 
-std::string Robot::GetLastData() const {
-  nlohmann::json j;
-
-  // 基本信息
-  j["robot_id"] = robot_id_;
-  j["publish_topic"] = publish_topic_;
-  j["subscribe_topic"] = subscribe_topic_;
-  j["sequence"] = sequence_.load();
-  j["report_interval_seconds"] = report_interval_seconds_;
-  j["running"] = IsRunning();
-
-  // 在获取最后数据前更新时间字段（允许修改内部缓存以保证返回的是最新时间）
+std::string Robot::SerializeDataSnapshot() const {
+  // 在序列化前更新时间字段（允许修改内部缓存以保证返回的是最新时间）
   const_cast<Robot*>(this)->UpdateTimeFields();
 
-  // RobotData 全量序列化
   nlohmann::json d;
   d["alarm_fa"] = data_.alarm_fa;
   d["alarm_fb"] = data_.alarm_fb;
@@ -1155,7 +1148,182 @@ std::string Robot::GetLastData() const {
   d["region_code"] = data_.region_code;
   d["project_code"] = data_.project_code;
 
-  j["data"] = d;
+  d["board_humidity"] = data_.board_humidity;
+
+  return d.dump();
+}
+
+bool Robot::LoadDataSnapshot(const std::string& data_json) {
+  if (data_json.empty()) {
+    return false;
+  }
+
+  try {
+    nlohmann::json d = nlohmann::json::parse(data_json);
+
+    data_.alarm_fa = d.value("alarm_fa", data_.alarm_fa);
+    data_.alarm_fb = d.value("alarm_fb", data_.alarm_fb);
+    data_.alarm_fc = d.value("alarm_fc", data_.alarm_fc);
+    data_.alarm_fd = d.value("alarm_fd", data_.alarm_fd);
+    data_.main_motor_current = d.value("main_motor_current", data_.main_motor_current);
+    data_.slave_motor_current = d.value("slave_motor_current", data_.slave_motor_current);
+    data_.battery_voltage = d.value("battery_voltage", data_.battery_voltage);
+    data_.battery_current = d.value("battery_current", data_.battery_current);
+    data_.battery_status = d.value("battery_status", data_.battery_status);
+    data_.battery_level = d.value("battery_level", data_.battery_level);
+    data_.battery_temperature = d.value("battery_temperature", data_.battery_temperature);
+    data_.position_info = d.value("position_info", data_.position_info);
+    data_.working_duration = d.value("working_duration", data_.working_duration);
+    data_.total_run_count = d.value("total_run_count", data_.total_run_count);
+    data_.current_lap_count = d.value("current_lap_count", data_.current_lap_count);
+    data_.solar_voltage = d.value("solar_voltage", data_.solar_voltage);
+    data_.solar_current = d.value("solar_current", data_.solar_current);
+    data_.board_temperature = d.value("board_temperature", data_.board_temperature);
+
+    if (d.contains("current_timestamp") && d["current_timestamp"].is_object()) {
+      const auto& ts = d["current_timestamp"];
+      data_.current_timestamp.hour = ts.value("hour", data_.current_timestamp.hour);
+      data_.current_timestamp.minute = ts.value("minute", data_.current_timestamp.minute);
+      data_.current_timestamp.second = ts.value("second", data_.current_timestamp.second);
+    }
+
+    if (d.contains("lora_params") && d["lora_params"].is_object()) {
+      const auto& lora = d["lora_params"];
+      data_.lora_params.power = lora.value("power", data_.lora_params.power);
+      data_.lora_params.frequency = lora.value("frequency", data_.lora_params.frequency);
+      data_.lora_params.rate = lora.value("rate", data_.lora_params.rate);
+    }
+
+    data_.robot_number = d.value("robot_number", data_.robot_number);
+    data_.software_version = d.value("software_version", data_.software_version);
+    data_.parking_position = d.value("parking_position", data_.parking_position);
+    data_.daytime_scan_protect = d.value("daytime_scan_protect", data_.daytime_scan_protect);
+    data_.enabled = d.value("enabled", data_.enabled);
+
+    if (d.contains("schedule_tasks") && d["schedule_tasks"].is_array()) {
+      data_.schedule_tasks.clear();
+      for (const auto& item : d["schedule_tasks"]) {
+        ScheduleTask task;
+        task.weekday = item.value("weekday", 0);
+        task.hour = item.value("hour", 0);
+        task.minute = item.value("minute", 0);
+        task.run_count = item.value("run_count", 0);
+        data_.schedule_tasks.push_back(task);
+      }
+    }
+
+    if (d.contains("clean_records") && d["clean_records"].is_array()) {
+      data_.clean_records.clear();
+      for (const auto& item : d["clean_records"]) {
+        RobotData::CleanRecord record;
+        record.day = static_cast<uint8_t>(item.value("day", 0));
+        record.hour = static_cast<uint8_t>(item.value("hour", 0));
+        record.minute = static_cast<uint8_t>(item.value("minute", 0));
+        record.minutes = static_cast<uint16_t>(item.value("minutes", 0));
+        record.result = static_cast<uint8_t>(item.value("result", 0));
+        record.energy = static_cast<uint8_t>(item.value("energy", 0));
+        data_.clean_records.push_back(record);
+      }
+    }
+
+    if (d.contains("motor_params") && d["motor_params"].is_object()) {
+      const auto& mp = d["motor_params"];
+      data_.motor_params.walk_motor_speed = mp.value("walk_motor_speed", data_.motor_params.walk_motor_speed);
+      data_.motor_params.brush_motor_speed = mp.value("brush_motor_speed", data_.motor_params.brush_motor_speed);
+      data_.motor_params.windproof_motor_speed = mp.value("windproof_motor_speed", data_.motor_params.windproof_motor_speed);
+      data_.motor_params.walk_motor_max_current_ma = mp.value("walk_motor_max_current_ma", data_.motor_params.walk_motor_max_current_ma);
+      data_.motor_params.brush_motor_max_current_ma = mp.value("brush_motor_max_current_ma", data_.motor_params.brush_motor_max_current_ma);
+      data_.motor_params.windproof_motor_max_current_ma = mp.value("windproof_motor_max_current_ma", data_.motor_params.windproof_motor_max_current_ma);
+      data_.motor_params.walk_motor_warning_current_ma = mp.value("walk_motor_warning_current_ma", data_.motor_params.walk_motor_warning_current_ma);
+      data_.motor_params.brush_motor_warning_current_ma = mp.value("brush_motor_warning_current_ma", data_.motor_params.brush_motor_warning_current_ma);
+      data_.motor_params.windproof_motor_warning_current_ma = mp.value("windproof_motor_warning_current_ma", data_.motor_params.windproof_motor_warning_current_ma);
+      data_.motor_params.walk_motor_mileage_m = mp.value("walk_motor_mileage_m", data_.motor_params.walk_motor_mileage_m);
+      data_.motor_params.brush_motor_timeout_s = mp.value("brush_motor_timeout_s", data_.motor_params.brush_motor_timeout_s);
+      data_.motor_params.windproof_motor_timeout_s = mp.value("windproof_motor_timeout_s", data_.motor_params.windproof_motor_timeout_s);
+      data_.motor_params.reverse_time_s = mp.value("reverse_time_s", data_.motor_params.reverse_time_s);
+      data_.motor_params.protection_angle = mp.value("protection_angle", data_.motor_params.protection_angle);
+    }
+
+    if (d.contains("temp_voltage_protection") && d["temp_voltage_protection"].is_object()) {
+      const auto& tv = d["temp_voltage_protection"];
+      data_.temp_voltage_protection.protection_current_ma = tv.value("protection_current_ma", data_.temp_voltage_protection.protection_current_ma);
+      data_.temp_voltage_protection.high_temp_threshold = tv.value("high_temp_threshold", data_.temp_voltage_protection.high_temp_threshold);
+      data_.temp_voltage_protection.low_temp_threshold = tv.value("low_temp_threshold", data_.temp_voltage_protection.low_temp_threshold);
+      data_.temp_voltage_protection.protection_temp = tv.value("protection_temp", data_.temp_voltage_protection.protection_temp);
+      data_.temp_voltage_protection.recovery_temp = tv.value("recovery_temp", data_.temp_voltage_protection.recovery_temp);
+      data_.temp_voltage_protection.protection_voltage = tv.value("protection_voltage", data_.temp_voltage_protection.protection_voltage);
+      data_.temp_voltage_protection.recovery_voltage = tv.value("recovery_voltage", data_.temp_voltage_protection.recovery_voltage);
+      data_.temp_voltage_protection.protection_battery_level = tv.value("protection_battery_level", data_.temp_voltage_protection.protection_battery_level);
+      data_.temp_voltage_protection.limit_run_battery_level = tv.value("limit_run_battery_level", data_.temp_voltage_protection.limit_run_battery_level);
+      data_.temp_voltage_protection.recovery_battery_level = tv.value("recovery_battery_level", data_.temp_voltage_protection.recovery_battery_level);
+      data_.temp_voltage_protection.board_protection_temp = tv.value("board_protection_temp", data_.temp_voltage_protection.board_protection_temp);
+      data_.temp_voltage_protection.board_recovery_temp = tv.value("board_recovery_temp", data_.temp_voltage_protection.board_recovery_temp);
+    }
+
+    if (d.contains("local_time") && d["local_time"].is_object()) {
+      const auto& lt = d["local_time"];
+      data_.local_time.year = lt.value("year", data_.local_time.year);
+      data_.local_time.month = lt.value("month", data_.local_time.month);
+      data_.local_time.day = lt.value("day", data_.local_time.day);
+      data_.local_time.hour = lt.value("hour", data_.local_time.hour);
+      data_.local_time.minute = lt.value("minute", data_.local_time.minute);
+      data_.local_time.second = lt.value("second", data_.local_time.second);
+      data_.local_time.weekday = lt.value("weekday", data_.local_time.weekday);
+    }
+
+    if (d.contains("environment_info") && d["environment_info"].is_object()) {
+      const auto& env = d["environment_info"];
+      data_.environment_info.sensor_temperature = env.value("sensor_temperature", data_.environment_info.sensor_temperature);
+      data_.environment_info.sensor_humidity = env.value("sensor_humidity", data_.environment_info.sensor_humidity);
+      data_.environment_info.ambient_temperature = env.value("ambient_temperature", data_.environment_info.ambient_temperature);
+      data_.environment_info.day_night_status = env.value("day_night_status", data_.environment_info.day_night_status);
+    }
+
+    if (d.contains("master_currents") && d["master_currents"].is_array()) {
+      data_.master_currents.clear();
+      for (const auto& value : d["master_currents"]) {
+        data_.master_currents.push_back(value.get<int>());
+      }
+    }
+
+    if (d.contains("slave_currents") && d["slave_currents"].is_array()) {
+      data_.slave_currents.clear();
+      for (const auto& value : d["slave_currents"]) {
+        data_.slave_currents.push_back(value.get<int>());
+      }
+    }
+
+    data_.position = d.value("position", data_.position);
+    data_.direction = d.value("direction", data_.direction);
+    data_.module_eui = d.value("module_eui", data_.module_eui);
+    data_.domestic_foreign_flag = d.value("domestic_foreign_flag", data_.domestic_foreign_flag);
+    data_.country_code = d.value("country_code", data_.country_code);
+    data_.region_code = d.value("region_code", data_.region_code);
+    data_.project_code = d.value("project_code", data_.project_code);
+    data_.board_humidity = d.value("board_humidity", data_.board_humidity);
+
+    return true;
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "[Robot " << robot_id_ << "] 读取数据快照失败: " << e.what();
+    return false;
+  }
+}
+
+std::string Robot::GetLastData() const {
+  nlohmann::json j;
+
+  j["robot_id"] = robot_id_;
+  j["publish_topic"] = publish_topic_;
+  j["subscribe_topic"] = subscribe_topic_;
+  j["sequence"] = sequence_.load();
+  j["report_interval_seconds"] = report_interval_seconds_;
+  j["running"] = IsRunning();
+
+  try {
+    j["data"] = nlohmann::json::parse(SerializeDataSnapshot());
+  } catch (...) {
+    j["data"] = nlohmann::json::object();
+  }
 
   return j.dump();
 }
