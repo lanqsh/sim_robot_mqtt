@@ -216,6 +216,73 @@ void Robot::HandleMessage(const std::string& data) {
 
         // 根据标识符处理不同的命令
         switch (identifier) {
+          case 0xA0: {  // 电机参数设置
+            LOG(INFO) << "    命令类型: 电机参数设置";
+
+            // 标识(1) + 参数(23) = 24字节
+            if (frame.data.size() != 24) {
+              LOG(ERROR) << "    电机参数数据长度错误, 期望24, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            data_.motor_params.walk_motor_speed = frame.data[1];
+            data_.motor_params.brush_motor_speed = frame.data[2];
+            data_.motor_params.windproof_motor_speed = frame.data[3];
+
+            data_.motor_params.walk_motor_max_current_ma =
+                (static_cast<int>(frame.data[4]) << 8) | frame.data[5];
+            data_.motor_params.brush_motor_max_current_ma =
+                (static_cast<int>(frame.data[6]) << 8) | frame.data[7];
+            data_.motor_params.windproof_motor_max_current_ma =
+                (static_cast<int>(frame.data[8]) << 8) | frame.data[9];
+
+            data_.motor_params.walk_motor_warning_current_ma =
+                (static_cast<int>(frame.data[10]) << 8) | frame.data[11];
+            data_.motor_params.brush_motor_warning_current_ma =
+                (static_cast<int>(frame.data[12]) << 8) | frame.data[13];
+            data_.motor_params.windproof_motor_warning_current_ma =
+                (static_cast<int>(frame.data[14]) << 8) | frame.data[15];
+
+            data_.motor_params.walk_motor_mileage_m =
+                (static_cast<int>(frame.data[16]) << 8) | frame.data[17];
+            data_.motor_params.brush_motor_timeout_s =
+                (static_cast<int>(frame.data[18]) << 8) | frame.data[19];
+            data_.motor_params.windproof_motor_timeout_s =
+                (static_cast<int>(frame.data[20]) << 8) | frame.data[21];
+            data_.motor_params.reverse_time_s = frame.data[22];
+            data_.motor_params.protection_angle = frame.data[23];
+
+            LOG(INFO) << "    电机参数已更新 - 行走/毛刷/防风速率: "
+                      << data_.motor_params.walk_motor_speed << "/"
+                      << data_.motor_params.brush_motor_speed << "/"
+                      << data_.motor_params.windproof_motor_speed;
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复电机参数设置";
+              break;
+            }
+
+            // 按协议回复：数据域与下发一致，仅控制码改为0x82
+            std::vector<uint8_t> response_data = frame.data;
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    电机参数设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db && !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    电机参数设置后写入快照失败";
+            }
+            break;
+          }
+
           case 0xA4:  // LoRa参数设置
             LOG(INFO) << "    命令类型: LoRa参数设置";
             // TODO: 解析参数并更新配置
