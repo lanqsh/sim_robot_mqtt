@@ -283,6 +283,56 @@ void Robot::HandleMessage(const std::string& data) {
             break;
           }
 
+          case 0xA1: {  // 电池参数设置
+            LOG(INFO) << "    命令类型: 电池参数设置";
+
+            // 标识(1) + 参数(11) = 12字节
+            if (frame.data.size() != 12) {
+              LOG(ERROR) << "    电池参数数据长度错误, 期望12, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            data_.temp_voltage_protection.protection_current_ma =
+                (static_cast<int>(frame.data[1]) << 8) | frame.data[2];
+            data_.temp_voltage_protection.high_temp_threshold = frame.data[3];
+            data_.temp_voltage_protection.low_temp_threshold = frame.data[4];
+            data_.temp_voltage_protection.protection_temp = frame.data[5];
+            data_.temp_voltage_protection.recovery_temp = frame.data[6];
+            data_.temp_voltage_protection.protection_voltage = frame.data[7];
+            data_.temp_voltage_protection.recovery_voltage = frame.data[8];
+            data_.temp_voltage_protection.protection_battery_level = frame.data[9];
+            data_.temp_voltage_protection.limit_run_battery_level = frame.data[10];
+            data_.temp_voltage_protection.recovery_battery_level = frame.data[11];
+
+            LOG(INFO) << "    电池参数已更新 - 保护电流(mA): "
+                      << data_.temp_voltage_protection.protection_current_ma;
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复电池参数设置";
+              break;
+            }
+
+            std::vector<uint8_t> response_data = frame.data;
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    电池参数设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    电池参数设置后写入快照失败";
+            }
+            break;
+          }
+
           case 0xA4:  // LoRa参数设置
             LOG(INFO) << "    命令类型: LoRa参数设置";
             // TODO: 解析参数并更新配置
@@ -713,6 +763,61 @@ void Robot::SendMotorParamsRequest(
       protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
 
   LOG(INFO) << "  电机参数设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendBatteryParamsRequest(uint16_t protection_current_ma,
+                                     uint8_t high_temp_threshold,
+                                     uint8_t low_temp_threshold,
+                                     uint8_t protection_temp,
+                                     uint8_t recovery_temp,
+                                     uint8_t protection_voltage,
+                                     uint8_t recovery_voltage,
+                                     uint8_t protection_battery_level,
+                                     uint8_t limit_run_battery_level,
+                                     uint8_t recovery_battery_level) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送电池参数设置请求";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<uint8_t> data_field = {
+      0xA1,
+      static_cast<uint8_t>(protection_current_ma >> 8),
+      static_cast<uint8_t>(protection_current_ma & 0xFF),
+      high_temp_threshold,
+      low_temp_threshold,
+      protection_temp,
+      recovery_temp,
+      protection_voltage,
+      recovery_voltage,
+      protection_battery_level,
+      limit_run_battery_level,
+      recovery_battery_level,
+  };
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  电池参数设置编码后数据: " << Protocol::BytesToHexString(encoded);
 
   std::string base64_data = Protocol::BytesToBase64(encoded);
   std::string payload = GenerateUplinkPayload(base64_data);

@@ -3,6 +3,64 @@ import * as api from './api.js';
 import * as ui from './ui.js';
 import { WEEKDAY_NAMES } from './config.js';
 
+// 发送电池参数设置请求
+export async function sendBatteryParamsRequest(robotId, serialNumber, params) {
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return false;
+    }
+
+    const requiredFields = [
+        'protection_current_ma',
+        'high_temp_threshold',
+        'low_temp_threshold',
+        'protection_temp',
+        'recovery_temp',
+        'protection_voltage',
+        'recovery_voltage',
+        'protection_battery_level',
+        'limit_run_battery_level',
+        'recovery_battery_level'
+    ];
+
+    for (const field of requiredFields) {
+        const value = params[field];
+        if (Number.isNaN(value) || value === null || value === undefined) {
+            alert(`参数无效: ${field}`);
+            return false;
+        }
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送电池参数设置请求吗？\n\n${robotInfo}`;
+    if (!confirm(confirmMsg)) {
+        return false;
+    }
+
+    try {
+        ui.showLoading('正在发送电池参数设置请求...');
+
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const result = await api.sendBatteryParamsRequest(identifier, identifierType, params);
+
+        ui.hideLoading();
+
+        if (result.success) {
+            alert(`电池参数设置请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            return true;
+        }
+
+        alert('发送失败: ' + result.error);
+        return false;
+    } catch (error) {
+        ui.hideLoading();
+        console.error('发送电池参数设置请求失败:', error);
+        alert('发送失败: ' + error.message);
+        return false;
+    }
+}
+
 // 发送电机参数设置请求
 export async function sendMotorParamsRequest(robotId, serialNumber, params) {
     if (!robotId && !serialNumber) {

@@ -90,10 +90,32 @@ window.closeModal = function() {
 // 全局函数：切换表单
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleMotorParamsForm = () => ui.toggleForm('motorParamsFormContent', 'motorParamsCollapseIcon');
+window.toggleBatteryParamsForm = () => ui.toggleForm('batteryParamsFormContent', 'batteryParamsCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
+
+// 全局函数：发送电池参数设置请求
+window.sendBatteryParamsRequest = async function() {
+    const robotId = document.getElementById('batteryRobotId').value.trim();
+    const serialNumber = document.getElementById('batterySerial').value.trim();
+
+    const params = {
+        protection_current_ma: parseInt(document.getElementById('protectionCurrent').value),
+        high_temp_threshold: parseInt(document.getElementById('highTempThreshold').value),
+        low_temp_threshold: parseInt(document.getElementById('lowTempThreshold').value),
+        protection_temp: parseInt(document.getElementById('protectionTemp').value),
+        recovery_temp: parseInt(document.getElementById('recoveryTemp').value),
+        protection_voltage: parseInt(document.getElementById('protectionVoltage').value),
+        recovery_voltage: parseInt(document.getElementById('recoveryVoltage').value),
+        protection_battery_level: parseInt(document.getElementById('protectionBatteryLevel').value),
+        limit_run_battery_level: parseInt(document.getElementById('limitRunBatteryLevel').value),
+        recovery_battery_level: parseInt(document.getElementById('recoveryBatteryLevel').value)
+    };
+
+    await commands.sendBatteryParamsRequest(robotId, serialNumber, params);
+};
 
 // 全局函数：发送电机参数设置请求
 window.sendMotorParamsRequest = async function() {

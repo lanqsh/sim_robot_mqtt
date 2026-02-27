@@ -727,6 +727,84 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  svr.Post(R"(/api/robots/([^/]+)/battery_params)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    try {
+      json body = json::parse(req.body);
+
+      const std::vector<std::string> required_fields = {
+          "protection_current_ma", "high_temp_threshold", "low_temp_threshold",
+          "protection_temp",      "recovery_temp",      "protection_voltage",
+          "recovery_voltage",     "protection_battery_level",
+          "limit_run_battery_level", "recovery_battery_level"};
+
+      for (const auto& field : required_fields) {
+        if (!body.contains(field)) {
+          json error;
+          error["success"] = false;
+          error["error"] = "缺少必需参数: " + field;
+          res.status = 400;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->SendBatteryParamsRequest(
+          static_cast<uint16_t>(body["protection_current_ma"].get<int>()),
+          static_cast<uint8_t>(body["high_temp_threshold"].get<int>()),
+          static_cast<uint8_t>(body["low_temp_threshold"].get<int>()),
+          static_cast<uint8_t>(body["protection_temp"].get<int>()),
+          static_cast<uint8_t>(body["recovery_temp"].get<int>()),
+          static_cast<uint8_t>(body["protection_voltage"].get<int>()),
+          static_cast<uint8_t>(body["recovery_voltage"].get<int>()),
+          static_cast<uint8_t>(body["protection_battery_level"].get<int>()),
+          static_cast<uint8_t>(body["limit_run_battery_level"].get<int>()),
+          static_cast<uint8_t>(body["recovery_battery_level"].get<int>()));
+
+      json response;
+      response["success"] = true;
+      response["message"] = "电池参数设置请求已发送";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 发送电池参数设置请求 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送电池参数设置请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   // POST /api/robots/{id}/schedule_start - 发送定时启动请求
   svr.Post(R"(/api/robots/([^/]+)/schedule_start)", [this](const httplib::Request& req, httplib::Response& res) {
     std::string identifier = req.matches[1];

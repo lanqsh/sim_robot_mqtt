@@ -339,6 +339,16 @@ class Robot {
                               uint16_t windproof_motor_timeout_s,
                               uint8_t reverse_time_s,
                               uint8_t protection_angle);
+  void SendBatteryParamsRequest(uint16_t protection_current_ma,
+                                uint8_t high_temp_threshold,
+                                uint8_t low_temp_threshold,
+                                uint8_t protection_temp,
+                                uint8_t recovery_temp,
+                                uint8_t protection_voltage,
+                                uint8_t recovery_voltage,
+                                uint8_t protection_battery_level,
+                                uint8_t limit_run_battery_level,
+                                uint8_t recovery_battery_level);
   void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                 uint8_t hour, uint8_t minute, uint8_t run_count);
   void SendStartRequest();  // 启动请求

@@ -89,6 +89,16 @@ export async function sendMotorParamsRequest(identifier, type, params) {
     return await response.json();
 }
 
+// 发送电池参数设置请求
+export async function sendBatteryParamsRequest(identifier, type, params) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/battery_params?type=${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
 // 发送启动请求
 export async function sendStartRequest(identifier, type) {
     const response = await fetch(`${API_BASE}/api/robots/${identifier}/start?type=${type}`, {

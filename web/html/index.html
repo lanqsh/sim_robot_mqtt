@@ -126,6 +126,35 @@
             </div>
         </div>
 
+        <!-- 电池参数设置区域 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleBatteryParamsForm()">
+                <h2>电池参数设置</h2>
+                <span class="collapse-icon" id="batteryParamsCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="batteryParamsFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
+                    <input type="text" id="batteryRobotId" placeholder="机器人ID" style="width: 120px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="batterySerial" min="1" placeholder="序号" style="width: 100px;">
+
+                    <input type="number" id="protectionCurrent" min="0" max="65535" placeholder="保护电流(mA)" style="width: 130px;">
+                    <input type="number" id="highTempThreshold" min="0" max="255" placeholder="高温阈值" style="width: 110px;">
+                    <input type="number" id="lowTempThreshold" min="0" max="255" placeholder="低温阈值" style="width: 110px;">
+                    <input type="number" id="protectionTemp" min="0" max="255" placeholder="保护温度" style="width: 110px;">
+                    <input type="number" id="recoveryTemp" min="0" max="255" placeholder="恢复温度" style="width: 110px;">
+                    <input type="number" id="protectionVoltage" min="0" max="255" placeholder="保护电压" style="width: 110px;">
+                    <input type="number" id="recoveryVoltage" min="0" max="255" placeholder="恢复电压" style="width: 110px;">
+                    <input type="number" id="protectionBatteryLevel" min="0" max="255" placeholder="保护电量" style="width: 110px;">
+                    <input type="number" id="limitRunBatteryLevel" min="0" max="255" placeholder="限制运行电量" style="width: 130px;">
+                    <input type="number" id="recoveryBatteryLevel" min="0" max="255" placeholder="恢复电量" style="width: 110px;">
+
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="sendBatteryParamsRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 启动请求区域 -->
         <div class="start-request-section">
             <div class="collapsible-header" onclick="toggleStartForm()">
