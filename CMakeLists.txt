@@ -35,6 +35,12 @@ target_include_directories(robot
         ${CMAKE_SOURCE_DIR}/third_party
 )
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_source_files_properties(src/http_server.cpp PROPERTIES
+        COMPILE_OPTIONS "-Wno-deprecated-declarations"
+    )
+endif()
+
 target_link_libraries(robot PRIVATE
     PahoMqttCpp::paho-mqttpp3
     SQLite::SQLite3
