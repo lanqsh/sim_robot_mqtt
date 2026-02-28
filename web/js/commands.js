@@ -3,6 +3,69 @@ import * as api from './api.js';
 import * as ui from './ui.js';
 import { WEEKDAY_NAMES } from './config.js';
 
+// 发送定时设置请求(A2)
+export async function sendScheduleParamsRequest(robotId, serialNumber, tasks) {
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return false;
+    }
+
+    if (!Array.isArray(tasks) || tasks.length !== 7) {
+        alert('定时设置参数错误：需要7组定时任务');
+        return false;
+    }
+
+    for (let i = 0; i < tasks.length; i++) {
+        const item = tasks[i];
+        if (Number.isNaN(item.weekday) || item.weekday < 0 || item.weekday > 6) {
+            alert(`定时${i + 1} 星期必须在0-6之间`);
+            return false;
+        }
+        if (Number.isNaN(item.hour) || item.hour < 0 || item.hour > 23) {
+            alert(`定时${i + 1} 小时必须在0-23之间`);
+            return false;
+        }
+        if (Number.isNaN(item.minute) || item.minute < 0 || item.minute > 59) {
+            alert(`定时${i + 1} 分钟必须在0-59之间`);
+            return false;
+        }
+        if (Number.isNaN(item.run_count) || item.run_count < 0 || item.run_count > 255) {
+            alert(`定时${i + 1} 运行次数必须在0-255之间`);
+            return false;
+        }
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const activeCount = tasks.filter(t => t.run_count > 0).length;
+    const confirmMsg = `确定发送定时设置请求吗？\n\n${robotInfo}\n有效定时组数: ${activeCount}/7`;
+    if (!confirm(confirmMsg)) {
+        return false;
+    }
+
+    try {
+        ui.showLoading('正在发送定时设置请求...');
+
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const result = await api.sendScheduleParamsRequest(identifier, identifierType, { tasks });
+
+        ui.hideLoading();
+
+        if (result.success) {
+            alert(`定时设置请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            return true;
+        }
+
+        alert('发送失败: ' + result.error);
+        return false;
+    } catch (error) {
+        ui.hideLoading();
+        console.error('发送定时设置请求失败:', error);
+        alert('发送失败: ' + error.message);
+        return false;
+    }
+}
+
 // 发送电池参数设置请求
 export async function sendBatteryParamsRequest(robotId, serialNumber, params) {
     if (!robotId && !serialNumber) {

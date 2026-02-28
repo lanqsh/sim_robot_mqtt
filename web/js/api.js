@@ -99,6 +99,16 @@ export async function sendBatteryParamsRequest(identifier, type, params) {
     return await response.json();
 }
 
+// 发送定时设置请求
+export async function sendScheduleParamsRequest(identifier, type, params) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/schedule_params?type=${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
 // 发送启动请求
 export async function sendStartRequest(identifier, type) {
     const response = await fetch(`${API_BASE}/api/robots/${identifier}/start?type=${type}`, {

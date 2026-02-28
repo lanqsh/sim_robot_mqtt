@@ -89,6 +89,7 @@ window.closeModal = function() {
 
 // 全局函数：切换表单
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
+window.toggleScheduleParamsForm = () => ui.toggleForm('scheduleParamsFormContent', 'scheduleParamsCollapseIcon');
 window.toggleMotorParamsForm = () => ui.toggleForm('motorParamsFormContent', 'motorParamsCollapseIcon');
 window.toggleBatteryParamsForm = () => ui.toggleForm('batteryParamsFormContent', 'batteryParamsCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
@@ -153,6 +154,24 @@ window.sendScheduleRequest = async function() {
     const runCount = parseInt(document.getElementById('scheduleRunCount').value);
 
     await commands.sendScheduleRequest(robotId, serialNumber, scheduleId, weekday, hour, minute, runCount);
+};
+
+// 全局函数：发送定时设置请求(A2)
+window.sendScheduleParamsRequest = async function() {
+    const robotId = document.getElementById('scheduleParamsRobotId').value.trim();
+    const serialNumber = document.getElementById('scheduleParamsSerial').value.trim();
+
+    const tasks = [];
+    for (let i = 1; i <= 7; i++) {
+        tasks.push({
+            weekday: parseInt(document.getElementById(`a2Weekday${i}`).value),
+            hour: parseInt(document.getElementById(`a2Hour${i}`).value),
+            minute: parseInt(document.getElementById(`a2Minute${i}`).value),
+            run_count: parseInt(document.getElementById(`a2RunCount${i}`).value)
+        });
+    }
+
+    await commands.sendScheduleParamsRequest(robotId, serialNumber, tasks);
 };
 
 // 全局函数：发送启动请求

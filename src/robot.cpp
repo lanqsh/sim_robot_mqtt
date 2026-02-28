@@ -333,6 +333,63 @@ void Robot::HandleMessage(const std::string& data) {
             break;
           }
 
+          case 0xA2: {  // 定时设置
+            LOG(INFO) << "    命令类型: 定时设置";
+
+            // 标识(1) + 7组定时参数(每组4字节) = 29字节
+            if (frame.data.size() != 29) {
+              LOG(ERROR) << "    定时设置数据长度错误, 期望29, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            if (data_.schedule_tasks.size() < 7) {
+              data_.schedule_tasks.resize(7);
+            }
+
+            for (size_t i = 0; i < 7; ++i) {
+              size_t offset = 1 + i * 4;
+              data_.schedule_tasks[i].weekday = frame.data[offset];
+              data_.schedule_tasks[i].hour = frame.data[offset + 1];
+              data_.schedule_tasks[i].minute = frame.data[offset + 2];
+              data_.schedule_tasks[i].run_count = frame.data[offset + 3];
+            }
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复定时设置";
+              break;
+            }
+
+            // 按协议回复：数据域与下发一致，仅控制码改为0x82；
+            // 运行次数字段当值<127时，回包填充为请求值*2。
+            std::vector<uint8_t> response_data = frame.data;
+            for (size_t i = 0; i < 7; ++i) {
+              size_t run_count_index = 1 + i * 4 + 3;
+              uint8_t run_count = frame.data[run_count_index];
+              if (run_count < 127) {
+                response_data[run_count_index] = static_cast<uint8_t>(run_count * 2);
+              }
+            }
+
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    定时设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    定时设置后写入快照失败";
+            }
+            break;
+          }
+
           case 0xA4:  // LoRa参数设置
             LOG(INFO) << "    命令类型: LoRa参数设置";
             // TODO: 解析参数并更新配置
@@ -874,6 +931,56 @@ void Robot::SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
   LOG(INFO) << "  定时启动请求已加入发送队列";
 
   // 帧计数累加
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendScheduleParamsRequest(const std::vector<ScheduleTask>& tasks) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送定时设置请求";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<ScheduleTask> normalized_tasks(7);
+  for (size_t i = 0; i < 7; ++i) {
+    if (i < tasks.size()) {
+      normalized_tasks[i] = tasks[i];
+    }
+  }
+
+  std::vector<uint8_t> data_field;
+  data_field.reserve(29);
+  data_field.push_back(0xA2);  // 标识：定时设置
+
+  for (size_t i = 0; i < 7; ++i) {
+    const auto& task = normalized_tasks[i];
+    data_field.push_back(static_cast<uint8_t>(task.weekday));
+    data_field.push_back(static_cast<uint8_t>(task.hour));
+    data_field.push_back(static_cast<uint8_t>(task.minute));
+    data_field.push_back(static_cast<uint8_t>(task.run_count));
+  }
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  定时设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
   sequence_.fetch_add(1);
 }
 
