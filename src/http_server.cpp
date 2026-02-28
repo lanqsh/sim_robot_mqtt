@@ -897,6 +897,67 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  svr.Post(R"(/api/robots/([^/]+)/parking_position)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("parking_position")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: parking_position";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      uint8_t parking_position = static_cast<uint8_t>(body["parking_position"].get<int>());
+      robot->SendParkingPositionRequest(parking_position);
+
+      json response;
+      response["success"] = true;
+      response["message"] = "停机位设置请求已发送";
+      response["robot_id"] = robot_id;
+      response["parking_position"] = parking_position;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 发送停机位设置请求 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送停机位设置请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   // POST /api/robots/{id}/schedule_start - 发送定时启动请求
   svr.Post(R"(/api/robots/([^/]+)/schedule_start)", [this](const httplib::Request& req, httplib::Response& res) {
     std::string identifier = req.matches[1];

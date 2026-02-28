@@ -350,6 +350,7 @@ class Robot {
                                 uint8_t limit_run_battery_level,
                                 uint8_t recovery_battery_level);
   void SendScheduleParamsRequest(const std::vector<ScheduleTask>& tasks);
+  void SendParkingPositionRequest(uint8_t parking_position);
   void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                 uint8_t hour, uint8_t minute, uint8_t run_count);
   void SendStartRequest();  // 启动请求

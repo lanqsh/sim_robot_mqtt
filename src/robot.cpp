@@ -414,6 +414,52 @@ void Robot::HandleMessage(const std::string& data) {
             break;
           }
 
+          case 0xA3: {  // 停机位设置
+            LOG(INFO) << "    命令类型: 停机位设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略停机位写入";
+              break;
+            }
+
+            // 标识(1) + 参数(1) = 2字节
+            if (frame.data.size() != 2) {
+              LOG(ERROR) << "    停机位设置数据长度错误, 期望2, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            data_.parking_position = frame.data[1];
+            LOG(INFO) << "    停机位已更新: " << data_.parking_position;
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复停机位设置";
+              break;
+            }
+
+            // 按协议回复：数据域与下发一致，仅控制码改为0x82
+            std::vector<uint8_t> response_data = frame.data;
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    停机位设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    停机位设置后写入快照失败";
+            }
+            break;
+          }
+
           case 0xA4:  // LoRa参数设置
             LOG(INFO) << "    命令类型: LoRa参数设置";
             // TODO: 解析参数并更新配置
@@ -1000,6 +1046,43 @@ void Robot::SendScheduleParamsRequest(const std::vector<ScheduleTask>& tasks) {
       protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
 
   LOG(INFO) << "  定时设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendParkingPositionRequest(uint8_t parking_position) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送停机位设置请求";
+  LOG(INFO) << "  停机位: " << static_cast<int>(parking_position);
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<uint8_t> data_field = {
+      0xA3,  // 标识：停机位设置
+      parking_position,
+  };
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  停机位设置编码后数据: " << Protocol::BytesToHexString(encoded);
 
   std::string base64_data = Protocol::BytesToBase64(encoded);
   std::string payload = GenerateUplinkPayload(base64_data);

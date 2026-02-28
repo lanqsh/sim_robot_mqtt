@@ -90,6 +90,7 @@ window.closeModal = function() {
 // 全局函数：切换表单
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleScheduleParamsForm = () => ui.toggleForm('scheduleParamsFormContent', 'scheduleParamsCollapseIcon');
+window.toggleParkingPositionForm = () => ui.toggleForm('parkingPositionFormContent', 'parkingPositionCollapseIcon');
 window.toggleMotorParamsForm = () => ui.toggleForm('motorParamsFormContent', 'motorParamsCollapseIcon');
 window.toggleBatteryParamsForm = () => ui.toggleForm('batteryParamsFormContent', 'batteryParamsCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
@@ -172,6 +173,15 @@ window.sendScheduleParamsRequest = async function() {
     }
 
     await commands.sendScheduleParamsRequest(robotId, serialNumber, tasks);
+};
+
+// 全局函数：发送停机位设置请求(A3)
+window.sendParkingPositionRequest = async function() {
+    const robotId = document.getElementById('parkingRobotId').value.trim();
+    const serialNumber = document.getElementById('parkingSerial').value.trim();
+    const parkingPosition = parseInt(document.getElementById('parkingPosition').value);
+
+    await commands.sendParkingPositionRequest(robotId, serialNumber, parkingPosition);
 };
 
 // 全局函数：发送启动请求

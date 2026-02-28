@@ -149,6 +149,24 @@
             </div>
         </div>
 
+        <!-- 停机位设置区域(A3) -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleParkingPositionForm()">
+                <h2>停机位设置</h2>
+                <span class="collapse-icon" id="parkingPositionCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="parkingPositionFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
+                    <input type="text" id="parkingRobotId" placeholder="机器人ID" style="width: 120px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="parkingSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="number" id="parkingPosition" min="0" max="255" placeholder="停机位(0-255)" style="width: 140px;" value="0">
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="sendParkingPositionRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 电机参数设置区域 -->
         <div class="schedule-request-section">
             <div class="collapsible-header" onclick="toggleMotorParamsForm()">

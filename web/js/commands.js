@@ -3,6 +3,50 @@ import * as api from './api.js';
 import * as ui from './ui.js';
 import { WEEKDAY_NAMES } from './config.js';
 
+// 发送停机位设置请求(A3)
+export async function sendParkingPositionRequest(robotId, serialNumber, parkingPosition) {
+    if (!robotId && !serialNumber) {
+        alert('请填写机器人ID或序号（二选一）');
+        return false;
+    }
+
+    if (Number.isNaN(parkingPosition) || parkingPosition < 0 || parkingPosition > 255) {
+        alert('停机位参数必须在0-255之间');
+        return false;
+    }
+
+    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const confirmMsg = `确定发送停机位设置请求吗？\n\n${robotInfo}\n停机位: ${parkingPosition}`;
+    if (!confirm(confirmMsg)) {
+        return false;
+    }
+
+    try {
+        ui.showLoading('正在发送停机位设置请求...');
+
+        const identifier = robotId || serialNumber;
+        const identifierType = robotId ? 'id' : 'serial';
+        const result = await api.sendParkingPositionRequest(identifier, identifierType, {
+            parking_position: parkingPosition
+        });
+
+        ui.hideLoading();
+
+        if (result.success) {
+            alert(`停机位设置请求发送成功！\n\n机器人: ${result.robot_id}\n停机位: ${result.parking_position}\n\n请等待平台回复...`);
+            return true;
+        }
+
+        alert('发送失败: ' + result.error);
+        return false;
+    } catch (error) {
+        ui.hideLoading();
+        console.error('发送停机位设置请求失败:', error);
+        alert('发送失败: ' + error.message);
+        return false;
+    }
+}
+
 // 发送定时设置请求(A2)
 export async function sendScheduleParamsRequest(robotId, serialNumber, tasks) {
     if (!robotId && !serialNumber) {
