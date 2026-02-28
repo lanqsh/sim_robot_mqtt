@@ -460,6 +460,74 @@ void Robot::HandleMessage(const std::string& data) {
             break;
           }
 
+          case 0xA8: {  // 广播参数设置
+            LOG(INFO) << "    命令类型: 广播参数设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略广播参数写入";
+              break;
+            }
+
+            // 标识(1) + 时间(7) + 风速(1) + 通信箱数量(2) + 机器人数量(2) + 后台保护(1) = 14字节
+            if (frame.data.size() != 14) {
+              LOG(ERROR) << "    广播参数设置数据长度错误, 期望14, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            uint8_t year = frame.data[1];
+            uint8_t month = frame.data[2];
+            uint8_t day = frame.data[3];
+            uint8_t hour = frame.data[4];
+            uint8_t minute = frame.data[5];
+            uint8_t second = frame.data[6];
+            uint8_t weekday = frame.data[7];
+            uint8_t wind_speed = frame.data[8];
+
+            uint16_t comm_box_count =
+                (static_cast<uint16_t>(frame.data[9]) << 8) | frame.data[10];
+            uint16_t robot_count =
+                (static_cast<uint16_t>(frame.data[11]) << 8) | frame.data[12];
+            uint8_t protection_info = frame.data[13];
+
+            data_.local_time.year = 2000 + year;
+            data_.local_time.month = month;
+            data_.local_time.day = day;
+            data_.local_time.hour = hour;
+            data_.local_time.minute = minute;
+            data_.local_time.second = second;
+            data_.local_time.weekday = weekday;
+            data_.current_timestamp.hour = hour;
+            data_.current_timestamp.minute = minute;
+            data_.current_timestamp.second = second;
+
+            LOG(INFO) << "    广播参数已更新 - 时间: 20" << std::setfill('0')
+                      << std::setw(2) << static_cast<int>(year) << "-"
+                      << std::setw(2) << static_cast<int>(month) << "-"
+                      << std::setw(2) << static_cast<int>(day) << " "
+                      << std::setw(2) << static_cast<int>(hour) << ":"
+                      << std::setw(2) << static_cast<int>(minute) << ":"
+                      << std::setw(2) << static_cast<int>(second)
+                      << " 星期" << static_cast<int>(weekday)
+                      << " 风速=" << static_cast<int>(wind_speed)
+                      << " 通信箱=" << comm_box_count
+                      << " 机器人数=" << robot_count
+                      << " 保护位=0x" << std::hex
+                      << static_cast<int>(protection_info);
+
+            // 广播指令按协议不回复
+            LOG(INFO) << "    广播参数设置按协议不回复";
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    广播参数设置后写入快照失败";
+            }
+            break;
+          }
+
           case 0xA4:  // LoRa参数设置
             LOG(INFO) << "    命令类型: LoRa参数设置";
             // TODO: 解析参数并更新配置

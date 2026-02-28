@@ -409,6 +409,49 @@ void MqttManager::ReceiverThreadFunc() {
         std::string dev_eui = j["devEui"].get<std::string>();
         std::string data = j["data"].get<std::string>();
 
+        // 广播参数设置(A8)需要所有机器人处理
+        bool is_a8_broadcast = false;
+        {
+          Protocol protocol;
+          ProtocolFrame frame;
+          std::vector<uint8_t> raw = Protocol::Base64ToBytes(data);
+          if (protocol.Decode(raw, frame) && !frame.data.empty() &&
+              frame.control_code == CONTROL_CODE_UPLINK && frame.data[0] == 0xA8) {
+            is_a8_broadcast = true;
+          }
+        }
+
+        if (is_a8_broadcast) {
+          std::vector<std::pair<std::string, std::shared_ptr<Robot>>> robots_to_notify;
+          {
+            std::lock_guard<std::mutex> robots_lock(robots_mutex_);
+            for (const auto& kv : robots_) {
+              robots_to_notify.push_back(kv);
+            }
+          }
+
+          LOG(INFO) << "A8广播参数设置，分发到机器人数量: "
+                    << robots_to_notify.size();
+
+          for (const auto& item : robots_to_notify) {
+            const std::string& robot_id = item.first;
+            const auto& robot = item.second;
+            if (!robot) {
+              continue;
+            }
+
+            robot->HandleMessage(data);
+
+            if (!config_db_->UpdateRobotDataSnapshot(robot_id,
+                                                     robot->SerializeDataSnapshot())) {
+              LOG(WARNING) << "机器人数据快照写入失败: " << robot_id;
+            }
+          }
+
+          lock.lock();
+          continue;
+        }
+
         // 检查主题中是否包含devEui
         if (msg.topic.find(dev_eui) == std::string::npos) {
           LOG(WARNING) << "主题中不包含devEui: " << dev_eui << ", 主题: " << msg.topic;
