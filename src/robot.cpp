@@ -219,6 +219,13 @@ void Robot::HandleMessage(const std::string& data) {
           case 0xA0: {  // 电机参数设置
             LOG(INFO) << "    命令类型: 电机参数设置";
 
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略电机参数写入";
+              break;
+            }
+
             // 标识(1) + 参数(23) = 24字节
             if (frame.data.size() != 24) {
               LOG(ERROR) << "    电机参数数据长度错误, 期望24, 实际: "
@@ -286,6 +293,13 @@ void Robot::HandleMessage(const std::string& data) {
           case 0xA1: {  // 电池参数设置
             LOG(INFO) << "    命令类型: 电池参数设置";
 
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略电池参数写入";
+              break;
+            }
+
             // 标识(1) + 参数(11) = 12字节
             if (frame.data.size() != 12) {
               LOG(ERROR) << "    电池参数数据长度错误, 期望12, 实际: "
@@ -336,6 +350,13 @@ void Robot::HandleMessage(const std::string& data) {
           case 0xA2: {  // 定时设置
             LOG(INFO) << "    命令类型: 定时设置";
 
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略定时任务写入";
+              break;
+            }
+
             // 标识(1) + 7组定时参数(每组4字节) = 29字节
             if (frame.data.size() != 29) {
               LOG(ERROR) << "    定时设置数据长度错误, 期望29, 实际: "
@@ -352,7 +373,10 @@ void Robot::HandleMessage(const std::string& data) {
               data_.schedule_tasks[i].weekday = frame.data[offset];
               data_.schedule_tasks[i].hour = frame.data[offset + 1];
               data_.schedule_tasks[i].minute = frame.data[offset + 2];
-              data_.schedule_tasks[i].run_count = frame.data[offset + 3];
+              uint8_t run_count = frame.data[offset + 3];
+              data_.schedule_tasks[i].run_count =
+                  (run_count < 127) ? static_cast<int>(run_count * 2)
+                                    : static_cast<int>(run_count);
             }
 
             auto mqtt_manager = mqtt_manager_.lock();
