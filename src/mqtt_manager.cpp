@@ -3,6 +3,7 @@
 #include <glog/logging.h>
 
 #include <nlohmann/json.hpp>
+#include <chrono>
 
 using json = nlohmann::json;
 
@@ -105,6 +106,16 @@ void MqttManager::AddRobot(const std::string& robot_id) {
 
   auto robot = std::make_shared<Robot>(robot_id, robot_number);
   robot->SetTopics(publish_topic, subscribe_topic);
+
+  // 从数据库回填机器人全量数据快照
+  const std::string snapshot = config_db_->GetRobotDataSnapshot(robot_id);
+  if (!snapshot.empty() && snapshot != "{}") {
+    if (robot->LoadDataSnapshot(snapshot)) {
+      LOG(INFO) << "已加载机器人数据快照: " << robot_id;
+    } else {
+      LOG(WARNING) << "机器人数据快照解析失败，继续使用默认数据: " << robot_id;
+    }
+  }
 
   // 从数据库加载告警值
   ConfigDb::AlarmData alarms = config_db_->GetRobotAlarms(robot_id);
@@ -304,12 +315,59 @@ void MqttManager::SenderThreadFunc() {
 
       // 发送消息
       try {
+        const int kMaxAttempts = 3;
+        int attempts = 0;
+        bool sent = false;
+
         auto mqtt_msg = mqtt::make_message(msg.topic, msg.payload);
         mqtt_msg->set_qos(msg.qos);
-        client_->publish(mqtt_msg);
-        LOG(INFO) << "已从队列发送消息到主题: " << msg.topic;
+
+        while (attempts < kMaxAttempts && !stop_sender_.load()) {
+          // 确保连接，如无连接则尝试重连
+          if (!client_ || !client_->is_connected()) {
+            LOG(WARNING) << "客户端未连接，尝试重连... (尝试 " << (attempts + 1) << ")";
+            if (!Connect(60)) {
+              LOG(WARNING) << "重连失败";
+              attempts++;
+              std::this_thread::sleep_for(std::chrono::milliseconds(200 * attempts));
+              continue;
+            }
+            LOG(INFO) << "重连成功";
+          }
+
+          try {
+            auto tok = client_->publish(mqtt_msg);
+            // 等待发布完成（短超时），若需要可以调整为更长时间或不等待
+            if (tok) tok->wait_for(std::chrono::seconds(5));
+            LOG(INFO) << "已从队列发送消息到主题: " << msg.topic;
+            sent = true;
+            break;
+          } catch (const mqtt::exception& exc_inner) {
+            LOG(WARNING) << "发布尝试失败: " << exc_inner.what();
+            attempts++;
+            // 等待指数退避的短暂停顿
+            std::this_thread::sleep_for(std::chrono::milliseconds(200 * attempts));
+            // 下一轮会尝试重连或再次 publish
+          }
+        }
+
+        if (!sent) {
+          LOG(ERROR) << "多次尝试后发送失败，消息重新入队: " << msg.topic;
+          std::lock_guard<std::mutex> push_lock(queue_mutex_);
+          message_queue_.push(msg);
+          // 等待以避免忙循环
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+          break;  // 退出当前处理，让外层循环等待/重新调度
+        }
       } catch (const mqtt::exception& exc) {
-        LOG(ERROR) << "发送队列消息失败: " << exc.what();
+        LOG(ERROR) << "发送队列消息失败（外层捕获）: " << exc.what();
+        // 出现不可预期的异常时，也将消息放回队列
+        {
+          std::lock_guard<std::mutex> push_lock(queue_mutex_);
+          message_queue_.push(msg);
+        }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        break;
       }
 
       lock.lock();  // 重新获取锁以检查队列
@@ -351,6 +409,49 @@ void MqttManager::ReceiverThreadFunc() {
         std::string dev_eui = j["devEui"].get<std::string>();
         std::string data = j["data"].get<std::string>();
 
+        // 广播参数设置(A8)需要所有机器人处理
+        bool is_a8_broadcast = false;
+        {
+          Protocol protocol;
+          ProtocolFrame frame;
+          std::vector<uint8_t> raw = Protocol::Base64ToBytes(data);
+          if (protocol.Decode(raw, frame) && !frame.data.empty() &&
+              frame.control_code == CONTROL_CODE_UPLINK && frame.data[0] == 0xA8) {
+            is_a8_broadcast = true;
+          }
+        }
+
+        if (is_a8_broadcast) {
+          std::vector<std::pair<std::string, std::shared_ptr<Robot>>> robots_to_notify;
+          {
+            std::lock_guard<std::mutex> robots_lock(robots_mutex_);
+            for (const auto& kv : robots_) {
+              robots_to_notify.push_back(kv);
+            }
+          }
+
+          LOG(INFO) << "A8广播参数设置，分发到机器人数量: "
+                    << robots_to_notify.size();
+
+          for (const auto& item : robots_to_notify) {
+            const std::string& robot_id = item.first;
+            const auto& robot = item.second;
+            if (!robot) {
+              continue;
+            }
+
+            robot->HandleMessage(data);
+
+            if (!config_db_->UpdateRobotDataSnapshot(robot_id,
+                                                     robot->SerializeDataSnapshot())) {
+              LOG(WARNING) << "机器人数据快照写入失败: " << robot_id;
+            }
+          }
+
+          lock.lock();
+          continue;
+        }
+
         // 检查主题中是否包含devEui
         if (msg.topic.find(dev_eui) == std::string::npos) {
           LOG(WARNING) << "主题中不包含devEui: " << dev_eui << ", 主题: " << msg.topic;
@@ -371,6 +472,11 @@ void MqttManager::ReceiverThreadFunc() {
         if (robot) {
           LOG(INFO) << "将消息路由到机器人: " << dev_eui;
           robot->HandleMessage(data);
+
+          if (!config_db_->UpdateRobotDataSnapshot(dev_eui,
+                                                   robot->SerializeDataSnapshot())) {
+            LOG(WARNING) << "机器人数据快照写入失败: " << dev_eui;
+          }
         } else {
           LOG(WARNING) << "未找到devEui对应的机器人: " << dev_eui;
         }

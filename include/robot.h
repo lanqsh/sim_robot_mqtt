@@ -321,8 +321,36 @@ class Robot {
   // HTTP API支持
   bool IsRunning() const { return !stop_report_; }
   std::string GetLastData() const;  // 获取最后一次上报的数据（JSON格式）
+  std::string SerializeDataSnapshot() const;  // RobotData快照（JSON对象字符串）
+  bool LoadDataSnapshot(const std::string& data_json);  // 从JSON快照恢复RobotData
 
   // 请求类指令
+  void SendMotorParamsRequest(uint8_t walk_motor_speed,
+                              uint8_t brush_motor_speed,
+                              uint8_t windproof_motor_speed,
+                              uint16_t walk_motor_max_current_ma,
+                              uint16_t brush_motor_max_current_ma,
+                              uint16_t windproof_motor_max_current_ma,
+                              uint16_t walk_motor_warning_current_ma,
+                              uint16_t brush_motor_warning_current_ma,
+                              uint16_t windproof_motor_warning_current_ma,
+                              uint16_t walk_motor_mileage_m,
+                              uint16_t brush_motor_timeout_s,
+                              uint16_t windproof_motor_timeout_s,
+                              uint8_t reverse_time_s,
+                              uint8_t protection_angle);
+  void SendBatteryParamsRequest(uint16_t protection_current_ma,
+                                uint8_t high_temp_threshold,
+                                uint8_t low_temp_threshold,
+                                uint8_t protection_temp,
+                                uint8_t recovery_temp,
+                                uint8_t protection_voltage,
+                                uint8_t recovery_voltage,
+                                uint8_t protection_battery_level,
+                                uint8_t limit_run_battery_level,
+                                uint8_t recovery_battery_level);
+  void SendScheduleParamsRequest(const std::vector<ScheduleTask>& tasks);
+  void SendParkingPositionRequest(uint8_t parking_position);
   void SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                 uint8_t hour, uint8_t minute, uint8_t run_count);
   void SendStartRequest();  // 启动请求

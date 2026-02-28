@@ -58,6 +58,11 @@ class ConfigDb {
   };
   bool UpdateRobotAlarms(const std::string& robot_id, const AlarmData& alarms);  // 更新机器人告警
   AlarmData GetRobotAlarms(const std::string& robot_id);  // 获取机器人告警
+
+  // 机器人全量数据快照（JSON）
+  bool UpdateRobotDataSnapshot(const std::string& robot_id,
+                               const std::string& data_json);
+  std::string GetRobotDataSnapshot(const std::string& robot_id);
 };
 
 #endif  // CONFIG_DB_H_

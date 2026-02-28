@@ -7,10 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 定义版本宏
 add_definitions(-DPROJECT_VERSION="${PROJECT_VERSION}")
 
-# 添加include目录
-include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/third_party)
-
 # 查找系统安装的 Paho MQTT C++ 库
 find_package(PahoMqttCpp REQUIRED)
 
@@ -31,6 +27,19 @@ add_executable(robot
     src/protocol.cpp
     src/http_server.cpp
 )
+
+target_include_directories(robot
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+    SYSTEM PRIVATE
+        ${CMAKE_SOURCE_DIR}/third_party
+)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_source_files_properties(src/http_server.cpp PROPERTIES
+        COMPILE_OPTIONS "-Wno-deprecated-declarations"
+    )
+endif()
 
 target_link_libraries(robot PRIVATE
     PahoMqttCpp::paho-mqttpp3

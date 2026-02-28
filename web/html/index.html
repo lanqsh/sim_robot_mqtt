@@ -89,6 +89,150 @@
             </div>
         </div>
 
+        <!-- 定时设置区域(A2) -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleScheduleParamsForm()">
+                <h2>定时设置</h2>
+                <span class="collapse-icon" id="scheduleParamsCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="scheduleParamsFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
+                    <input type="text" id="scheduleParamsRobotId" placeholder="机器人ID" style="width: 120px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="scheduleParamsSerial" min="1" placeholder="序号" style="width: 100px;">
+
+                    <span>定时1</span>
+                    <input type="number" id="a2Weekday1" min="0" max="6" placeholder="星期" style="width: 80px;" value="1">
+                    <input type="number" id="a2Hour1" min="0" max="23" placeholder="时" style="width: 80px;" value="14">
+                    <input type="number" id="a2Minute1" min="0" max="59" placeholder="分" style="width: 80px;" value="30">
+                    <input type="number" id="a2RunCount1" min="0" max="255" placeholder="次数" style="width: 80px;" value="2">
+
+                    <span>定时2</span>
+                    <input type="number" id="a2Weekday2" min="0" max="6" placeholder="星期" style="width: 80px;" value="2">
+                    <input type="number" id="a2Hour2" min="0" max="23" placeholder="时" style="width: 80px;" value="14">
+                    <input type="number" id="a2Minute2" min="0" max="59" placeholder="分" style="width: 80px;" value="30">
+                    <input type="number" id="a2RunCount2" min="0" max="255" placeholder="次数" style="width: 80px;" value="2">
+
+                    <span>定时3</span>
+                    <input type="number" id="a2Weekday3" min="0" max="6" placeholder="星期" style="width: 80px;" value="3">
+                    <input type="number" id="a2Hour3" min="0" max="23" placeholder="时" style="width: 80px;" value="14">
+                    <input type="number" id="a2Minute3" min="0" max="59" placeholder="分" style="width: 80px;" value="30">
+                    <input type="number" id="a2RunCount3" min="0" max="255" placeholder="次数" style="width: 80px;" value="2">
+
+                    <span>定时4</span>
+                    <input type="number" id="a2Weekday4" min="0" max="6" placeholder="星期" style="width: 80px;" value="4">
+                    <input type="number" id="a2Hour4" min="0" max="23" placeholder="时" style="width: 80px;" value="14">
+                    <input type="number" id="a2Minute4" min="0" max="59" placeholder="分" style="width: 80px;" value="30">
+                    <input type="number" id="a2RunCount4" min="0" max="255" placeholder="次数" style="width: 80px;" value="2">
+
+                    <span>定时5</span>
+                    <input type="number" id="a2Weekday5" min="0" max="6" placeholder="星期" style="width: 80px;" value="5">
+                    <input type="number" id="a2Hour5" min="0" max="23" placeholder="时" style="width: 80px;" value="14">
+                    <input type="number" id="a2Minute5" min="0" max="59" placeholder="分" style="width: 80px;" value="30">
+                    <input type="number" id="a2RunCount5" min="0" max="255" placeholder="次数" style="width: 80px;" value="2">
+
+                    <span>定时6</span>
+                    <input type="number" id="a2Weekday6" min="0" max="6" placeholder="星期" style="width: 80px;" value="0">
+                    <input type="number" id="a2Hour6" min="0" max="23" placeholder="时" style="width: 80px;" value="0">
+                    <input type="number" id="a2Minute6" min="0" max="59" placeholder="分" style="width: 80px;" value="0">
+                    <input type="number" id="a2RunCount6" min="0" max="255" placeholder="次数" style="width: 80px;" value="0">
+
+                    <span>定时7</span>
+                    <input type="number" id="a2Weekday7" min="0" max="6" placeholder="星期" style="width: 80px;" value="0">
+                    <input type="number" id="a2Hour7" min="0" max="23" placeholder="时" style="width: 80px;" value="0">
+                    <input type="number" id="a2Minute7" min="0" max="59" placeholder="分" style="width: 80px;" value="0">
+                    <input type="number" id="a2RunCount7" min="0" max="255" placeholder="次数" style="width: 80px;" value="0">
+
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="sendScheduleParamsRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 停机位设置区域(A3) -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleParkingPositionForm()">
+                <h2>停机位设置</h2>
+                <span class="collapse-icon" id="parkingPositionCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="parkingPositionFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
+                    <input type="text" id="parkingRobotId" placeholder="机器人ID" style="width: 120px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="parkingSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="number" id="parkingPosition" min="0" max="255" placeholder="停机位(0-255)" style="width: 140px;" value="0">
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="sendParkingPositionRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 电机参数设置区域 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleMotorParamsForm()">
+                <h2>电机参数设置</h2>
+                <span class="collapse-icon" id="motorParamsCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="motorParamsFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
+                    <input type="text" id="motorRobotId" placeholder="机器人ID" style="width: 120px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="motorSerial" min="1" placeholder="序号" style="width: 100px;">
+
+                    <input type="number" id="walkMotorSpeed" min="0" max="255" placeholder="行走电机速率" style="width: 120px;">
+                    <input type="number" id="brushMotorSpeed" min="0" max="255" placeholder="毛刷电机速率" style="width: 120px;">
+                    <input type="number" id="windproofMotorSpeed" min="0" max="255" placeholder="防风电机速率" style="width: 120px;">
+
+                    <input type="number" id="walkMotorMaxCurrent" min="0" max="65535" placeholder="行走上限电流(mA)" style="width: 150px;">
+                    <input type="number" id="brushMotorMaxCurrent" min="0" max="65535" placeholder="毛刷上限电流(mA)" style="width: 150px;">
+                    <input type="number" id="windproofMotorMaxCurrent" min="0" max="65535" placeholder="防风上限电流(mA)" style="width: 150px;">
+
+                    <input type="number" id="walkMotorWarningCurrent" min="0" max="65535" placeholder="行走预警电流(mA)" style="width: 150px;">
+                    <input type="number" id="brushMotorWarningCurrent" min="0" max="65535" placeholder="毛刷预警电流(mA)" style="width: 150px;">
+                    <input type="number" id="windproofMotorWarningCurrent" min="0" max="65535" placeholder="防风预警电流(mA)" style="width: 150px;">
+
+                    <input type="number" id="walkMotorMileage" min="0" max="65535" placeholder="设置总里程(m)" style="width: 130px;">
+                    <input type="number" id="brushMotorTimeout" min="0" max="65535" placeholder="毛刷运行超时(s)" style="width: 130px;">
+                    <input type="number" id="windproofMotorTimeout" min="0" max="65535" placeholder="防风运行超时(s)" style="width: 130px;">
+
+                    <input type="number" id="reverseTime" min="0" max="255" placeholder="反转时间(s)" style="width: 120px;">
+                    <input type="number" id="protectionAngle" min="0" max="255" placeholder="保护角度" style="width: 100px;">
+
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="sendMotorParamsRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 电池参数设置区域 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleBatteryParamsForm()">
+                <h2>电池参数设置</h2>
+                <span class="collapse-icon" id="batteryParamsCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="batteryParamsFormContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form">
+                    <input type="text" id="batteryRobotId" placeholder="机器人ID" style="width: 120px;">
+                    <span class="or-text">或</span>
+                    <input type="number" id="batterySerial" min="1" placeholder="序号" style="width: 100px;">
+
+                    <input type="number" id="protectionCurrent" min="0" max="65535" placeholder="保护电流(mA)" style="width: 130px;">
+                    <input type="number" id="highTempThreshold" min="0" max="255" placeholder="高温阈值" style="width: 110px;">
+                    <input type="number" id="lowTempThreshold" min="0" max="255" placeholder="低温阈值" style="width: 110px;">
+                    <input type="number" id="protectionTemp" min="0" max="255" placeholder="保护温度" style="width: 110px;">
+                    <input type="number" id="recoveryTemp" min="0" max="255" placeholder="恢复温度" style="width: 110px;">
+                    <input type="number" id="protectionVoltage" min="0" max="255" placeholder="保护电压" style="width: 110px;">
+                    <input type="number" id="recoveryVoltage" min="0" max="255" placeholder="恢复电压" style="width: 110px;">
+                    <input type="number" id="protectionBatteryLevel" min="0" max="255" placeholder="保护电量" style="width: 110px;">
+                    <input type="number" id="limitRunBatteryLevel" min="0" max="255" placeholder="限制运行电量" style="width: 130px;">
+                    <input type="number" id="recoveryBatteryLevel" min="0" max="255" placeholder="恢复电量" style="width: 110px;">
+
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-success" onclick="sendBatteryParamsRequest()">发送请求</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 启动请求区域 -->
         <div class="start-request-section">
             <div class="collapsible-header" onclick="toggleStartForm()">

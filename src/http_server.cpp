@@ -635,6 +635,330 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // POST /api/robots/{id}/schedule_start - 发送定时启动请求
+  svr.Post(R"(/api/robots/([^/]+)/motor_params)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    try {
+      json body = json::parse(req.body);
+
+      const std::vector<std::string> required_fields = {
+          "walk_motor_speed",
+          "brush_motor_speed",
+          "windproof_motor_speed",
+          "walk_motor_max_current_ma",
+          "brush_motor_max_current_ma",
+          "windproof_motor_max_current_ma",
+          "walk_motor_warning_current_ma",
+          "brush_motor_warning_current_ma",
+          "windproof_motor_warning_current_ma",
+          "walk_motor_mileage_m",
+          "brush_motor_timeout_s",
+          "windproof_motor_timeout_s",
+          "reverse_time_s",
+          "protection_angle"};
+
+      for (const auto& field : required_fields) {
+        if (!body.contains(field)) {
+          json error;
+          error["success"] = false;
+          error["error"] = "缺少必需参数: " + field;
+          res.status = 400;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->SendMotorParamsRequest(
+          static_cast<uint8_t>(body["walk_motor_speed"].get<int>()),
+          static_cast<uint8_t>(body["brush_motor_speed"].get<int>()),
+          static_cast<uint8_t>(body["windproof_motor_speed"].get<int>()),
+          static_cast<uint16_t>(body["walk_motor_max_current_ma"].get<int>()),
+          static_cast<uint16_t>(body["brush_motor_max_current_ma"].get<int>()),
+          static_cast<uint16_t>(body["windproof_motor_max_current_ma"].get<int>()),
+          static_cast<uint16_t>(body["walk_motor_warning_current_ma"].get<int>()),
+          static_cast<uint16_t>(body["brush_motor_warning_current_ma"].get<int>()),
+          static_cast<uint16_t>(body["windproof_motor_warning_current_ma"].get<int>()),
+          static_cast<uint16_t>(body["walk_motor_mileage_m"].get<int>()),
+          static_cast<uint16_t>(body["brush_motor_timeout_s"].get<int>()),
+          static_cast<uint16_t>(body["windproof_motor_timeout_s"].get<int>()),
+          static_cast<uint8_t>(body["reverse_time_s"].get<int>()),
+          static_cast<uint8_t>(body["protection_angle"].get<int>()));
+
+      json response;
+      response["success"] = true;
+      response["message"] = "电机参数设置请求已发送";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 发送电机参数设置请求 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送电机参数设置请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  svr.Post(R"(/api/robots/([^/]+)/battery_params)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    try {
+      json body = json::parse(req.body);
+
+      const std::vector<std::string> required_fields = {
+          "protection_current_ma", "high_temp_threshold", "low_temp_threshold",
+          "protection_temp",      "recovery_temp",      "protection_voltage",
+          "recovery_voltage",     "protection_battery_level",
+          "limit_run_battery_level", "recovery_battery_level"};
+
+      for (const auto& field : required_fields) {
+        if (!body.contains(field)) {
+          json error;
+          error["success"] = false;
+          error["error"] = "缺少必需参数: " + field;
+          res.status = 400;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->SendBatteryParamsRequest(
+          static_cast<uint16_t>(body["protection_current_ma"].get<int>()),
+          static_cast<uint8_t>(body["high_temp_threshold"].get<int>()),
+          static_cast<uint8_t>(body["low_temp_threshold"].get<int>()),
+          static_cast<uint8_t>(body["protection_temp"].get<int>()),
+          static_cast<uint8_t>(body["recovery_temp"].get<int>()),
+          static_cast<uint8_t>(body["protection_voltage"].get<int>()),
+          static_cast<uint8_t>(body["recovery_voltage"].get<int>()),
+          static_cast<uint8_t>(body["protection_battery_level"].get<int>()),
+          static_cast<uint8_t>(body["limit_run_battery_level"].get<int>()),
+          static_cast<uint8_t>(body["recovery_battery_level"].get<int>()));
+
+      json response;
+      response["success"] = true;
+      response["message"] = "电池参数设置请求已发送";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 发送电池参数设置请求 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送电池参数设置请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  svr.Post(R"(/api/robots/([^/]+)/schedule_params)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    try {
+      json body = json::parse(req.body);
+
+      if (!body.contains("tasks") || !body["tasks"].is_array()) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: tasks(数组)";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      const auto& tasks_json = body["tasks"];
+      if (tasks_json.size() != 7) {
+        json error;
+        error["success"] = false;
+        error["error"] = "tasks 数组长度必须为7";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      std::vector<ScheduleTask> tasks;
+      tasks.reserve(7);
+      for (size_t i = 0; i < 7; ++i) {
+        const auto& item = tasks_json[i];
+        if (!item.contains("weekday") || !item.contains("hour") ||
+            !item.contains("minute") || !item.contains("run_count")) {
+          json error;
+          error["success"] = false;
+          error["error"] = "tasks[" + std::to_string(i) + "] 缺少必需参数";
+          res.status = 400;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+
+        ScheduleTask task;
+        task.weekday = item["weekday"].get<int>();
+        task.hour = item["hour"].get<int>();
+        task.minute = item["minute"].get<int>();
+        task.run_count = item["run_count"].get<int>();
+        tasks.push_back(task);
+      }
+
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->SendScheduleParamsRequest(tasks);
+
+      json response;
+      response["success"] = true;
+      response["message"] = "定时设置请求已发送";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 发送定时设置请求 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送定时设置请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  svr.Post(R"(/api/robots/([^/]+)/parking_position)", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.matches[1];
+
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("parking_position")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: parking_position";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      std::string robot_id = identifier;
+      std::string type = req.get_param_value("type");
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      uint8_t parking_position = static_cast<uint8_t>(body["parking_position"].get<int>());
+      robot->SendParkingPositionRequest(parking_position);
+
+      json response;
+      response["success"] = true;
+      response["message"] = "停机位设置请求已发送";
+      response["robot_id"] = robot_id;
+      response["parking_position"] = parking_position;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 发送停机位设置请求 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "发送停机位设置请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/robots/{id}/schedule_start - 发送定时启动请求
   svr.Post(R"(/api/robots/([^/]+)/schedule_start)", [this](const httplib::Request& req, httplib::Response& res) {
     std::string identifier = req.matches[1];
 

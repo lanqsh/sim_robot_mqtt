@@ -44,6 +44,17 @@
    - 返回机器人实时状态和数据
    - 包含电池、电机、光伏等信息
 
+5. **GET /api/robots/{id}/alarms** - 获取机器人告警配置
+   - 支持按robot_id或serial查询（通过查询2参数type=id|serial）
+   - 直接从内存中的Robot对象获取告警数据
+   - 返回4类告警的配置值：alarm_fa, alarm_fb, alarm_fc, alarm_fd
+
+6. **PATCH /api/robots/{id}/alarms** - 设置机器人告警
+   - 支持按robot_id或serial更新（通过查询2参数type=id|serial）
+   - 请求体: `{"alarm_fa": 134217727, "alarm_fb": 2047, "alarm_fc": 2147483647, "alarm_fd": 31}`
+   - 同时更新内存中的Robot对象和数据库
+   - 调用Robot::UpdateAlarmsToDb()统一接口进行数据库持久化
+
 ### 4. 前端HTML页面 ✅
 
 **新增文件**:
@@ -106,7 +117,65 @@
 
 - 添加 `src/http_server.cpp` 到编译列表
 
-### 9. 文档完善 ✅
+### 9. 告警管理功能 ✅
+
+**修改文件**: `src/config_db.cpp`, `include/config_db.h`, `src/robot.cpp`, `include/robot.h`, `src/http_server.cpp`
+
+#### 9.1 数据库结构扩展
+- 在 `robots` 表中添加四个告警字段：
+  - `alarm_fa INTEGER DEFAULT 0` - FA类告警（27位）
+  - `alarm_fb INTEGER DEFAULT 0` - FB类告警（11位）
+  - `alarm_fc INTEGER DEFAULT 0` - FC类告警（31位）
+  - `alarm_fd INTEGER DEFAULT 0` - FD类告警（5位）
+- 定义 `AlarmData` 结构体存储告警配置
+
+#### 9.2 ConfigDb增强
+- 新增 `UpdateRobotAlarms(const std::string& robot_id, const AlarmData& alarm)` 方法
+  - 更新指定机器人的告警配置到数据库
+- 新增 `GetRobotAlarms(const std::string& robot_id)` 方法
+  - 从数据库读取指定机器人的告警配置
+
+#### 9.3 Robot类增强
+- 添加 `weak_ptr<ConfigDb> config_db_` 成员变量
+- 新增 `SetConfigDb(std::shared_ptr<ConfigDb> config_db)` 方法
+  - 设置数据库引用，避免循环引用
+- 新增 `UpdateAlarmsToDb()` 方法
+  - 统一的告警持久化接口
+  - 将当前内存中的告警数据更新到数据库
+
+#### 9.4 MqttManager增强
+- 将 `ConfigDb&` 改为 `std::shared_ptr<ConfigDb>`
+- 在 `AddRobot()` 时调用 `robot->SetConfigDb(config_db_)`
+- 程序启动时自动从数据库加载每个机器人的告警配置
+
+#### 9.5 HTTP API端点
+**GET /api/robots/{identifier}/alarms?type=id|serial**
+- 从内存中的Robot对象获取告警数据（不读数据库）
+- 支持按robot_id或serial查询
+- 返回格式：`{"success": true, "robot_id": "...", "alarm_fa": 0, "alarm_fb": 0, "alarm_fc": 0, "alarm_fd": 0}`
+
+**PATCH /api/robots/{identifier}/alarms?type=id|serial**
+- 更新机器人的告警配置
+- 同时更新内存中的Robot对象和数据库
+- 调用 `robot->UpdateAlarmsToDb()` 进行数据库持久化
+- 请求体：`{"alarm_fa": 134217727, "alarm_fb": 2047, "alarm_fc": 2147483647, "alarm_fd": 31}`
+
+#### 9.6 前端界面
+- 每个机器人卡片添加“告警设置”按钮
+- 点击按钮打开模态框，显示4个标签页（FA/FB/FC/FD）
+- 每个标签页展示对应类型的所有告警项（两列布局）
+- 支持勾选/取消勾选告警项，点击保存后调用PATCH API
+- 打开模态框时自动从后端加载告警配置
+- 切换标签页时自动加载对应类型的告警数据
+
+#### 9.7 技术要点
+- **内存优先**: 获取告警时直接从robot对象读取，避免每次都查询数据库
+- **统一持久化**: Robot类提供UpdateAlarmsToDb()统一接口，告警变化时调用
+- **智能指针管理**: Robot使用weak_ptr引用ConfigDb，避免循环引用
+- **位掩码存储**: 每个告警类型使用一个整数，每个位表示一个告警项
+- **模态框设计**: 告警设置采用模态框，不占用页面固定区域
+
+### 10. 文档完善 ✅
 
 **更新文件**:
 - `README.md` - 添加Web管理界面和REST API说明

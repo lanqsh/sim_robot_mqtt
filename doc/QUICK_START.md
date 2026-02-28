@@ -99,11 +99,27 @@ HTTP服务器地址: http://localhost:8080
    - 成功后会显示绿色提示消息
 
 3. **查看机器人数据**
-   - 点击任意机器人卡片
+   - 点击任意机器人卡片上的“查看数据”按钮
    - 弹出模态框显示详细数据
    - 包含电池、电机、光伏等实时信息
 
-4. **删除机器人**
+4. **配置告警设置**
+   - 点击机器人卡片上的“告警设置”按钮
+   - 自动从后端加载当前的告警配置
+   - 在模态框中切换FA/FB/FC/FD标签页
+   - 勾选需要启用的告警项（支搜索过滤）
+   - 点击“保存设置”按钮应用配置
+   - 告警配置会同时更新到内存和数据库
+
+5. **发送控制命令**
+   - 在页面顶部折叠区域选择命令类型：
+     - 定时启动：配置时间表和运行次数
+     - 立即启动：发送启动指令
+     - 校时请求：同步系统时间
+   - 填写机器人ID或序号（二选一）
+   - 点击发送按钮执行命令
+
+6. **删除机器人**
    - 点击机器人卡片上的"删除"按钮
    - 确认删除操作
    - 机器人会从列表中移除
@@ -125,7 +141,20 @@ curl -X POST http://localhost:8080/api/robots \
 # 3. 查看机器人详细数据
 curl http://localhost:8080/api/robots/test_robot_001/data
 
-# 4. 删除机器人
+# 4. 获取机器人告警配置
+curl "http://localhost:8080/api/robots/test_robot_001/alarms?type=id"
+
+# 5. 设置机器人告警
+curl -X PATCH "http://localhost:8080/api/robots/test_robot_001/alarms?type=id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alarm_fa": 134217727,
+    "alarm_fb": 2047,
+    "alarm_fc": 2147483647,
+    "alarm_fd": 31
+  }'
+
+# 6. 删除机器人
 curl -X DELETE http://localhost:8080/api/robots/test_robot_001
 ```
 
@@ -259,6 +288,8 @@ I... 消息已发送到主题: application/.../device/303930306350729d/event/up
 ```
 I... API: 获取机器人列表, 数量: 2
 I... API: 添加机器人成功 - test_robot_001 (测试机器人)
+I... API: 获取机器人告警 - test_robot_001
+I... API: 设置机器人告警 - test_robot_001
 ```
 
 ## 11. 下一步

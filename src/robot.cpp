@@ -16,7 +16,7 @@
 #define PLACEHOLDER_DATA "{{DATA}}"
 
 // 上行数据模板文件路径
-#define UPLINK_TEMPLATE_FILE "uplink_template.json"
+#define UPLINK_TEMPLATE_FILE "doc/uplink_template.json"
 
 // 静态成员初始化
 std::string Robot::uplink_template_ = "";
@@ -181,6 +181,10 @@ void Robot::UpdateAlarmsToDb() {
               << ", FB=0x" << alarms.alarm_fb
               << ", FC=0x" << alarms.alarm_fc
               << ", FD=0x" << alarms.alarm_fd;
+
+    if (!config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+      LOG(WARNING) << "[Robot " << robot_id_ << "] 告警更新后写入快照失败";
+    }
   } else {
     LOG(ERROR) << "[Robot " << robot_id_ << "] 告警更新到数据库失败";
   }
@@ -212,6 +216,318 @@ void Robot::HandleMessage(const std::string& data) {
 
         // 根据标识符处理不同的命令
         switch (identifier) {
+          case 0xA0: {  // 电机参数设置
+            LOG(INFO) << "    命令类型: 电机参数设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略电机参数写入";
+              break;
+            }
+
+            // 标识(1) + 参数(23) = 24字节
+            if (frame.data.size() != 24) {
+              LOG(ERROR) << "    电机参数数据长度错误, 期望24, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            data_.motor_params.walk_motor_speed = frame.data[1];
+            data_.motor_params.brush_motor_speed = frame.data[2];
+            data_.motor_params.windproof_motor_speed = frame.data[3];
+
+            data_.motor_params.walk_motor_max_current_ma =
+                (static_cast<int>(frame.data[4]) << 8) | frame.data[5];
+            data_.motor_params.brush_motor_max_current_ma =
+                (static_cast<int>(frame.data[6]) << 8) | frame.data[7];
+            data_.motor_params.windproof_motor_max_current_ma =
+                (static_cast<int>(frame.data[8]) << 8) | frame.data[9];
+
+            data_.motor_params.walk_motor_warning_current_ma =
+                (static_cast<int>(frame.data[10]) << 8) | frame.data[11];
+            data_.motor_params.brush_motor_warning_current_ma =
+                (static_cast<int>(frame.data[12]) << 8) | frame.data[13];
+            data_.motor_params.windproof_motor_warning_current_ma =
+                (static_cast<int>(frame.data[14]) << 8) | frame.data[15];
+
+            data_.motor_params.walk_motor_mileage_m =
+                (static_cast<int>(frame.data[16]) << 8) | frame.data[17];
+            data_.motor_params.brush_motor_timeout_s =
+                (static_cast<int>(frame.data[18]) << 8) | frame.data[19];
+            data_.motor_params.windproof_motor_timeout_s =
+                (static_cast<int>(frame.data[20]) << 8) | frame.data[21];
+            data_.motor_params.reverse_time_s = frame.data[22];
+            data_.motor_params.protection_angle = frame.data[23];
+
+            LOG(INFO) << "    电机参数已更新 - 行走/毛刷/防风速率: "
+                      << data_.motor_params.walk_motor_speed << "/"
+                      << data_.motor_params.brush_motor_speed << "/"
+                      << data_.motor_params.windproof_motor_speed;
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复电机参数设置";
+              break;
+            }
+
+            // 按协议回复：数据域与下发一致，仅控制码改为0x82
+            std::vector<uint8_t> response_data = frame.data;
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    电机参数设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db && !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    电机参数设置后写入快照失败";
+            }
+            break;
+          }
+
+          case 0xA1: {  // 电池参数设置
+            LOG(INFO) << "    命令类型: 电池参数设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略电池参数写入";
+              break;
+            }
+
+            // 标识(1) + 参数(11) = 12字节
+            if (frame.data.size() != 12) {
+              LOG(ERROR) << "    电池参数数据长度错误, 期望12, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            data_.temp_voltage_protection.protection_current_ma =
+                (static_cast<int>(frame.data[1]) << 8) | frame.data[2];
+            data_.temp_voltage_protection.high_temp_threshold = frame.data[3];
+            data_.temp_voltage_protection.low_temp_threshold = frame.data[4];
+            data_.temp_voltage_protection.protection_temp = frame.data[5];
+            data_.temp_voltage_protection.recovery_temp = frame.data[6];
+            data_.temp_voltage_protection.protection_voltage = frame.data[7];
+            data_.temp_voltage_protection.recovery_voltage = frame.data[8];
+            data_.temp_voltage_protection.protection_battery_level = frame.data[9];
+            data_.temp_voltage_protection.limit_run_battery_level = frame.data[10];
+            data_.temp_voltage_protection.recovery_battery_level = frame.data[11];
+
+            LOG(INFO) << "    电池参数已更新 - 保护电流(mA): "
+                      << data_.temp_voltage_protection.protection_current_ma;
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复电池参数设置";
+              break;
+            }
+
+            std::vector<uint8_t> response_data = frame.data;
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    电池参数设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    电池参数设置后写入快照失败";
+            }
+            break;
+          }
+
+          case 0xA2: {  // 定时设置
+            LOG(INFO) << "    命令类型: 定时设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略定时任务写入";
+              break;
+            }
+
+            // 标识(1) + 7组定时参数(每组4字节) = 29字节
+            if (frame.data.size() != 29) {
+              LOG(ERROR) << "    定时设置数据长度错误, 期望29, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            if (data_.schedule_tasks.size() < 7) {
+              data_.schedule_tasks.resize(7);
+            }
+
+            for (size_t i = 0; i < 7; ++i) {
+              size_t offset = 1 + i * 4;
+              data_.schedule_tasks[i].weekday = frame.data[offset];
+              data_.schedule_tasks[i].hour = frame.data[offset + 1];
+              data_.schedule_tasks[i].minute = frame.data[offset + 2];
+              uint8_t run_count = frame.data[offset + 3];
+              data_.schedule_tasks[i].run_count =
+                  (run_count < 127) ? static_cast<int>(run_count * 2)
+                                    : static_cast<int>(run_count);
+            }
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复定时设置";
+              break;
+            }
+
+            // 按协议回复：数据域与下发一致，仅控制码改为0x82；
+            // 运行次数字段当值<127时，回包填充为请求值*2。
+            std::vector<uint8_t> response_data = frame.data;
+            for (size_t i = 0; i < 7; ++i) {
+              size_t run_count_index = 1 + i * 4 + 3;
+              uint8_t run_count = frame.data[run_count_index];
+              if (run_count < 127) {
+                response_data[run_count_index] = static_cast<uint8_t>(run_count * 2);
+              }
+            }
+
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    定时设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    定时设置后写入快照失败";
+            }
+            break;
+          }
+
+          case 0xA3: {  // 停机位设置
+            LOG(INFO) << "    命令类型: 停机位设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略停机位写入";
+              break;
+            }
+
+            // 标识(1) + 参数(1) = 2字节
+            if (frame.data.size() != 2) {
+              LOG(ERROR) << "    停机位设置数据长度错误, 期望2, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            data_.parking_position = frame.data[1];
+            LOG(INFO) << "    停机位已更新: " << data_.parking_position;
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复停机位设置";
+              break;
+            }
+
+            // 按协议回复：数据域与下发一致，仅控制码改为0x82
+            std::vector<uint8_t> response_data = frame.data;
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    停机位设置回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    停机位设置后写入快照失败";
+            }
+            break;
+          }
+
+          case 0xA8: {  // 广播参数设置
+            LOG(INFO) << "    命令类型: 广播参数设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略广播参数写入";
+              break;
+            }
+
+            // 标识(1) + 时间(7) + 风速(1) + 通信箱数量(2) + 机器人数量(2) + 后台保护(1) = 14字节
+            if (frame.data.size() != 14) {
+              LOG(ERROR) << "    广播参数设置数据长度错误, 期望14, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            uint8_t year = frame.data[1];
+            uint8_t month = frame.data[2];
+            uint8_t day = frame.data[3];
+            uint8_t hour = frame.data[4];
+            uint8_t minute = frame.data[5];
+            uint8_t second = frame.data[6];
+            uint8_t weekday = frame.data[7];
+            uint8_t wind_speed = frame.data[8];
+
+            uint16_t comm_box_count =
+                (static_cast<uint16_t>(frame.data[9]) << 8) | frame.data[10];
+            uint16_t robot_count =
+                (static_cast<uint16_t>(frame.data[11]) << 8) | frame.data[12];
+            uint8_t protection_info = frame.data[13];
+
+            data_.local_time.year = 2000 + year;
+            data_.local_time.month = month;
+            data_.local_time.day = day;
+            data_.local_time.hour = hour;
+            data_.local_time.minute = minute;
+            data_.local_time.second = second;
+            data_.local_time.weekday = weekday;
+            data_.current_timestamp.hour = hour;
+            data_.current_timestamp.minute = minute;
+            data_.current_timestamp.second = second;
+
+            LOG(INFO) << "    广播参数已更新 - 时间: 20" << std::setfill('0')
+                      << std::setw(2) << static_cast<int>(year) << "-"
+                      << std::setw(2) << static_cast<int>(month) << "-"
+                      << std::setw(2) << static_cast<int>(day) << " "
+                      << std::setw(2) << static_cast<int>(hour) << ":"
+                      << std::setw(2) << static_cast<int>(minute) << ":"
+                      << std::setw(2) << static_cast<int>(second)
+                      << " 星期" << static_cast<int>(weekday)
+                      << " 风速=" << static_cast<int>(wind_speed)
+                      << " 通信箱=" << comm_box_count
+                      << " 机器人数=" << robot_count
+                      << " 保护位=0x" << std::hex
+                      << static_cast<int>(protection_info);
+
+            // 广播指令按协议不回复
+            LOG(INFO) << "    广播参数设置按协议不回复";
+
+            auto config_db = config_db_.lock();
+            if (config_db &&
+                !config_db->UpdateRobotDataSnapshot(robot_id_, SerializeDataSnapshot())) {
+              LOG(WARNING) << "    广播参数设置后写入快照失败";
+            }
+            break;
+          }
+
           case 0xA4:  // LoRa参数设置
             LOG(INFO) << "    命令类型: LoRa参数设置";
             // TODO: 解析参数并更新配置
@@ -584,6 +900,127 @@ std::vector<uint8_t> Robot::BuildRobotDataField(uint8_t identifier) {
   return data_field;
 }
 
+void Robot::SendMotorParamsRequest(
+    uint8_t walk_motor_speed, uint8_t brush_motor_speed,
+    uint8_t windproof_motor_speed, uint16_t walk_motor_max_current_ma,
+    uint16_t brush_motor_max_current_ma, uint16_t windproof_motor_max_current_ma,
+    uint16_t walk_motor_warning_current_ma,
+    uint16_t brush_motor_warning_current_ma,
+    uint16_t windproof_motor_warning_current_ma, uint16_t walk_motor_mileage_m,
+    uint16_t brush_motor_timeout_s, uint16_t windproof_motor_timeout_s,
+    uint8_t reverse_time_s, uint8_t protection_angle) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送电机参数设置请求";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<uint8_t> data_field = {
+      0xA0,  // 标识：电机参数设置
+      walk_motor_speed,
+      brush_motor_speed,
+      windproof_motor_speed,
+      static_cast<uint8_t>(walk_motor_max_current_ma >> 8),
+      static_cast<uint8_t>(walk_motor_max_current_ma & 0xFF),
+      static_cast<uint8_t>(brush_motor_max_current_ma >> 8),
+      static_cast<uint8_t>(brush_motor_max_current_ma & 0xFF),
+      static_cast<uint8_t>(windproof_motor_max_current_ma >> 8),
+      static_cast<uint8_t>(windproof_motor_max_current_ma & 0xFF),
+      static_cast<uint8_t>(walk_motor_warning_current_ma >> 8),
+      static_cast<uint8_t>(walk_motor_warning_current_ma & 0xFF),
+      static_cast<uint8_t>(brush_motor_warning_current_ma >> 8),
+      static_cast<uint8_t>(brush_motor_warning_current_ma & 0xFF),
+      static_cast<uint8_t>(windproof_motor_warning_current_ma >> 8),
+      static_cast<uint8_t>(windproof_motor_warning_current_ma & 0xFF),
+      static_cast<uint8_t>(walk_motor_mileage_m >> 8),
+      static_cast<uint8_t>(walk_motor_mileage_m & 0xFF),
+      static_cast<uint8_t>(brush_motor_timeout_s >> 8),
+      static_cast<uint8_t>(brush_motor_timeout_s & 0xFF),
+      static_cast<uint8_t>(windproof_motor_timeout_s >> 8),
+      static_cast<uint8_t>(windproof_motor_timeout_s & 0xFF),
+      reverse_time_s,
+      protection_angle,
+  };
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  电机参数设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendBatteryParamsRequest(uint16_t protection_current_ma,
+                                     uint8_t high_temp_threshold,
+                                     uint8_t low_temp_threshold,
+                                     uint8_t protection_temp,
+                                     uint8_t recovery_temp,
+                                     uint8_t protection_voltage,
+                                     uint8_t recovery_voltage,
+                                     uint8_t protection_battery_level,
+                                     uint8_t limit_run_battery_level,
+                                     uint8_t recovery_battery_level) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送电池参数设置请求";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<uint8_t> data_field = {
+      0xA1,
+      static_cast<uint8_t>(protection_current_ma >> 8),
+      static_cast<uint8_t>(protection_current_ma & 0xFF),
+      high_temp_threshold,
+      low_temp_threshold,
+      protection_temp,
+      recovery_temp,
+      protection_voltage,
+      recovery_voltage,
+      protection_battery_level,
+      limit_run_battery_level,
+      recovery_battery_level,
+  };
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  电池参数设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  sequence_.fetch_add(1);
+}
+
 void Robot::SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
                                      uint8_t hour, uint8_t minute, uint8_t run_count) {
   LOG(INFO) << "[Robot " << robot_id_ << "] 发送定时启动请求";
@@ -632,6 +1069,93 @@ void Robot::SendScheduleStartRequest(uint8_t schedule_id, uint8_t weekday,
   LOG(INFO) << "  定时启动请求已加入发送队列";
 
   // 帧计数累加
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendScheduleParamsRequest(const std::vector<ScheduleTask>& tasks) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送定时设置请求";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<ScheduleTask> normalized_tasks(7);
+  for (size_t i = 0; i < 7; ++i) {
+    if (i < tasks.size()) {
+      normalized_tasks[i] = tasks[i];
+    }
+  }
+
+  std::vector<uint8_t> data_field;
+  data_field.reserve(29);
+  data_field.push_back(0xA2);  // 标识：定时设置
+
+  for (size_t i = 0; i < 7; ++i) {
+    const auto& task = normalized_tasks[i];
+    data_field.push_back(static_cast<uint8_t>(task.weekday));
+    data_field.push_back(static_cast<uint8_t>(task.hour));
+    data_field.push_back(static_cast<uint8_t>(task.minute));
+    data_field.push_back(static_cast<uint8_t>(task.run_count));
+  }
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  定时设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendParkingPositionRequest(uint8_t parking_position) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送停机位设置请求";
+  LOG(INFO) << "  停机位: " << static_cast<int>(parking_position);
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  std::vector<uint8_t> data_field = {
+      0xA3,  // 标识：停机位设置
+      parking_position,
+  };
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty()) {
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+    }
+  } catch (...) {
+    robot_num = 0;
+  }
+
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_num, frame_count, data_field);
+
+  LOG(INFO) << "  停机位设置编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
   sequence_.fetch_add(1);
 }
 
@@ -1017,21 +1541,10 @@ void Robot::SendRestartResponse(uint8_t control_identifier) {
   sequence_.fetch_add(1);
 }
 
-std::string Robot::GetLastData() const {
-  nlohmann::json j;
-
-  // 基本信息
-  j["robot_id"] = robot_id_;
-  j["publish_topic"] = publish_topic_;
-  j["subscribe_topic"] = subscribe_topic_;
-  j["sequence"] = sequence_.load();
-  j["report_interval_seconds"] = report_interval_seconds_;
-  j["running"] = IsRunning();
-
-  // 在获取最后数据前更新时间字段（允许修改内部缓存以保证返回的是最新时间）
+std::string Robot::SerializeDataSnapshot() const {
+  // 在序列化前更新时间字段（允许修改内部缓存以保证返回的是最新时间）
   const_cast<Robot*>(this)->UpdateTimeFields();
 
-  // RobotData 全量序列化
   nlohmann::json d;
   d["alarm_fa"] = data_.alarm_fa;
   d["alarm_fb"] = data_.alarm_fb;
@@ -1155,7 +1668,182 @@ std::string Robot::GetLastData() const {
   d["region_code"] = data_.region_code;
   d["project_code"] = data_.project_code;
 
-  j["data"] = d;
+  d["board_humidity"] = data_.board_humidity;
+
+  return d.dump();
+}
+
+bool Robot::LoadDataSnapshot(const std::string& data_json) {
+  if (data_json.empty()) {
+    return false;
+  }
+
+  try {
+    nlohmann::json d = nlohmann::json::parse(data_json);
+
+    data_.alarm_fa = d.value("alarm_fa", data_.alarm_fa);
+    data_.alarm_fb = d.value("alarm_fb", data_.alarm_fb);
+    data_.alarm_fc = d.value("alarm_fc", data_.alarm_fc);
+    data_.alarm_fd = d.value("alarm_fd", data_.alarm_fd);
+    data_.main_motor_current = d.value("main_motor_current", data_.main_motor_current);
+    data_.slave_motor_current = d.value("slave_motor_current", data_.slave_motor_current);
+    data_.battery_voltage = d.value("battery_voltage", data_.battery_voltage);
+    data_.battery_current = d.value("battery_current", data_.battery_current);
+    data_.battery_status = d.value("battery_status", data_.battery_status);
+    data_.battery_level = d.value("battery_level", data_.battery_level);
+    data_.battery_temperature = d.value("battery_temperature", data_.battery_temperature);
+    data_.position_info = d.value("position_info", data_.position_info);
+    data_.working_duration = d.value("working_duration", data_.working_duration);
+    data_.total_run_count = d.value("total_run_count", data_.total_run_count);
+    data_.current_lap_count = d.value("current_lap_count", data_.current_lap_count);
+    data_.solar_voltage = d.value("solar_voltage", data_.solar_voltage);
+    data_.solar_current = d.value("solar_current", data_.solar_current);
+    data_.board_temperature = d.value("board_temperature", data_.board_temperature);
+
+    if (d.contains("current_timestamp") && d["current_timestamp"].is_object()) {
+      const auto& ts = d["current_timestamp"];
+      data_.current_timestamp.hour = ts.value("hour", data_.current_timestamp.hour);
+      data_.current_timestamp.minute = ts.value("minute", data_.current_timestamp.minute);
+      data_.current_timestamp.second = ts.value("second", data_.current_timestamp.second);
+    }
+
+    if (d.contains("lora_params") && d["lora_params"].is_object()) {
+      const auto& lora = d["lora_params"];
+      data_.lora_params.power = lora.value("power", data_.lora_params.power);
+      data_.lora_params.frequency = lora.value("frequency", data_.lora_params.frequency);
+      data_.lora_params.rate = lora.value("rate", data_.lora_params.rate);
+    }
+
+    data_.robot_number = d.value("robot_number", data_.robot_number);
+    data_.software_version = d.value("software_version", data_.software_version);
+    data_.parking_position = d.value("parking_position", data_.parking_position);
+    data_.daytime_scan_protect = d.value("daytime_scan_protect", data_.daytime_scan_protect);
+    data_.enabled = d.value("enabled", data_.enabled);
+
+    if (d.contains("schedule_tasks") && d["schedule_tasks"].is_array()) {
+      data_.schedule_tasks.clear();
+      for (const auto& item : d["schedule_tasks"]) {
+        ScheduleTask task;
+        task.weekday = item.value("weekday", 0);
+        task.hour = item.value("hour", 0);
+        task.minute = item.value("minute", 0);
+        task.run_count = item.value("run_count", 0);
+        data_.schedule_tasks.push_back(task);
+      }
+    }
+
+    if (d.contains("clean_records") && d["clean_records"].is_array()) {
+      data_.clean_records.clear();
+      for (const auto& item : d["clean_records"]) {
+        RobotData::CleanRecord record;
+        record.day = static_cast<uint8_t>(item.value("day", 0));
+        record.hour = static_cast<uint8_t>(item.value("hour", 0));
+        record.minute = static_cast<uint8_t>(item.value("minute", 0));
+        record.minutes = static_cast<uint16_t>(item.value("minutes", 0));
+        record.result = static_cast<uint8_t>(item.value("result", 0));
+        record.energy = static_cast<uint8_t>(item.value("energy", 0));
+        data_.clean_records.push_back(record);
+      }
+    }
+
+    if (d.contains("motor_params") && d["motor_params"].is_object()) {
+      const auto& mp = d["motor_params"];
+      data_.motor_params.walk_motor_speed = mp.value("walk_motor_speed", data_.motor_params.walk_motor_speed);
+      data_.motor_params.brush_motor_speed = mp.value("brush_motor_speed", data_.motor_params.brush_motor_speed);
+      data_.motor_params.windproof_motor_speed = mp.value("windproof_motor_speed", data_.motor_params.windproof_motor_speed);
+      data_.motor_params.walk_motor_max_current_ma = mp.value("walk_motor_max_current_ma", data_.motor_params.walk_motor_max_current_ma);
+      data_.motor_params.brush_motor_max_current_ma = mp.value("brush_motor_max_current_ma", data_.motor_params.brush_motor_max_current_ma);
+      data_.motor_params.windproof_motor_max_current_ma = mp.value("windproof_motor_max_current_ma", data_.motor_params.windproof_motor_max_current_ma);
+      data_.motor_params.walk_motor_warning_current_ma = mp.value("walk_motor_warning_current_ma", data_.motor_params.walk_motor_warning_current_ma);
+      data_.motor_params.brush_motor_warning_current_ma = mp.value("brush_motor_warning_current_ma", data_.motor_params.brush_motor_warning_current_ma);
+      data_.motor_params.windproof_motor_warning_current_ma = mp.value("windproof_motor_warning_current_ma", data_.motor_params.windproof_motor_warning_current_ma);
+      data_.motor_params.walk_motor_mileage_m = mp.value("walk_motor_mileage_m", data_.motor_params.walk_motor_mileage_m);
+      data_.motor_params.brush_motor_timeout_s = mp.value("brush_motor_timeout_s", data_.motor_params.brush_motor_timeout_s);
+      data_.motor_params.windproof_motor_timeout_s = mp.value("windproof_motor_timeout_s", data_.motor_params.windproof_motor_timeout_s);
+      data_.motor_params.reverse_time_s = mp.value("reverse_time_s", data_.motor_params.reverse_time_s);
+      data_.motor_params.protection_angle = mp.value("protection_angle", data_.motor_params.protection_angle);
+    }
+
+    if (d.contains("temp_voltage_protection") && d["temp_voltage_protection"].is_object()) {
+      const auto& tv = d["temp_voltage_protection"];
+      data_.temp_voltage_protection.protection_current_ma = tv.value("protection_current_ma", data_.temp_voltage_protection.protection_current_ma);
+      data_.temp_voltage_protection.high_temp_threshold = tv.value("high_temp_threshold", data_.temp_voltage_protection.high_temp_threshold);
+      data_.temp_voltage_protection.low_temp_threshold = tv.value("low_temp_threshold", data_.temp_voltage_protection.low_temp_threshold);
+      data_.temp_voltage_protection.protection_temp = tv.value("protection_temp", data_.temp_voltage_protection.protection_temp);
+      data_.temp_voltage_protection.recovery_temp = tv.value("recovery_temp", data_.temp_voltage_protection.recovery_temp);
+      data_.temp_voltage_protection.protection_voltage = tv.value("protection_voltage", data_.temp_voltage_protection.protection_voltage);
+      data_.temp_voltage_protection.recovery_voltage = tv.value("recovery_voltage", data_.temp_voltage_protection.recovery_voltage);
+      data_.temp_voltage_protection.protection_battery_level = tv.value("protection_battery_level", data_.temp_voltage_protection.protection_battery_level);
+      data_.temp_voltage_protection.limit_run_battery_level = tv.value("limit_run_battery_level", data_.temp_voltage_protection.limit_run_battery_level);
+      data_.temp_voltage_protection.recovery_battery_level = tv.value("recovery_battery_level", data_.temp_voltage_protection.recovery_battery_level);
+      data_.temp_voltage_protection.board_protection_temp = tv.value("board_protection_temp", data_.temp_voltage_protection.board_protection_temp);
+      data_.temp_voltage_protection.board_recovery_temp = tv.value("board_recovery_temp", data_.temp_voltage_protection.board_recovery_temp);
+    }
+
+    if (d.contains("local_time") && d["local_time"].is_object()) {
+      const auto& lt = d["local_time"];
+      data_.local_time.year = lt.value("year", data_.local_time.year);
+      data_.local_time.month = lt.value("month", data_.local_time.month);
+      data_.local_time.day = lt.value("day", data_.local_time.day);
+      data_.local_time.hour = lt.value("hour", data_.local_time.hour);
+      data_.local_time.minute = lt.value("minute", data_.local_time.minute);
+      data_.local_time.second = lt.value("second", data_.local_time.second);
+      data_.local_time.weekday = lt.value("weekday", data_.local_time.weekday);
+    }
+
+    if (d.contains("environment_info") && d["environment_info"].is_object()) {
+      const auto& env = d["environment_info"];
+      data_.environment_info.sensor_temperature = env.value("sensor_temperature", data_.environment_info.sensor_temperature);
+      data_.environment_info.sensor_humidity = env.value("sensor_humidity", data_.environment_info.sensor_humidity);
+      data_.environment_info.ambient_temperature = env.value("ambient_temperature", data_.environment_info.ambient_temperature);
+      data_.environment_info.day_night_status = env.value("day_night_status", data_.environment_info.day_night_status);
+    }
+
+    if (d.contains("master_currents") && d["master_currents"].is_array()) {
+      data_.master_currents.clear();
+      for (const auto& value : d["master_currents"]) {
+        data_.master_currents.push_back(value.get<int>());
+      }
+    }
+
+    if (d.contains("slave_currents") && d["slave_currents"].is_array()) {
+      data_.slave_currents.clear();
+      for (const auto& value : d["slave_currents"]) {
+        data_.slave_currents.push_back(value.get<int>());
+      }
+    }
+
+    data_.position = d.value("position", data_.position);
+    data_.direction = d.value("direction", data_.direction);
+    data_.module_eui = d.value("module_eui", data_.module_eui);
+    data_.domestic_foreign_flag = d.value("domestic_foreign_flag", data_.domestic_foreign_flag);
+    data_.country_code = d.value("country_code", data_.country_code);
+    data_.region_code = d.value("region_code", data_.region_code);
+    data_.project_code = d.value("project_code", data_.project_code);
+    data_.board_humidity = d.value("board_humidity", data_.board_humidity);
+
+    return true;
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "[Robot " << robot_id_ << "] 读取数据快照失败: " << e.what();
+    return false;
+  }
+}
+
+std::string Robot::GetLastData() const {
+  nlohmann::json j;
+
+  j["robot_id"] = robot_id_;
+  j["publish_topic"] = publish_topic_;
+  j["subscribe_topic"] = subscribe_topic_;
+  j["sequence"] = sequence_.load();
+  j["report_interval_seconds"] = report_interval_seconds_;
+  j["running"] = IsRunning();
+
+  try {
+    j["data"] = nlohmann::json::parse(SerializeDataSnapshot());
+  } catch (...) {
+    j["data"] = nlohmann::json::object();
+  }
 
   return j.dump();
 }

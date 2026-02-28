@@ -89,10 +89,60 @@ window.closeModal = function() {
 
 // 全局函数：切换表单
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
+window.toggleScheduleParamsForm = () => ui.toggleForm('scheduleParamsFormContent', 'scheduleParamsCollapseIcon');
+window.toggleParkingPositionForm = () => ui.toggleForm('parkingPositionFormContent', 'parkingPositionCollapseIcon');
+window.toggleMotorParamsForm = () => ui.toggleForm('motorParamsFormContent', 'motorParamsCollapseIcon');
+window.toggleBatteryParamsForm = () => ui.toggleForm('batteryParamsFormContent', 'batteryParamsCollapseIcon');
 window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseIcon');
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
+
+// 全局函数：发送电池参数设置请求
+window.sendBatteryParamsRequest = async function() {
+    const robotId = document.getElementById('batteryRobotId').value.trim();
+    const serialNumber = document.getElementById('batterySerial').value.trim();
+
+    const params = {
+        protection_current_ma: parseInt(document.getElementById('protectionCurrent').value),
+        high_temp_threshold: parseInt(document.getElementById('highTempThreshold').value),
+        low_temp_threshold: parseInt(document.getElementById('lowTempThreshold').value),
+        protection_temp: parseInt(document.getElementById('protectionTemp').value),
+        recovery_temp: parseInt(document.getElementById('recoveryTemp').value),
+        protection_voltage: parseInt(document.getElementById('protectionVoltage').value),
+        recovery_voltage: parseInt(document.getElementById('recoveryVoltage').value),
+        protection_battery_level: parseInt(document.getElementById('protectionBatteryLevel').value),
+        limit_run_battery_level: parseInt(document.getElementById('limitRunBatteryLevel').value),
+        recovery_battery_level: parseInt(document.getElementById('recoveryBatteryLevel').value)
+    };
+
+    await commands.sendBatteryParamsRequest(robotId, serialNumber, params);
+};
+
+// 全局函数：发送电机参数设置请求
+window.sendMotorParamsRequest = async function() {
+    const robotId = document.getElementById('motorRobotId').value.trim();
+    const serialNumber = document.getElementById('motorSerial').value.trim();
+
+    const params = {
+        walk_motor_speed: parseInt(document.getElementById('walkMotorSpeed').value),
+        brush_motor_speed: parseInt(document.getElementById('brushMotorSpeed').value),
+        windproof_motor_speed: parseInt(document.getElementById('windproofMotorSpeed').value),
+        walk_motor_max_current_ma: parseInt(document.getElementById('walkMotorMaxCurrent').value),
+        brush_motor_max_current_ma: parseInt(document.getElementById('brushMotorMaxCurrent').value),
+        windproof_motor_max_current_ma: parseInt(document.getElementById('windproofMotorMaxCurrent').value),
+        walk_motor_warning_current_ma: parseInt(document.getElementById('walkMotorWarningCurrent').value),
+        brush_motor_warning_current_ma: parseInt(document.getElementById('brushMotorWarningCurrent').value),
+        windproof_motor_warning_current_ma: parseInt(document.getElementById('windproofMotorWarningCurrent').value),
+        walk_motor_mileage_m: parseInt(document.getElementById('walkMotorMileage').value),
+        brush_motor_timeout_s: parseInt(document.getElementById('brushMotorTimeout').value),
+        windproof_motor_timeout_s: parseInt(document.getElementById('windproofMotorTimeout').value),
+        reverse_time_s: parseInt(document.getElementById('reverseTime').value),
+        protection_angle: parseInt(document.getElementById('protectionAngle').value)
+    };
+
+    await commands.sendMotorParamsRequest(robotId, serialNumber, params);
+};
 
 // 全局函数：发送定时启动请求
 window.sendScheduleRequest = async function() {
@@ -105,6 +155,33 @@ window.sendScheduleRequest = async function() {
     const runCount = parseInt(document.getElementById('scheduleRunCount').value);
 
     await commands.sendScheduleRequest(robotId, serialNumber, scheduleId, weekday, hour, minute, runCount);
+};
+
+// 全局函数：发送定时设置请求(A2)
+window.sendScheduleParamsRequest = async function() {
+    const robotId = document.getElementById('scheduleParamsRobotId').value.trim();
+    const serialNumber = document.getElementById('scheduleParamsSerial').value.trim();
+
+    const tasks = [];
+    for (let i = 1; i <= 7; i++) {
+        tasks.push({
+            weekday: parseInt(document.getElementById(`a2Weekday${i}`).value),
+            hour: parseInt(document.getElementById(`a2Hour${i}`).value),
+            minute: parseInt(document.getElementById(`a2Minute${i}`).value),
+            run_count: parseInt(document.getElementById(`a2RunCount${i}`).value)
+        });
+    }
+
+    await commands.sendScheduleParamsRequest(robotId, serialNumber, tasks);
+};
+
+// 全局函数：发送停机位设置请求(A3)
+window.sendParkingPositionRequest = async function() {
+    const robotId = document.getElementById('parkingRobotId').value.trim();
+    const serialNumber = document.getElementById('parkingSerial').value.trim();
+    const parkingPosition = parseInt(document.getElementById('parkingPosition').value);
+
+    await commands.sendParkingPositionRequest(robotId, serialNumber, parkingPosition);
 };
 
 // 全局函数：发送启动请求

@@ -39,9 +39,11 @@ target_link_libraries(robot PRIVATE httplib::httplib)
 
 - 端口: 默认8080 (可在数据库中配置)
 - 前端页面: http://localhost:8080
-- 前端文件位置: web/ 文件夹（index.html, style.css, app.js）
+- 前端文件位置: web/ 文件夹（html/index.html, css/, js/）
 - API端点:
   - GET /api/robots - 获取所有机器人列表
   - POST /api/robots - 添加机器人
   - DELETE /api/robots/{id} - 删除机器人
   - GET /api/robots/{id}/data - 获取机器人详细数据
+  - GET /api/robots/{id}/alarms?type=id|serial - 获取机器人告警配置
+  - PATCH /api/robots/{id}/alarms?type=id|serial - 设置机器人告警

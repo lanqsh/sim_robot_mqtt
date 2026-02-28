@@ -79,6 +79,46 @@ export async function sendScheduleStartRequest(identifier, type, params) {
     return await response.json();
 }
 
+// 发送电机参数设置请求
+export async function sendMotorParamsRequest(identifier, type, params) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/motor_params?type=${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 发送电池参数设置请求
+export async function sendBatteryParamsRequest(identifier, type, params) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/battery_params?type=${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 发送定时设置请求
+export async function sendScheduleParamsRequest(identifier, type, params) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/schedule_params?type=${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 发送停机位设置请求
+export async function sendParkingPositionRequest(identifier, type, params) {
+    const response = await fetch(`${API_BASE}/api/robots/${identifier}/parking_position?type=${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
 // 发送启动请求
 export async function sendStartRequest(identifier, type) {
     const response = await fetch(`${API_BASE}/api/robots/${identifier}/start?type=${type}`, {
