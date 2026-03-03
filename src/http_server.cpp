@@ -12,6 +12,7 @@
 
 #include "config_db.h"
 #include "mqtt_manager.h"
+#include "version.h"
 
 // 使用cpp-httplib库
 #define CPPHTTPLIB_OPENSSL_SUPPORT
@@ -77,7 +78,7 @@ void HttpServer::ServerThreadFunc() {
   // OPTIONS请求处理（预检请求）
   svr.Options(".*", [](const httplib::Request&, httplib::Response& res) {
     res.set_header("Access-Control-Allow-Origin", "*");
-    res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS");
+    res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.set_header("Access-Control-Allow-Headers", "Content-Type");
     res.status = 204;
   });
@@ -127,7 +128,7 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 获取所有机器人列表
-  svr.Get("/api/robots", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Get("/api/v1/robots/get", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       auto all_robots = config_db_->GetAllRobots();
 
@@ -192,6 +193,7 @@ void HttpServer::ServerThreadFunc() {
       };
 
       res.set_content(response.dump(), "application/json");
+
       LOG(INFO) << "API: 获取机器人列表, 页: " << page << "/" << totalPages << ", 总数: " << total;
     } catch (const std::exception& e) {
       LOG(ERROR) << "获取机器人列表失败: " << e.what();
@@ -204,7 +206,7 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 添加机器人
-  svr.Post("/api/robots", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Post("/api/v1/robots/add", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       json body = json::parse(req.body);
       std::string robot_name = body.value("robot_name", "");
@@ -226,8 +228,25 @@ void HttpServer::ServerThreadFunc() {
         return;
       }
 
-      // 自动生成UUID作为robot_id
-      std::string robot_id = GenerateUUID();
+      // 处理 robot_id：有则校验唯一性，无则自动生成
+      std::string robot_id;
+      if (body.contains("robot_id") && !body["robot_id"].get<std::string>().empty()) {
+        robot_id = body["robot_id"].get<std::string>();
+        // 检查 robot_id 是否已存在
+        auto all_robots = config_db_->GetAllRobots();
+        for (const auto& r : all_robots) {
+          if (r.robot_id == robot_id) {
+            json error;
+            error["success"] = false;
+            error["error"] = "robot_id \"" + robot_id + "\" 已存在，请使用其他 robot_id";
+            res.status = 400;
+            res.set_content(error.dump(), "application/json");
+            return;
+          }
+        }
+      } else {
+        robot_id = GenerateUUID();
+      }
 
       // 添加到数据库
       bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, true);
@@ -259,9 +278,9 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 删除机器人
-  svr.Delete(R"(/api/robots/([^/]+))", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Post("/api/v1/robots/delete", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string robot_id = req.matches[1];
+      std::string robot_id = req.get_param_value("robot_id");
 
       // 从MQTT管理器移除
       mqtt_manager_->RemoveRobot(robot_id);
@@ -292,9 +311,9 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 更新机器人状态（启用/禁用）
-  svr.Patch(R"(/api/robots/([^/]+)/status)", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Post("/api/v1/robots/status", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string robot_id = req.matches[1];
+      std::string robot_id = req.get_param_value("robot_id");
       json body = json::parse(req.body);
 
       if (!body.contains("enabled")) {
@@ -343,7 +362,7 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 批量添加机器人
-  svr.Post("/api/robots/batch", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Post("/api/v1/robots/batch_add", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       json body = json::parse(req.body);
 
@@ -425,7 +444,7 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 批量删除机器人
-  svr.Post("/api/robots/batch-delete", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Post("/api/v1/robots/batch_delete", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       json body = json::parse(req.body);
 
@@ -475,9 +494,25 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 获取机器人详细数据
-  svr.Get(R"(/api/robots/([^/]+)/data)", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Get("/api/v1/robots/data", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string robot_id = req.matches[1];
+      std::string identifier = req.get_param_value("identifier");
+      std::string type = req.get_param_value("type");
+      std::string robot_id = identifier;
+
+      if (type == "serial") {
+        int serial_number = std::stoi(identifier);
+        robot_id = config_db_->GetRobotIdBySerial(serial_number);
+        if (robot_id.empty()) {
+          json error;
+          error["success"] = false;
+          error["error"] = "未找到序号为 " + identifier + " 的机器人";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (robot) {
@@ -516,9 +551,9 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 获取机器人告警
-  svr.Get(R"(/api/robots/([^/]+)/alarms)", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Get("/api/v1/robots/get_alarms", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string identifier = req.matches[1];
+      std::string identifier = req.get_param_value("identifier");
       std::string type = req.get_param_value("type");
       std::string robot_id = identifier;
 
@@ -566,9 +601,9 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // API: 设置机器人告警
-  svr.Patch(R"(/api/robots/([^/]+)/alarms)", [this](const httplib::Request& req, httplib::Response& res) {
+  svr.Post("/api/v1/robots/set_alarms", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string identifier = req.matches[1];
+      std::string identifier = req.get_param_value("identifier");
       json body = json::parse(req.body);
 
       // 判断是通过ID还是序号查找
@@ -634,9 +669,9 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/robots/{id}/schedule_start - 发送定时启动请求
-  svr.Post(R"(/api/robots/([^/]+)/motor_params)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  // POST /api/v1/robots/motor_params - 发送电机参数设置请求
+  svr.Post("/api/v1/robots/motor_params", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     try {
       json body = json::parse(req.body);
@@ -727,8 +762,8 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  svr.Post(R"(/api/robots/([^/]+)/battery_params)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  svr.Post("/api/v1/robots/battery_params", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     try {
       json body = json::parse(req.body);
@@ -805,8 +840,8 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  svr.Post(R"(/api/robots/([^/]+)/schedule_params)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  svr.Post("/api/v1/robots/schedule_params", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     try {
       json body = json::parse(req.body);
@@ -897,8 +932,8 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  svr.Post(R"(/api/robots/([^/]+)/parking_position)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  svr.Post("/api/v1/robots/parking_position", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     try {
       json body = json::parse(req.body);
@@ -958,9 +993,9 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/robots/{id}/schedule_start - 发送定时启动请求
-  svr.Post(R"(/api/robots/([^/]+)/schedule_start)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  // POST /api/v1/robots/schedule_start - 发送定时启动请求
+  svr.Post("/api/v1/robots/schedule_start", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     try {
       // 解析请求体
@@ -1037,9 +1072,9 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/robots/{id}/start - 发送启动请求
-  svr.Post(R"(/api/robots/([^/]+)/start)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  // POST /api/v1/robots/start - 发送启动请求
+  svr.Post("/api/v1/robots/start", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     try {
       // 判断是通过ID还是序号查找
@@ -1092,9 +1127,9 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/robots/:id/time_sync - 发送校时请求
-  svr.Post(R"(/api/robots/([^/]+)/time_sync)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  // POST /api/v1/robots/time_sync - 发送校时请求
+  svr.Post("/api/v1/robots/time_sync", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     // 获取查询参数type（id或serial）
     std::string type = "id";  // 默认为id
@@ -1159,9 +1194,9 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/robots/:id/lora_clean_settings - 发送Lora参数&清扫设置上报
-  svr.Post(R"(/api/robots/([^/]+)/lora_clean_settings)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  // POST /api/v1/robots/lora_clean_settings - 发送Lora参数&清扫设置上报
+  svr.Post("/api/v1/robots/lora_clean_settings", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     // 获取查询参数type（id或serial）
     std::string type = "id";  // 默认为id
@@ -1226,9 +1261,9 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/robots/:id/robot_data - 发送机器人数据上报
-  svr.Post(R"(/api/robots/([^/]+)/robot_data)", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.matches[1];
+  // POST /api/v1/robots/robot_data - 发送机器人数据上报
+  svr.Post("/api/v1/robots/robot_data", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string identifier = req.get_param_value("identifier");
 
     // 获取查询参数type（id或serial）
     std::string type = "id";  // 默认为id
@@ -1285,6 +1320,91 @@ void HttpServer::ServerThreadFunc() {
 
     } catch (const std::exception& e) {
       LOG(ERROR) << "发送机器人数据上报失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // ─── 系统配置：定时上报间隔 ─────────────────────────────────────────────
+
+  // GET /api/v1/system/version - 获取后端版本号
+  svr.Get("/api/v1/system/version", [](const httplib::Request&, httplib::Response& res) {
+    json response;
+    response["success"] = true;
+    response["version"] = APP_VERSION_STR;
+    response["major"]   = APP_VERSION_MAJOR;
+    response["minor"]   = APP_VERSION_MINOR;
+    response["patch"]   = APP_VERSION_PATCH;
+    res.set_content(response.dump(), "application/json");
+  });
+
+  // GET /api/v1/system/report_intervals - 获取三类上报间隔配置
+  svr.Get("/api/v1/system/report_intervals", [this](const httplib::Request&, httplib::Response& res) {
+    try {
+      json response;
+      response["success"] = true;
+      response["robot_data_report_interval"]   = config_db_->GetIntValue("robot_data_report_interval", 600);
+      response["motor_params_report_interval"] = config_db_->GetIntValue("motor_params_report_interval", 3600);
+      response["lora_clean_report_interval"]   = config_db_->GetIntValue("lora_clean_report_interval", 3600);
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/system/report_intervals - 更新三类上报间隔配置（并实时生效）
+  svr.Post("/api/v1/system/report_intervals", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      json body = json::parse(req.body);
+
+      int robot_data_s   = body.value("robot_data_report_interval", config_db_->GetIntValue("robot_data_report_interval", 600));
+      int motor_params_s = body.value("motor_params_report_interval", config_db_->GetIntValue("motor_params_report_interval", 3600));
+      int lora_clean_s   = body.value("lora_clean_report_interval", config_db_->GetIntValue("lora_clean_report_interval", 3600));
+
+      if (robot_data_s < 10 || motor_params_s < 10 || lora_clean_s < 10) {
+        json error;
+        error["success"] = false;
+        error["error"] = "间隔最小值为10秒";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      bool ok = config_db_->SetValue("robot_data_report_interval",   std::to_string(robot_data_s))
+             && config_db_->SetValue("motor_params_report_interval", std::to_string(motor_params_s))
+             && config_db_->SetValue("lora_clean_report_interval",   std::to_string(lora_clean_s));
+
+      if (!ok) {
+        json error;
+        error["success"] = false;
+        error["error"] = "数据库写入失败";
+        res.status = 500;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 实时应用到所有已运行的机器人
+      mqtt_manager_->UpdateAllRobotsReportIntervals(robot_data_s, motor_params_s, lora_clean_s);
+
+      json response;
+      response["success"] = true;
+      response["message"] = "上报间隔已更新并实时生效";
+      response["robot_data_report_interval"]   = robot_data_s;
+      response["motor_params_report_interval"] = motor_params_s;
+      response["lora_clean_report_interval"]   = lora_clean_s;
+      res.set_content(response.dump(), "application/json");
+
+      LOG(INFO) << "上报间隔已更新 - 机器人数据:" << robot_data_s
+                << "s, 电机参数:" << motor_params_s << "s, Lora&清扫:" << lora_clean_s << "s";
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "更新上报间隔失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();

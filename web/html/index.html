@@ -31,6 +31,8 @@
                                placeholder="序号（可选）" style="width: 120px;">
                         <input type="text" id="robotName" name="robotName"
                                placeholder="机器人名称（可选）" style="width: 180px;">
+                        <input type="text" id="robotIdInput" name="robotIdInput"
+                               placeholder="robot_id（可选，不填自动生成）" style="width: 220px;">
                         <div class="form-spacer"></div>
                         <button type="submit" class="btn btn-success">发送请求</button>
                     </div>
@@ -264,6 +266,31 @@
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendTimeSyncRequest()">发送请求</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- 定时上报间隔配置区域 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleReportIntervalsForm()">
+                <h2>定时数据上报间隔配置</h2>
+                <span class="collapse-icon" id="reportIntervalsCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="reportIntervalsContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form" style="align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <label style="font-weight:500; white-space:nowrap;">机器人数据上报间隔 (秒)：</label>
+                    <input type="number" id="robotDataInterval" min="10" placeholder="默认600秒" style="width: 130px;">
+
+                    <label style="font-weight:500; white-space:nowrap;">电机参数上报间隔 (秒)：</label>
+                    <input type="number" id="motorParamsInterval" min="10" placeholder="默认3600秒" style="width: 130px;">
+
+                    <label style="font-weight:500; white-space:nowrap;">Lora参数&清扫设置上报间隔 (秒)：</label>
+                    <input type="number" id="loraCleanInterval" min="10" placeholder="默认3600秒" style="width: 130px;">
+
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-secondary" onclick="loadReportIntervals()">&#8635; 读取当前</button>
+                    <button class="btn btn-success" onclick="saveReportIntervals()">&#10003; 保存并生效</button>
+                </div>
+                <p style="margin: 8px 16px 0; font-size: 13px; color: #666;">说明：修改后将实时应用到所有已运行机器人，同时写入数据库（新和机器人采用新间隔）。最小值 10 秒。</p>
             </div>
         </div>
 

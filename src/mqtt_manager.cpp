@@ -56,9 +56,20 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
   // 设置机器人的主题
   robot->SetTopics(publish_topic, subscribe_topic);
 
-  // 设置上报间隔
-  int report_interval = config_db_->GetIntValue("publish_interval", 10);
-  robot->SetReportInterval(report_interval);
+  // 读取三类数据的上报间隔配置
+  int robot_data_interval = config_db_->GetIntValue("robot_data_report_interval", 600);
+  int motor_params_interval = config_db_->GetIntValue("motor_params_report_interval", 3600);
+  int lora_clean_interval = config_db_->GetIntValue("lora_clean_report_interval", 3600);
+
+  // 记录机器人索引，由 Robot 内部在线程启动时实时计算错峰偏移
+  size_t robot_index;
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    robot_index = robots_.size();
+  }
+
+  robot->SetReportIntervals(robot_data_interval, motor_params_interval, lora_clean_interval);
+  robot->SetRobotIndex(static_cast<int>(robot_index));
 
   // 设置MQTT管理器（启动上报线程）
   robot->SetMqttManager(shared_from_this());
@@ -76,6 +87,9 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
   LOG(INFO) << "添加机器人: " << robot_id;
   LOG(INFO) << "  发布主题: " << publish_topic;
   LOG(INFO) << "  订阅主题: " << subscribe_topic;
+  LOG(INFO) << "  上报间隔 - 机器人数据:" << robot_data_interval
+            << "s, 电机参数:" << motor_params_interval
+            << "s, Lora&清扫:" << lora_clean_interval << "s [索引" << robot_index << "]";
 
   // 订阅该机器人的主题
   try {
@@ -129,9 +143,20 @@ void MqttManager::AddRobot(const std::string& robot_id) {
             << ", FC=0x" << alarms.alarm_fc
             << ", FD=0x" << alarms.alarm_fd << std::dec;
 
-  // 设置上报间隔
-  int report_interval = config_db_->GetIntValue("publish_interval", 10);
-  robot->SetReportInterval(report_interval);
+  // 读取三类数据的上报间隔配置
+  int robot_data_interval = config_db_->GetIntValue("robot_data_report_interval", 600);
+  int motor_params_interval = config_db_->GetIntValue("motor_params_report_interval", 3600);
+  int lora_clean_interval = config_db_->GetIntValue("lora_clean_report_interval", 3600);
+
+  // 记录机器人索引，由 Robot 内部在线程启动时实时计算错峰偏移
+  size_t robot_index;
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    robot_index = robots_.size();
+  }
+
+  robot->SetReportIntervals(robot_data_interval, motor_params_interval, lora_clean_interval);
+  robot->SetRobotIndex(static_cast<int>(robot_index));
 
   // 设置ConfigDb（用于告警持久化）
   robot->SetConfigDb(config_db_);
@@ -152,6 +177,9 @@ void MqttManager::AddRobot(const std::string& robot_id) {
   LOG(INFO) << "添加机器人: " << robot_id;
   LOG(INFO) << "  发布主题: " << publish_topic;
   LOG(INFO) << "  订阅主题: " << subscribe_topic;
+  LOG(INFO) << "  上报间隔 - 机器人数据:" << robot_data_interval
+            << "s, 电机参数:" << motor_params_interval
+            << "s, Lora&清扫:" << lora_clean_interval << "s [索引" << robot_index << "]";
 
   // 订阅该机器人的主题
   try {
@@ -268,6 +296,22 @@ bool MqttManager::Run(int keepalive) {
   receiver_thread_ = std::thread(&MqttManager::ReceiverThreadFunc, this);
 
   return true;
+}
+
+int MqttManager::GetRobotCount() {
+  std::lock_guard<std::mutex> lock(robots_mutex_);
+  return static_cast<int>(robots_.size());
+}
+
+void MqttManager::UpdateAllRobotsReportIntervals(int robot_data_s, int motor_params_s, int lora_clean_s) {
+  std::lock_guard<std::mutex> lock(robots_mutex_);
+  LOG(INFO) << "实时更新所有机器人上报间隔 - 机器人数据:" << robot_data_s
+            << "s, 电机参数:" << motor_params_s << "s, Lora&清扫:" << lora_clean_s << "s";
+  for (auto& [id, robot] : robots_) {
+    // 直接修改成员变量，上报线程每 tick 读取，自动生效，无需重启
+    robot->SetReportIntervals(robot_data_s, motor_params_s, lora_clean_s);
+    LOG(INFO) << "  已更新机器人: " << id;
+  }
 }
 
 void MqttManager::Stop() {

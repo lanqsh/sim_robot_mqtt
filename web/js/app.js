@@ -97,6 +97,60 @@ window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseI
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
+window.toggleReportIntervalsForm = async function() {
+    const content = document.getElementById('reportIntervalsContent');
+    const wasHidden = content.style.display === 'none' || content.style.display === '';
+    ui.toggleForm('reportIntervalsContent', 'reportIntervalsCollapseIcon');
+    if (wasHidden) await window.loadReportIntervals();
+};
+
+// 全局函数：读取定时上报间隔配置
+window.loadReportIntervals = async function() {
+    try {
+        const result = await api.getReportIntervals();
+        if (result.success) {
+            document.getElementById('robotDataInterval').value = result.robot_data_report_interval;
+            document.getElementById('motorParamsInterval').value = result.motor_params_report_interval;
+            document.getElementById('loraCleanInterval').value = result.lora_clean_report_interval;
+        } else {
+            alert('读取失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('读取上报间隔失败:', error);
+        alert('读取失败: ' + error.message);
+    }
+};
+
+// 全局函数：保存定时上报间隔配置
+window.saveReportIntervals = async function() {
+    const robotDataS   = parseInt(document.getElementById('robotDataInterval').value);
+    const motorParamsS = parseInt(document.getElementById('motorParamsInterval').value);
+    const loraCleanS   = parseInt(document.getElementById('loraCleanInterval').value);
+
+    if (isNaN(robotDataS) || isNaN(motorParamsS) || isNaN(loraCleanS)) {
+        alert('请填写所有间隔值');
+        return;
+    }
+    if (robotDataS < 10 || motorParamsS < 10 || loraCleanS < 10) {
+        alert('间隔最小值为10秒');
+        return;
+    }
+
+    try {
+        ui.showLoading('正在保存上报间隔配置...');
+        const result = await api.setReportIntervals(robotDataS, motorParamsS, loraCleanS);
+        ui.hideLoading();
+        if (result.success) {
+            alert(`上报间隔已保存并实时生效！\n\n机器人数据: ${robotDataS}s\n电机参数: ${motorParamsS}s\nLora&清扫设置: ${loraCleanS}s`);
+        } else {
+            alert('保存失败: ' + result.error);
+        }
+    } catch (error) {
+        ui.hideLoading();
+        console.error('保存上报间隔失败:', error);
+        alert('保存失败: ' + error.message);
+    }
+};
 
 // 全局函数：发送电池参数设置请求
 window.sendBatteryParamsRequest = async function() {
@@ -307,8 +361,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const robotName = document.getElementById('robotName').value.trim();
         const serialNumber = parseInt(document.getElementById('serialNumber').value);
+        const robotId = document.getElementById('robotIdInput').value.trim();
 
-        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots);
+        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId);
         if (success) {
             document.getElementById('addRobotForm').reset();
         }

@@ -69,6 +69,12 @@ class MqttManager : public virtual mqtt::callback,
   // 停止运行（停止后台线程并断开）
   void Stop();
 
+  // 实时更新所有运行中机器人的三类上报间隔并重启其上报线程
+  void UpdateAllRobotsReportIntervals(int robot_data_s, int motor_params_s, int lora_clean_s);
+
+  // 获取当前管理的机器人数量（供 Robot 内部计算错峰偏移用）
+  int GetRobotCount();
+
   // MQTT回调
   void connection_lost(const std::string& cause) override;
   void message_arrived(mqtt::const_message_ptr msg) override;
