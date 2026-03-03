@@ -140,7 +140,10 @@ void ConfigDb::InsertDefaultConfig() {
       ('publish_interval', '10'),
       ('http_port', '8080'),
       ('publish_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/event/up'),
-      ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down')
+      ('subscribe_topic', 'application/902d7d6e-d3ac-44c0-a128-6d6743ba2b59/device/{robot_id}/command/down'),
+      ('robot_data_report_interval', '600'),
+      ('motor_params_report_interval', '3600'),
+      ('lora_clean_report_interval', '3600')
     )";
 
     char* err_msg = nullptr;
@@ -151,7 +154,19 @@ void ConfigDb::InsertDefaultConfig() {
       LOG(INFO) << "默认MQTT配置插入成功";
     }
   } else {
-    LOG(INFO) << "mqtt_config表已有配置，跳过配置插入";
+    // 已有配置时，通过 INSERT OR IGNORE 补充新增的上报间隔配置项（兼容旧数据库）
+    LOG(INFO) << "mqtt_config表已有配置，检查并补充新增配置项...";
+    const char* new_keys_sql = R"(
+      INSERT OR IGNORE INTO mqtt_config (key, value) VALUES
+      ('robot_data_report_interval', '600'),
+      ('motor_params_report_interval', '3600'),
+      ('lora_clean_report_interval', '3600')
+    )";
+    char* err_msg = nullptr;
+    if (sqlite3_exec(db_, new_keys_sql, nullptr, nullptr, &err_msg) != SQLITE_OK) {
+      LOG(ERROR) << "补充新增上报间隔配置失败: " << err_msg;
+      sqlite3_free(err_msg);
+    }
   }
 
   // 检查robots表
@@ -208,6 +223,25 @@ std::string ConfigDb::GetValue(const std::string& key,
 int ConfigDb::GetIntValue(const std::string& key, int default_value) {
   std::string value = GetValue(key);
   return value.empty() ? default_value : std::stoi(value);
+}
+
+bool ConfigDb::SetValue(const std::string& key, const std::string& value) {
+  const char* sql = "INSERT OR REPLACE INTO mqtt_config (key, value) VALUES (?, ?)";
+  sqlite3_stmt* stmt;
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    LOG(ERROR) << "SetValue prepare failed: " << sqlite3_errmsg(db_);
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, value.c_str(), -1, SQLITE_STATIC);
+  bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+  sqlite3_finalize(stmt);
+  if (ok) {
+    LOG(INFO) << "SetValue: " << key << " = " << value;
+  } else {
+    LOG(ERROR) << "SetValue failed: " << sqlite3_errmsg(db_);
+  }
+  return ok;
 }
 
 std::vector<std::string> ConfigDb::GetEnabledRobots() {

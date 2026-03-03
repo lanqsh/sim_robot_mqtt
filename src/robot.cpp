@@ -216,6 +216,279 @@ void Robot::HandleMessage(const std::string& data) {
 
         // 根据标识符处理不同的命令
         switch (identifier) {
+          case 0xC2: {  // 查询指令：本地时间&环境信息
+            LOG(INFO) << "    命令类型: 查询本地时间&环境信息";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略查询指令";
+              break;
+            }
+
+            // 查询指令仅包含标识符
+            if (frame.data.size() != 1) {
+              LOG(ERROR) << "    查询指令数据长度错误, 期望1, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复查询指令";
+              break;
+            }
+
+            // 更新时间字段后再回复，确保返回当前本地时间
+            UpdateTimeFields();
+
+            // 构造响应数据域：标识(0xC2) + 本地时间(7字节) + 环境信息(7字节)
+            // 环境信息按协议：温度/湿度/环境温度各2字节 + 白夜状态1字节
+            std::vector<uint8_t> response_data;
+            response_data.reserve(15);
+            response_data.push_back(0xC2);
+
+            int year = data_.local_time.year % 100;
+            response_data.push_back(static_cast<uint8_t>(year & 0xFF));
+            response_data.push_back(static_cast<uint8_t>(data_.local_time.month));
+            response_data.push_back(static_cast<uint8_t>(data_.local_time.day));
+            response_data.push_back(static_cast<uint8_t>(data_.local_time.hour));
+            response_data.push_back(static_cast<uint8_t>(data_.local_time.minute));
+            response_data.push_back(static_cast<uint8_t>(data_.local_time.second));
+            response_data.push_back(static_cast<uint8_t>(data_.local_time.weekday));
+
+            uint16_t sensor_temp =
+                static_cast<uint16_t>(data_.environment_info.sensor_temperature);
+            uint16_t sensor_humidity =
+                static_cast<uint16_t>(data_.environment_info.sensor_humidity);
+            uint16_t ambient_temp =
+                static_cast<uint16_t>(data_.environment_info.ambient_temperature);
+
+            response_data.push_back(static_cast<uint8_t>(sensor_temp >> 8));
+            response_data.push_back(static_cast<uint8_t>(sensor_temp & 0xFF));
+            response_data.push_back(static_cast<uint8_t>(sensor_humidity >> 8));
+            response_data.push_back(static_cast<uint8_t>(sensor_humidity & 0xFF));
+            response_data.push_back(static_cast<uint8_t>(ambient_temp >> 8));
+            response_data.push_back(static_cast<uint8_t>(ambient_temp & 0xFF));
+            response_data.push_back(
+                static_cast<uint8_t>(data_.environment_info.day_night_status));
+
+            // 回复沿用请求中的编号与帧计数
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    查询回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+            break;
+          }
+
+          case 0xC1: {  // 查询指令：电机参数&温度电压参数
+          LOG(INFO) << "    命令类型: 查询电机参数&温度电压参数";
+
+          if (frame.control_code != CONTROL_CODE_UPLINK) {
+            LOG(INFO) << "    非平台下发控制码(0x"
+                << std::hex << static_cast<int>(frame.control_code)
+                << ")，忽略查询指令";
+            break;
+          }
+
+          // 查询指令仅包含标识符
+          if (frame.data.size() != 1) {
+            LOG(ERROR) << "    查询指令数据长度错误, 期望1, 实际: "
+                 << frame.data.size();
+            break;
+          }
+
+          auto mqtt_manager = mqtt_manager_.lock();
+          if (!mqtt_manager) {
+            LOG(ERROR) << "    MQTT管理器未初始化，无法回复查询指令";
+            break;
+          }
+
+          // 构造响应数据域：标识(0xC1) + 电机参数(23字节) + 温度电压参数(15字节)
+          std::vector<uint8_t> response_data;
+          response_data.reserve(39);
+          response_data.push_back(0xC1);
+
+          // 电机参数 (23字节)
+          response_data.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_speed));
+          response_data.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_speed));
+          response_data.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_speed));
+
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.walk_motor_max_current_ma >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.walk_motor_max_current_ma & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.brush_motor_max_current_ma >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.brush_motor_max_current_ma & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.windproof_motor_max_current_ma >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.windproof_motor_max_current_ma & 0xFF));
+
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.walk_motor_warning_current_ma >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.walk_motor_warning_current_ma & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.brush_motor_warning_current_ma >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.brush_motor_warning_current_ma & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.windproof_motor_warning_current_ma >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.windproof_motor_warning_current_ma & 0xFF));
+
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.walk_motor_mileage_m >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.walk_motor_mileage_m & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.brush_motor_timeout_s >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.brush_motor_timeout_s & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.windproof_motor_timeout_s >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.motor_params.windproof_motor_timeout_s & 0xFF));
+
+          response_data.push_back(static_cast<uint8_t>(data_.motor_params.reverse_time_s));
+          response_data.push_back(static_cast<uint8_t>(data_.motor_params.protection_angle));
+
+          // 温度电压参数 (15字节)
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.protection_current_ma >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.protection_current_ma & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.high_temp_threshold));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.low_temp_threshold));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.protection_temp));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.recovery_temp));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.protection_voltage));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.recovery_voltage));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.protection_battery_level));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.limit_run_battery_level));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.recovery_battery_level));
+
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.board_protection_temp >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.board_protection_temp & 0xFF));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.board_recovery_temp >> 8));
+          response_data.push_back(
+            static_cast<uint8_t>(data_.temp_voltage_protection.board_recovery_temp & 0xFF));
+
+          // 回复沿用请求中的编号与帧计数
+          std::vector<uint8_t> encoded =
+            protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                     frame.frame_count, response_data);
+          std::string base64_data = Protocol::BytesToBase64(encoded);
+          std::string payload = GenerateUplinkPayload(base64_data);
+          mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+          LOG(INFO) << "    查询回复已发送: "
+                << Protocol::BytesToHexString(encoded);
+          break;
+          }
+
+          case 0xC0: {  // 查询指令：Lora参数&清扫设置
+            LOG(INFO) << "    命令类型: 查询Lora参数&清扫设置";
+
+            if (frame.control_code != CONTROL_CODE_UPLINK) {
+              LOG(INFO) << "    非平台下发控制码(0x"
+                        << std::hex << static_cast<int>(frame.control_code)
+                        << ")，忽略查询指令";
+              break;
+            }
+
+            // 查询指令仅包含标识符
+            if (frame.data.size() != 1) {
+              LOG(ERROR) << "    查询指令数据长度错误, 期望1, 实际: "
+                         << frame.data.size();
+              break;
+            }
+
+            auto mqtt_manager = mqtt_manager_.lock();
+            if (!mqtt_manager) {
+              LOG(ERROR) << "    MQTT管理器未初始化，无法回复查询指令";
+              break;
+            }
+
+            // 构造响应数据域：标识(0xC0) + Lora参数 + 清扫设置
+            std::vector<uint8_t> response_data;
+            response_data.push_back(0xC0);
+
+            // Lora参数 (3字节)
+            response_data.push_back(static_cast<uint8_t>(data_.lora_params.power));
+            response_data.push_back(static_cast<uint8_t>(data_.lora_params.frequency));
+            response_data.push_back(static_cast<uint8_t>(data_.lora_params.rate));
+
+            // 机器人编号 (2字节)
+            uint16_t robot_num = 0;
+            try {
+              if (!data_.robot_number.empty()) {
+                robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+              }
+            } catch (...) {
+              robot_num = 0;
+            }
+            response_data.push_back(static_cast<uint8_t>(robot_num >> 8));
+            response_data.push_back(static_cast<uint8_t>(robot_num & 0xFF));
+
+            // 软件版本 (2字节)
+            uint8_t major_version = 1;
+            uint8_t minor_version = 0;
+            if (!data_.software_version.empty()) {
+              sscanf(data_.software_version.c_str(), "%hhu.%hhu", &major_version,
+                     &minor_version);
+            }
+            response_data.push_back(major_version);
+            response_data.push_back(minor_version);
+
+            // 启用/停用 + 保留 + 停机位 + 白天防误扫
+            response_data.push_back(0x00);
+            response_data.push_back(0x00);
+            response_data.push_back(static_cast<uint8_t>(data_.parking_position));
+            response_data.push_back(data_.daytime_scan_protect ? 0x01 : 0x00);
+
+            // 定时任务1-7 (每组4字节)
+            for (int i = 0; i < 7; ++i) {
+              const auto& task = data_.schedule_tasks[i];
+              response_data.push_back(static_cast<uint8_t>(task.weekday));
+              response_data.push_back(static_cast<uint8_t>(task.hour));
+              response_data.push_back(static_cast<uint8_t>(task.minute));
+              response_data.push_back(static_cast<uint8_t>(task.run_count));
+            }
+
+            // 回复沿用请求中的编号与帧计数
+            std::vector<uint8_t> encoded =
+                protocol_.Encode(CONTROL_CODE_DOWNLINK, frame.number,
+                                 frame.frame_count, response_data);
+            std::string base64_data = Protocol::BytesToBase64(encoded);
+            std::string payload = GenerateUplinkPayload(base64_data);
+            mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+            LOG(INFO) << "    查询回复已发送: "
+                      << Protocol::BytesToHexString(encoded);
+            break;
+          }
+
           case 0xA0: {  // 电机参数设置
             LOG(INFO) << "    命令类型: 电机参数设置";
 
@@ -705,8 +978,21 @@ void Robot::HandleMessage(const std::string& data) {
 }
 
 void Robot::SetReportInterval(int interval_seconds) {
-  report_interval_seconds_ = interval_seconds;
-  LOG(INFO) << "[Robot " << robot_id_ << "] 设置上报间隔为 " << interval_seconds << " 秒";
+  robot_data_report_interval_s_ = interval_seconds;
+  LOG(INFO) << "[Robot " << robot_id_ << "] 设置机器人数据上报间隔为 " << interval_seconds << " 秒";
+}
+
+void Robot::SetReportIntervals(int robot_data_s, int motor_params_s, int lora_clean_s) {
+  robot_data_report_interval_s_ = robot_data_s;
+  motor_params_report_interval_s_ = motor_params_s;
+  lora_clean_report_interval_s_ = lora_clean_s;
+  LOG(INFO) << "[Robot " << robot_id_ << "] 设置上报间隔 - 机器人数据:" << robot_data_s
+            << "s, 电机参数:" << motor_params_s << "s, Lora&清扫设置:" << lora_clean_s << "s";
+}
+
+void Robot::SetRobotIndex(int index) {
+  robot_index_ = index;
+  LOG(INFO) << "[Robot " << robot_id_ << "] 设置机器人索引: " << index;
 }
 
 void Robot::StartReport() {
@@ -735,19 +1021,54 @@ void Robot::StopReport() {
 }
 
 void Robot::ReportThreadFunc() {
-  LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已启动，间隔: " << report_interval_seconds_ << "秒";
+  // 实时计算错峰偏移：索引 × 间隔 / 总数（在线程启动时从 MqttManager 获取总数）
+  int total_robots = 1;
+  if (auto mgr = mqtt_manager_.lock()) {
+    total_robots = mgr->GetRobotCount();
+    if (total_robots <= 0) total_robots = 1;
+  }
+  const int rd_offset_ticks = robot_index_ * robot_data_report_interval_s_    * 10 / total_robots;
+  const int mp_offset_ticks = robot_index_ * motor_params_report_interval_s_  * 10 / total_robots;
+  const int lc_offset_ticks = robot_index_ * lora_clean_report_interval_s_    * 10 / total_robots;
+
+  LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已启动 - 机器人数据:" << robot_data_report_interval_s_
+            << "s(+" << rd_offset_ticks / 10 << "s错峰), 电机参数:" << motor_params_report_interval_s_
+            << "s(+" << mp_offset_ticks / 10 << "s错峰), Lora&清扫:"
+            << lora_clean_report_interval_s_ << "s(+" << lc_offset_ticks / 10 << "s错峰)"
+            << " [索引" << robot_index_ << "/" << total_robots << "]";
+
+  // 各类型上报的计时器（初始为负数以实现错峰，累加到间隔ticks时触发）
+  int robot_data_ticks    = -rd_offset_ticks;
+  int motor_params_ticks  = -mp_offset_ticks;
+  int lora_clean_ticks    = -lc_offset_ticks;
 
   while (!stop_report_.load()) {
-    // 等待配置的间隔时间
-    for (int i = 0; i < report_interval_seconds_ * 10 && !stop_report_.load(); ++i) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     if (stop_report_.load()) break;
 
-    // 生成并发送机器人数据上报和清扫记录上报
-    SendRobotDataReport();
-    SendCleanRecordReport();
+    ++robot_data_ticks;
+    ++motor_params_ticks;
+    ++lora_clean_ticks;
+
+    // 每 tick 直接读成员变量，途中修改间隔立即生效
+    // 机器人数据上报
+    if (robot_data_ticks >= robot_data_report_interval_s_ * 10) {
+      robot_data_ticks = 0;
+      SendRobotDataReport();
+    }
+
+    // 电机参数上报
+    if (motor_params_ticks >= motor_params_report_interval_s_ * 10) {
+      motor_params_ticks = 0;
+      SendMotorParamsReport();
+    }
+
+    // Lora参数&清扫设置上报
+    if (lora_clean_ticks >= lora_clean_report_interval_s_ * 10) {
+      lora_clean_ticks = 0;
+      SendLoraAndCleanSettingsReport();
+    }
   }
 
   LOG(INFO) << "[Robot " << robot_id_ << "] 上报线程已停止";
@@ -1329,6 +1650,90 @@ void Robot::SendLoraAndCleanSettingsReport() {
   sequence_.fetch_add(1);
 }
 
+void Robot::SendMotorParamsReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送电机参数主动上报";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(0xE1) + 电机参数(23字节) + 温度电压参数(15字节)
+  std::vector<uint8_t> data_field;
+  data_field.reserve(39);
+  data_field.push_back(0xE1);  // 电机参数主动上报标识
+
+  // 电机参数 (23字节)
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_speed));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_speed));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_speed));
+
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_max_current_ma >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_max_current_ma & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_max_current_ma >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_max_current_ma & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_max_current_ma >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_max_current_ma & 0xFF));
+
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_warning_current_ma >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_warning_current_ma & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_warning_current_ma >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_warning_current_ma & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_warning_current_ma >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_warning_current_ma & 0xFF));
+
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_mileage_m >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.walk_motor_mileage_m & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_timeout_s >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.brush_motor_timeout_s & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_timeout_s >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.windproof_motor_timeout_s & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.reverse_time_s));
+  data_field.push_back(static_cast<uint8_t>(data_.motor_params.protection_angle));
+
+  // 温度电压参数 (15字节)
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.protection_current_ma >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.protection_current_ma & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.high_temp_threshold));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.low_temp_threshold));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.protection_temp));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.recovery_temp));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.protection_voltage));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.recovery_voltage));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.protection_battery_level));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.limit_run_battery_level));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.recovery_battery_level));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.board_protection_temp >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.board_protection_temp & 0xFF));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.board_recovery_temp >> 8));
+  data_field.push_back(static_cast<uint8_t>(data_.temp_voltage_protection.board_recovery_temp & 0xFF));
+
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  LOG(INFO) << "  Base64编码: " << base64_data;
+
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  电机参数主动上报已加入发送队列";
+
+  sequence_.fetch_add(1);
+}
+
 void Robot::SendRobotDataReport() {
   LOG(INFO) << "[Robot " << robot_id_ << "] 发送机器人数据上报";
 
@@ -1836,7 +2241,9 @@ std::string Robot::GetLastData() const {
   j["publish_topic"] = publish_topic_;
   j["subscribe_topic"] = subscribe_topic_;
   j["sequence"] = sequence_.load();
-  j["report_interval_seconds"] = report_interval_seconds_;
+  j["robot_data_report_interval_s"] = robot_data_report_interval_s_;
+  j["motor_params_report_interval_s"] = motor_params_report_interval_s_;
+  j["lora_clean_report_interval_s"] = lora_clean_report_interval_s_;
   j["running"] = IsRunning();
 
   try {

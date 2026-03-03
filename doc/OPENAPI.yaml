@@ -1,0 +1,1084 @@
+openapi: 3.0.3
+info:
+  title: Sim Robot MQTT HTTP API
+  version: 1.3.0
+  description: |
+    基于 `src/http_server.cpp` 整理的接口文档。
+    说明：
+    - 所有接口默认返回 `application/json`。
+    - `identifier` 可表示 `robot_id` 或 `serial_number`，通过查询参数 `type=id|serial` 控制。
+    - 部分控制类接口是“触发请求”，成功仅表示已下发到机器人处理流程。
+    - https://editor.swagger.io/ 可在线编辑和预览效果。
+servers:
+  - url: http://107.175.232.181:8080
+    description: 默认本地地址（端口由数据库配置 `http_port` 控制）
+tags:
+  - name: Robots
+    description: 机器人管理
+  - name: Alarms
+    description: 告警读写
+  - name: Commands
+    description: 控制/上报触发
+  - name: System
+    description: 系统全局配置
+paths:
+  /api/v1/robots/get:
+    get:
+      tags: [Robots]
+      summary: 获取机器人列表（分页）
+      parameters:
+        - name: page
+          in: query
+          description: 页码，最小 1
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: 每页数量，最小 1，最大 1000
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 20
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotListResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/add:
+    post:
+      tags: [Robots]
+      summary: 添加机器人
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRobotRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/batch_add:
+    post:
+      tags: [Robots]
+      summary: 批量添加机器人
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchCreateRobotsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchActionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/batch_delete:
+    post:
+      tags: [Robots]
+      summary: 批量删除机器人
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDeleteRobotsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchActionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/delete:
+    post:
+      tags: [Robots]
+      summary: 删除机器人
+      parameters:
+        - name: robot_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 机器人 UUID
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/status:
+    post:
+      tags: [Robots]
+      summary: 更新机器人启用状态
+      parameters:
+        - name: robot_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 机器人 UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRobotStatusRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/data:
+    get:
+      tags: [Robots]
+      summary: 获取机器人详细数据
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotDataResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/get_alarms:
+    get:
+      tags: [Alarms]
+      summary: 获取机器人告警
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAlarmsResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/robots/set_alarms:
+    post:
+      tags: [Alarms]
+      summary: 设置机器人告警
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAlarmsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/motor_params:
+    post:
+      tags: [Commands]
+      summary: 发送电机参数设置请求
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MotorParamsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/battery_params:
+    post:
+      tags: [Commands]
+      summary: 发送电池参数设置请求
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatteryParamsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/schedule_params:
+    post:
+      tags: [Commands]
+      summary: 发送定时设置请求
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleParamsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/parking_position:
+    post:
+      tags: [Commands]
+      summary: 发送停机位设置请求
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParkingPositionRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingPositionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/schedule_start:
+    post:
+      tags: [Commands]
+      summary: 发送定时启动请求
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleStartRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleStartResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/start:
+    post:
+      tags: [Commands]
+      summary: 发送启动请求
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/time_sync:
+    post:
+      tags: [Commands]
+      summary: 发送校时请求
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/lora_clean_settings:
+    post:
+      tags: [Commands]
+      summary: 发送 LoRa 参数与清扫设置上报
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/robot_data:
+    post:
+      tags: [Commands]
+      summary: 发送机器人数据上报
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/IdentifierTypeQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/system/version:
+    get:
+      tags: [System]
+      summary: 获取后端版本号
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemVersionResponse'
+
+  /api/v1/system/report_intervals:
+    get:
+      tags: [System]
+      summary: 获取三类定时上报间隔配置
+      description: 读取数据库中的三类数据上报间隔（秒）。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportIntervalsResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [System]
+      summary: 更新三类定时上报间隔配置（实时生效）
+      description: |
+        写入数据库并立即应用到所有已运行机器人的上报线程，每类最小值 10 秒。
+        无需重启上报线程，修改后下一个计时周期自动采用新间隔。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetReportIntervalsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportIntervalsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  parameters:
+    RobotIdPath:
+      name: robotId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 机器人ID（UUID字符串）
+    IdentifierPath:
+      name: identifier
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 机器人标识；当 `type=id` 时为 `robot_id`，当 `type=serial` 时为数字序号字符串
+    IdentifierQuery:
+      name: identifier
+      in: query
+      required: true
+      schema:
+        type: string
+      description: 机器人标识；当 `type=id` 时为 `robot_id`，当 `type=serial` 时为数字序号字符串
+    IdentifierTypeQuery:
+      name: type
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [id, serial]
+        default: id
+      description: 标识类型，默认为 `id`
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: 参数错误
+
+    BasicSuccessResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: 操作成功
+
+    BasicSuccessWithRobotResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessResponse'
+        - type: object
+          properties:
+            robot_id:
+              type: string
+              example: a1b2c3d4e5f67890
+
+    RobotItem:
+      type: object
+      required: [robot_id, robot_name, serial_number, enabled]
+      properties:
+        robot_id:
+          type: string
+          example: a1b2c3d4e5f67890
+        robot_name:
+          type: string
+          example: 清扫机器人-01
+        serial_number:
+          type: integer
+          example: 101
+        enabled:
+          type: boolean
+          example: true
+
+    Pagination:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 56
+        totalPages:
+          type: integer
+          example: 3
+
+    RobotStatistics:
+      type: object
+      required: [total, enabled, disabled]
+      properties:
+        total:
+          type: integer
+          example: 56
+        enabled:
+          type: integer
+          example: 43
+        disabled:
+          type: integer
+          example: 13
+
+    RobotListResponse:
+      type: object
+      required: [data, pagination, statistics]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RobotItem'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        statistics:
+          $ref: '#/components/schemas/RobotStatistics'
+
+    CreateRobotRequest:
+      type: object
+      properties:
+        robot_name:
+          type: string
+          description: 机器人名称
+          example: 清扫机器人-02
+        serial_number:
+          type: integer
+          description: 序号；`<=0` 时后端自动分配
+          example: 0
+        robot_id:
+          type: string
+          description: 可选；指定机器人ID，不填则后端自动生成16位十六进制ID，填写时不得与已有 robot_id 重复
+          example: a1b2c3d4e5f60001
+
+    CreateRobotResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessResponse'
+        - type: object
+          properties:
+            robot_id:
+              type: string
+              example: 8f9e7d6c5b4a3210
+
+    UpdateRobotStatusRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          example: true
+
+    BatchCreateRobotItem:
+      type: object
+      required: [robot_name, serial_number]
+      properties:
+        robot_name:
+          type: string
+          example: 清扫机器人-A
+        serial_number:
+          type: integer
+          example: 201
+        enabled:
+          type: boolean
+          default: true
+
+    BatchCreateRobotsRequest:
+      type: object
+      required: [robots]
+      properties:
+        robots:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchCreateRobotItem'
+
+    BatchDeleteRobotsRequest:
+      type: object
+      required: [robot_ids]
+      properties:
+        robot_ids:
+          type: array
+          items:
+            type: string
+            example: a1b2c3d4e5f67890
+
+    BatchActionResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessResponse'
+        - type: object
+          properties:
+            count:
+              type: integer
+              example: 3
+
+    RobotDataResponse:
+      type: object
+      required: [robot_id, status, last_data]
+      properties:
+        robot_id:
+          type: string
+          example: a1b2c3d4e5f67890
+        serial_number:
+          type: integer
+          description: 数据库中存在该机器人时返回
+          example: 101
+        robot_name:
+          type: string
+          description: 数据库中存在该机器人时返回
+          example: 清扫机器人-01
+        status:
+          type: string
+          enum: [running, stopped]
+          example: running
+        last_data:
+          type: string
+          description: |
+            `Robot::GetLastData()` 的 JSON 字符串（注意当前实现不是 JSON 对象，而是字符串）。
+            客户端如需结构化字段，应先对该字符串进行二次 JSON 解析。
+
+    GetAlarmsResponse:
+      type: object
+      required: [success, robot_id, alarm_fa, alarm_fb, alarm_fc, alarm_fd]
+      properties:
+        success:
+          type: boolean
+          example: true
+        robot_id:
+          type: string
+          example: a1b2c3d4e5f67890
+        alarm_fa:
+          type: integer
+          format: int64
+          example: 134217727
+        alarm_fb:
+          type: integer
+          format: int32
+          example: 2047
+        alarm_fc:
+          type: integer
+          format: int64
+          example: 2147483647
+        alarm_fd:
+          type: integer
+          format: int32
+          example: 31
+
+    UpdateAlarmsRequest:
+      type: object
+      description: 至少传一个告警字段
+      properties:
+        alarm_fa:
+          type: integer
+          format: int64
+          minimum: 0
+        alarm_fb:
+          type: integer
+          format: int32
+          minimum: 0
+        alarm_fc:
+          type: integer
+          format: int64
+          minimum: 0
+        alarm_fd:
+          type: integer
+          format: int32
+          minimum: 0
+
+    MotorParamsRequest:
+      type: object
+      required:
+        - walk_motor_speed
+        - brush_motor_speed
+        - windproof_motor_speed
+        - walk_motor_max_current_ma
+        - brush_motor_max_current_ma
+        - windproof_motor_max_current_ma
+        - walk_motor_warning_current_ma
+        - brush_motor_warning_current_ma
+        - windproof_motor_warning_current_ma
+        - walk_motor_mileage_m
+        - brush_motor_timeout_s
+        - windproof_motor_timeout_s
+        - reverse_time_s
+        - protection_angle
+      properties:
+        walk_motor_speed:
+          type: integer
+          minimum: 0
+          maximum: 255
+        brush_motor_speed:
+          type: integer
+          minimum: 0
+          maximum: 255
+        windproof_motor_speed:
+          type: integer
+          minimum: 0
+          maximum: 255
+        walk_motor_max_current_ma:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        brush_motor_max_current_ma:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        windproof_motor_max_current_ma:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        walk_motor_warning_current_ma:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        brush_motor_warning_current_ma:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        windproof_motor_warning_current_ma:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        walk_motor_mileage_m:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        brush_motor_timeout_s:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        windproof_motor_timeout_s:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        reverse_time_s:
+          type: integer
+          minimum: 0
+          maximum: 255
+        protection_angle:
+          type: integer
+          minimum: 0
+          maximum: 255
+
+    BatteryParamsRequest:
+      type: object
+      required:
+        - protection_current_ma
+        - high_temp_threshold
+        - low_temp_threshold
+        - protection_temp
+        - recovery_temp
+        - protection_voltage
+        - recovery_voltage
+        - protection_battery_level
+        - limit_run_battery_level
+        - recovery_battery_level
+      properties:
+        protection_current_ma:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        high_temp_threshold:
+          type: integer
+          minimum: 0
+          maximum: 255
+        low_temp_threshold:
+          type: integer
+          minimum: 0
+          maximum: 255
+        protection_temp:
+          type: integer
+          minimum: 0
+          maximum: 255
+        recovery_temp:
+          type: integer
+          minimum: 0
+          maximum: 255
+        protection_voltage:
+          type: integer
+          minimum: 0
+          maximum: 255
+        recovery_voltage:
+          type: integer
+          minimum: 0
+          maximum: 255
+        protection_battery_level:
+          type: integer
+          minimum: 0
+          maximum: 255
+        limit_run_battery_level:
+          type: integer
+          minimum: 0
+          maximum: 255
+        recovery_battery_level:
+          type: integer
+          minimum: 0
+          maximum: 255
+
+    ScheduleTaskItem:
+      type: object
+      required: [weekday, hour, minute, run_count]
+      properties:
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 255
+        hour:
+          type: integer
+          minimum: 0
+          maximum: 255
+        minute:
+          type: integer
+          minimum: 0
+          maximum: 255
+        run_count:
+          type: integer
+          minimum: 0
+          maximum: 255
+
+    ScheduleParamsRequest:
+      type: object
+      required: [tasks]
+      properties:
+        tasks:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/ScheduleTaskItem'
+
+    ParkingPositionRequest:
+      type: object
+      required: [parking_position]
+      properties:
+        parking_position:
+          type: integer
+          minimum: 0
+          maximum: 255
+
+    ParkingPositionResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            parking_position:
+              type: integer
+              example: 1
+
+    ScheduleStartRequest:
+      type: object
+      required: [schedule_id, weekday, hour, minute, run_count]
+      properties:
+        schedule_id:
+          type: integer
+          minimum: 0
+          maximum: 255
+          example: 1
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          example: 1
+        hour:
+          type: integer
+          minimum: 0
+          maximum: 23
+          example: 6
+        minute:
+          type: integer
+          minimum: 0
+          maximum: 59
+          example: 30
+        run_count:
+          type: integer
+          minimum: 0
+          maximum: 255
+          example: 2
+
+    ScheduleStartResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            schedule_id:
+              type: integer
+              example: 1
+            weekday:
+              type: integer
+              example: 1
+            hour:
+              type: integer
+              example: 6
+            minute:
+              type: integer
+              example: 30
+            run_count:
+              type: integer
+              example: 2
+    ReportIntervalsResponse:
+      type: object
+      required: [success, robot_data_report_interval, motor_params_report_interval, lora_clean_report_interval]
+      properties:
+        success:
+          type: boolean
+          example: true
+        robot_data_report_interval:
+          type: integer
+          description: 机器人数据上报间隔（秒）
+          minimum: 10
+          example: 600
+        motor_params_report_interval:
+          type: integer
+          description: 电机参数上报间隔（秒）
+          minimum: 10
+          example: 3600
+        lora_clean_report_interval:
+          type: integer
+          description: Lora参数&清扫设置上报间隔（秒）
+          minimum: 10
+          example: 3600
+        message:
+          type: string
+          description: 保存成功时的说明（仅 POST 返回）
+          example: 上报间隔已更新并实时生效
+
+    SetReportIntervalsRequest:
+      type: object
+      required: [robot_data_report_interval, motor_params_report_interval, lora_clean_report_interval]
+      properties:
+        robot_data_report_interval:
+          type: integer
+          description: 机器人数据上报间隔（秒），最小 10
+          minimum: 10
+          example: 600
+        motor_params_report_interval:
+          type: integer
+          description: 电机参数上报间隔（秒），最小 10
+          minimum: 10
+          example: 3600
+        lora_clean_report_interval:
+          type: integer
+          description: Lora参数&清扫设置上报间隔（秒），最小 10
+          minimum: 10
+          example: 3600
+
+    SystemVersionResponse:
+      type: object
+      required: [success, version, major, minor, patch]
+      properties:
+        success:
+          type: boolean
+          example: true
+        version:
+          type: string
+          description: 完整版本字符串
+          example: "1.3.0"
+        major:
+          type: integer
+          example: 1
+        minor:
+          type: integer
+          example: 3
+        patch:
+          type: integer
+          example: 0

@@ -14,6 +14,7 @@
 #include "http_server.h"
 #include "mqtt_manager.h"
 #include "robot.h"
+#include "version.h"
 
 using namespace std::chrono_literals;
 
@@ -144,7 +145,9 @@ int main(int argc, char* argv[]) {
                           kLogCleanupInterval);
 
   // 打印版本信息
-  LOG(INFO) << "Robot MQTT Simulator v" << PROJECT_VERSION;
+  LOG(INFO) << "================================================";
+  LOG(INFO) << "  Robot MQTT Simulator  v" << APP_VERSION_STR;
+  LOG(INFO) << "================================================";
 
   // 初始化数据库
   auto config_db = std::make_shared<ConfigDb>("config.db");
@@ -181,18 +184,18 @@ int main(int argc, char* argv[]) {
   for (const auto& id : enabled_robots) LOG(INFO) << "  - " << id;
   LOG(INFO) << "==================";
 
-  // 创建并运行 MQTT 管理器（内部会负责加载机器人、订阅与定期刷新）
+  // 优先启动HTTP服务器，使Web页面尽快可用
   auto mqtt_manager =
       std::make_shared<MqttManager>(broker, client_id, qos, config_db);
+  auto http_server =
+      std::make_shared<HttpServer>(config_db, mqtt_manager, http_port);
+  http_server->Start();
+
+  // 随后启动 MQTT 管理器（连接远端 broker 可能耗时较长）
   if (!mqtt_manager->Run(keepalive)) {
     LOG(ERROR) << "MQTT 管理器运行失败";
     return 1;
   }
-
-  // 启动HTTP服务器
-  auto http_server =
-      std::make_shared<HttpServer>(config_db, mqtt_manager, http_port);
-  http_server->Start();
 
   // 保持程序运行，不退出
   LOG(INFO) << "程序运行中，按 Ctrl+C 退出...";

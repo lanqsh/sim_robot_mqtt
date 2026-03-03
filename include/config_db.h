@@ -26,6 +26,7 @@ class ConfigDb {
   std::string GetValue(const std::string& key,
                        const std::string& default_value = "");
   int GetIntValue(const std::string& key, int default_value = 0);
+  bool SetValue(const std::string& key, const std::string& value);
   std::vector<std::string> GetEnabledRobots();
   std::string GetPublishTopic(const std::string& robot_id);
   std::string GetSubscribeTopic(const std::string& robot_id);

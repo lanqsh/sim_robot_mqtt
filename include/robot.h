@@ -293,8 +293,14 @@ class Robot {
   // 更新告警到数据库（当告警内容发生变化时调用）
   void UpdateAlarmsToDb();
 
-  // 设置上报间隔（秒）
+  // 设置上报间隔（秒）- 兼容旧接口，等同于设置机器人数据上报间隔
   void SetReportInterval(int interval_seconds);
+
+  // 设置三类数据的上报间隔（秒）
+  void SetReportIntervals(int robot_data_s, int motor_params_s, int lora_clean_s);
+
+  // 设置机器人在队列中的索引（用于实时计算错峰偏移）
+  void SetRobotIndex(int index);
 
   // 启动定时上报
   void StartReport();
@@ -358,6 +364,7 @@ class Robot {
 
   // 上报类指令
   void SendLoraAndCleanSettingsReport();  // Lora参数&清扫设置上报
+  void SendMotorParamsReport();           // 电机参数主动上报 (标识符 0xE1)
   void SendRobotDataReport();             // 机器人数据上报
   void SendCleanRecordReport();           // 清扫记录上报 (标识符 0xE9)
 
@@ -383,7 +390,10 @@ class Robot {
   // 上报线程相关
   std::thread report_thread_;              // 上报线程
   std::atomic<bool> stop_report_{false};   // 停止上报标志
-  int report_interval_seconds_{10};        // 上报间隔（秒）
+  int robot_data_report_interval_s_{600};  // 机器人数据上报间隔（秒）
+  int motor_params_report_interval_s_{3600}; // 电机参数上报间隔（秒）
+  int lora_clean_report_interval_s_{3600};   // Lora参数&清扫设置上报间隔（秒）
+  int robot_index_{0};                     // 本机器人在列表中的索引（用于计算错峰偏移）
   Protocol protocol_;                      // 协议编解码器
 
   // 机器人创建时间（用于计算工作时长）
