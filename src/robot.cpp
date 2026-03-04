@@ -1861,6 +1861,239 @@ void Robot::SendCleanRecordReport() {
   sequence_.fetch_add(1);
 }
 
+void Robot::SendCurrentDataReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送电流数据上报 (0xE5)";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(0xE5) + 当前位置(2) + 当前方向(1)
+  // + 电流上报间隔(2,大端) + 10组主/从机电流(各1字节交叉排列)
+  std::vector<uint8_t> data_field;
+  data_field.reserve(26);
+
+  // 标识符
+  data_field.push_back(0xE5);
+
+  // 当前位置 (2字节，大端)
+  uint16_t pos = static_cast<uint16_t>(data_.position);
+  data_field.push_back(static_cast<uint8_t>(pos >> 8));
+  data_field.push_back(static_cast<uint8_t>(pos & 0xFF));
+
+  // 当前方向 (1字节)
+  data_field.push_back(static_cast<uint8_t>(data_.direction));
+
+  // 电流上报间隔（手动触发时填0）
+  uint16_t interval = 0;
+  data_field.push_back(static_cast<uint8_t>(interval >> 8));
+  data_field.push_back(static_cast<uint8_t>(interval & 0xFF));
+
+  // 10组主/从机电流，交叉排列：主机电流1, 从机电流1, ..., 主机电流10, 从机电流10
+  // 每路各1字节
+  // master_currents 和 slave_currents 均已初始化丶16个元素
+  for (int i = 0; i < 10; ++i) {
+    data_field.push_back(static_cast<uint8_t>(data_.master_currents[i]));
+    data_field.push_back(static_cast<uint8_t>(data_.slave_currents[i]));
+  }
+
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  // 使用Protocol编码：控制砃0x82（机器人主动上报）
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  // 转换为Base64并发送
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  电流数据上报已加入发送队列";
+
+  // 帧计数累加
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendScheduledNotRunReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送定时请求/未运行原因上报 (0xE6)";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(1) + 定时器编号(1) + 周(1) + 时(1) + 分(1) + 运行次数(1) + 原因(1) + 故障信息(4) = 11字节
+  std::vector<uint8_t> data_field;
+  data_field.reserve(11);
+
+  // 标识符
+  data_field.push_back(0xE6);
+
+  // 定时器编号 (1字节, 1~7)
+  uint8_t sid = data_.scheduled_not_run_id;
+  data_field.push_back(sid);
+
+  // 从 schedule_tasks 读取对应定时任务参数
+  uint8_t weekday = 0, hour = 0, minute = 0;
+  uint8_t run_count = 0;
+  if (sid >= 1 && sid <= 7 && data_.schedule_tasks.size() >= static_cast<size_t>(sid)) {
+    const auto& task = data_.schedule_tasks[sid - 1];
+    weekday   = static_cast<uint8_t>(task.weekday);
+    hour      = static_cast<uint8_t>(task.hour);
+    minute    = static_cast<uint8_t>(task.minute);
+    // 运行次数按协议：存储値已是实际所用，取低8位区间[0,127]
+    int rc = task.run_count;
+    run_count = (rc < 127) ? static_cast<uint8_t>(rc / 2) : static_cast<uint8_t>(rc);
+  }
+  data_field.push_back(weekday);
+  data_field.push_back(hour);
+  data_field.push_back(minute);
+  data_field.push_back(run_count);
+
+  // 未运行原因 (1字节)
+  data_field.push_back(data_.scheduled_not_run_reason);
+
+  // 故障信息 (4字节, 取 alarm_fa)
+  uint32_t fa = data_.alarm_fa;
+  data_field.push_back(static_cast<uint8_t>(fa >> 24));
+  data_field.push_back(static_cast<uint8_t>(fa >> 16));
+  data_field.push_back(static_cast<uint8_t>(fa >> 8));
+  data_field.push_back(static_cast<uint8_t>(fa));
+
+  LOG(INFO) << "  定时器编号:" << static_cast<int>(sid)
+            << " 周" << static_cast<int>(weekday)
+            << " " << static_cast<int>(hour) << ":" << static_cast<int>(minute)
+            << " 运行次数:" << static_cast<int>(run_count)
+            << " 原因:0x" << std::hex << static_cast<int>(data_.scheduled_not_run_reason);
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  定时请求/未运行原因上报已加入发送队列";
+
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendNotStartedReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送未启动原因上报 (0xE7)";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(1) + 原因(1) + 故障信息(4) = 6字节
+  std::vector<uint8_t> data_field;
+  data_field.reserve(6);
+
+  // 标识符
+  data_field.push_back(0xE7);
+
+  // 未启动原因 (1字节)
+  data_field.push_back(data_.not_started_reason);
+
+  // 故障信息 (4字节大端, 取 alarm_fa)
+  uint32_t fa = data_.alarm_fa;
+  data_field.push_back(static_cast<uint8_t>(fa >> 24));
+  data_field.push_back(static_cast<uint8_t>(fa >> 16));
+  data_field.push_back(static_cast<uint8_t>(fa >> 8));
+  data_field.push_back(static_cast<uint8_t>(fa));
+
+  LOG(INFO) << "  未启动原因:0x" << std::hex << static_cast<int>(data_.not_started_reason)
+            << " 故障信息:0x" << std::hex << fa;
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  未启动原因上报已加入发送队列";
+
+  sequence_.fetch_add(1);
+}
+
+void Robot::SendStartupConfirmReport() {
+  LOG(INFO) << "[Robot " << robot_id_ << "] 发送启动请求回复接收后确认 (0xE8)";
+
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "  MQTT管理器未初始化";
+    return;
+  }
+
+  // 构造数据域：标识(1) + 定时器编号(1) = 2字节
+  std::vector<uint8_t> data_field;
+  data_field.reserve(2);
+
+  // 标识符
+  data_field.push_back(0xE8);
+
+  // 定时器编号 (1字节)
+  data_field.push_back(data_.startup_confirm_id);
+
+  LOG(INFO) << "  定时器编号:" << static_cast<int>(data_.startup_confirm_id);
+  LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
+  LOG(INFO) << "  数据域内容: " << Protocol::BytesToHexString(data_field);
+
+  uint16_t robot_number = 0;
+  try {
+    if (!data_.robot_number.empty()) robot_number = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {
+    robot_number = 0;
+  }
+  uint8_t frame_count = static_cast<uint8_t>(sequence_.load() & 0xFF);
+  std::vector<uint8_t> encoded = protocol_.Encode(CONTROL_CODE_DOWNLINK, robot_number, frame_count, data_field);
+
+  LOG(INFO) << "  编码后数据: " << Protocol::BytesToHexString(encoded);
+
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+
+  LOG(INFO) << "  启动请求回复接收后确认已加入发送队列";
+
+  sequence_.fetch_add(1);
+}
+
 void Robot::SendControlResponse(uint8_t control_identifier) {
   LOG(INFO) << "[Robot " << robot_id_ << "] 发送控制响应 (标识符: 0x"
             << std::hex << static_cast<int>(control_identifier) << ")";
@@ -2074,6 +2307,10 @@ std::string Robot::SerializeDataSnapshot() const {
   d["project_code"] = data_.project_code;
 
   d["board_humidity"] = data_.board_humidity;
+  d["scheduled_not_run_id"]     = data_.scheduled_not_run_id;
+  d["scheduled_not_run_reason"] = data_.scheduled_not_run_reason;
+  d["not_started_reason"]       = data_.not_started_reason;
+  d["startup_confirm_id"]        = data_.startup_confirm_id;
 
   return d.dump();
 }
@@ -2226,6 +2463,10 @@ bool Robot::LoadDataSnapshot(const std::string& data_json) {
     data_.region_code = d.value("region_code", data_.region_code);
     data_.project_code = d.value("project_code", data_.project_code);
     data_.board_humidity = d.value("board_humidity", data_.board_humidity);
+    data_.scheduled_not_run_id     = d.value("scheduled_not_run_id",     data_.scheduled_not_run_id);
+    data_.scheduled_not_run_reason = d.value("scheduled_not_run_reason", data_.scheduled_not_run_reason);
+    data_.not_started_reason       = d.value("not_started_reason",       data_.not_started_reason);
+    data_.startup_confirm_id        = d.value("startup_confirm_id",        data_.startup_confirm_id);
 
     return true;
   } catch (const std::exception& e) {

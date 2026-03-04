@@ -266,6 +266,16 @@ struct RobotData {
   std::string country_code;          // 国家代码
   std::string region_code;           // 地区代码
   std::string project_code;          // 项目代码
+
+  // E6: 定时请求/未运行原因
+  uint8_t scheduled_not_run_id = 0;      // 定时器编号 (1~7)
+  uint8_t scheduled_not_run_reason = 0;  // 未运行原因
+
+  // E7: 未启动原因
+  uint8_t not_started_reason = 0;        // 未启动原因
+
+  // E8: 启动请求回复接收后确认
+  uint8_t startup_confirm_id = 0;        // 定时器编号
 };
 
 // 前向声明
@@ -363,10 +373,14 @@ class Robot {
   void SendTimeSyncRequest();  // 校时请求
 
   // 上报类指令
-  void SendLoraAndCleanSettingsReport();  // Lora参数&清扫设置上报
-  void SendMotorParamsReport();           // 电机参数主动上报 (标识符 0xE1)
-  void SendRobotDataReport();             // 机器人数据上报
-  void SendCleanRecordReport();           // 清扫记录上报 (标识符 0xE9)
+  void SendLoraAndCleanSettingsReport();   // Lora参数&清扫设置上报
+  void SendMotorParamsReport();            // 电机参数主动上报 (标识符 0xE1)
+  void SendRobotDataReport();              // 机器人数据上报
+  void SendCleanRecordReport();            // 清扫记录上报 (标识符 0xE9)
+  void SendCurrentDataReport();            // 电流数据上报 (标识符 0xE5)
+  void SendScheduledNotRunReport();        // 定时请求/未运行原因上报 (标识符 0xE6)
+  void SendNotStartedReport();              // 未启动原因上报 (标识符 0xE7)
+  void SendStartupConfirmReport();          // 启动请求回复接收后确认 (标识符 0xE8)
 
   // 控制类指令响应（使用机器人数据格式，但标识符不同）
   void SendControlResponse(uint8_t control_identifier);
@@ -390,9 +404,9 @@ class Robot {
   // 上报线程相关
   std::thread report_thread_;              // 上报线程
   std::atomic<bool> stop_report_{false};   // 停止上报标志
-  int robot_data_report_interval_s_{600};  // 机器人数据上报间隔（秒）
-  int motor_params_report_interval_s_{3600}; // 电机参数上报间隔（秒）
-  int lora_clean_report_interval_s_{3600};   // Lora参数&清扫设置上报间隔（秒）
+  int robot_data_report_interval_s_{600};     // 机器人数据上报间隔（秒）
+  int motor_params_report_interval_s_{3600};  // 电机参数上报间隔（秒）
+  int lora_clean_report_interval_s_{3600};    // Lora参数&清扫设置上报间隔（秒）
   int robot_index_{0};                     // 本机器人在列表中的索引（用于计算错峰偏移）
   Protocol protocol_;                      // 协议编解码器
 
