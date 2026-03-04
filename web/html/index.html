@@ -69,9 +69,7 @@
             </div>
             <div class="schedule-controls start-controls" id="scheduleFormContent" style="display: none;">
                 <div class="schedule-inline-form start-inline-form">
-                    <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 120px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="scheduleSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="text" id="scheduleRobotId" placeholder="机器人ID" style="width: 220px;">
                     <input type="number" id="scheduleId" min="1" max="255" placeholder="定时编号" style="width: 100px;">
                     <select id="scheduleWeekday" style="width: 120px;">
                         <option value="0">星期日</option>
@@ -99,9 +97,7 @@
             </div>
             <div class="schedule-controls start-controls" id="scheduleParamsFormContent" style="display: none;">
                 <div class="schedule-inline-form start-inline-form">
-                    <input type="text" id="scheduleParamsRobotId" placeholder="机器人ID" style="width: 120px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="scheduleParamsSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="text" id="scheduleParamsRobotId" placeholder="机器人ID" style="width: 220px;">
 
                     <span>定时1</span>
                     <input type="number" id="a2Weekday1" min="0" max="6" placeholder="星期" style="width: 80px;" value="1">
@@ -159,9 +155,7 @@
             </div>
             <div class="schedule-controls start-controls" id="parkingPositionFormContent" style="display: none;">
                 <div class="schedule-inline-form start-inline-form">
-                    <input type="text" id="parkingRobotId" placeholder="机器人ID" style="width: 120px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="parkingSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="text" id="parkingRobotId" placeholder="机器人ID" style="width: 220px;">
                     <input type="number" id="parkingPosition" min="0" max="255" placeholder="停机位(0-255)" style="width: 140px;" value="0">
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendParkingPositionRequest()">发送请求</button>
@@ -177,9 +171,7 @@
             </div>
             <div class="schedule-controls start-controls" id="motorParamsFormContent" style="display: none;">
                 <div class="schedule-inline-form start-inline-form">
-                    <input type="text" id="motorRobotId" placeholder="机器人ID" style="width: 120px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="motorSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="text" id="motorRobotId" placeholder="机器人ID" style="width: 220px;">
 
                     <input type="number" id="walkMotorSpeed" min="0" max="255" placeholder="行走电机速率" style="width: 120px;">
                     <input type="number" id="brushMotorSpeed" min="0" max="255" placeholder="毛刷电机速率" style="width: 120px;">
@@ -214,9 +206,7 @@
             </div>
             <div class="schedule-controls start-controls" id="batteryParamsFormContent" style="display: none;">
                 <div class="schedule-inline-form start-inline-form">
-                    <input type="text" id="batteryRobotId" placeholder="机器人ID" style="width: 120px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="batterySerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="text" id="batteryRobotId" placeholder="机器人ID" style="width: 220px;">
 
                     <input type="number" id="protectionCurrent" min="0" max="65535" placeholder="保护电流(mA)" style="width: 130px;">
                     <input type="number" id="highTempThreshold" min="0" max="255" placeholder="高温阈值" style="width: 110px;">
@@ -243,9 +233,7 @@
             </div>
             <div class="start-controls" id="startFormContent" style="display: none;">
                 <div class="start-inline-form">
-                    <input type="text" id="startRobotId" placeholder="机器人ID" style="width: 120px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="startSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="text" id="startRobotId" placeholder="机器人ID" style="width: 220px;">
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendStartRequest()">发送请求</button>
                 </div>
@@ -260,9 +248,7 @@
             </div>
             <div class="timesync-controls" id="timeSyncFormContent" style="display: none;">
                 <div class="timesync-inline-form">
-                    <input type="text" id="timeSyncRobotId" placeholder="机器人ID" style="width: 120px;">
-                    <span class="or-text">或</span>
-                    <input type="number" id="timeSyncSerial" min="1" placeholder="序号" style="width: 100px;">
+                    <input type="text" id="timeSyncRobotId" placeholder="机器人ID" style="width: 220px;">
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendTimeSyncRequest()">发送请求</button>
                 </div>
@@ -371,6 +357,66 @@
             <div class="modal-footer" style="padding: 15px 20px; border-top: 1px solid #e0e0e0; display: flex; justify-content: flex-end; gap: 10px;">
                 <button class="btn btn-secondary" onclick="closeAlarmModal()">取消</button>
                 <button class="btn btn-success" onclick="saveAlarmSettings()">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手动触发上报模态框 -->
+    <div id="triggerModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:520px; width:95%;">
+            <div class="modal-header">
+                <h2>手动触发上报</h2>
+                <span class="close-btn" onclick="closeTriggerModal()">&times;</span>
+            </div>
+            <div style="padding:20px;">
+                <p style="margin:0 0 16px;color:#555;font-size:13px;">
+                    机器人 ID：<strong id="triggerModalRobotId"></strong>
+                </p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E0','Lora参数&清扫设置')">
+                        <span style="font-weight:bold;font-size:15px;">0xE0</span><br>
+                        <span style="font-size:12px;">Lora参数 &amp; 清扫设置</span>
+                    </button>
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E1','电机和电池参数')">
+                        <span style="font-weight:bold;font-size:15px;">0xE1</span><br>
+                        <span style="font-size:12px;">电机和电池参数</span>
+                    </button>
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E4','机器人数据')">
+                        <span style="font-weight:bold;font-size:15px;">0xE4</span><br>
+                        <span style="font-size:12px;">机器人数据</span>
+                    </button>
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E5','电流数据')">
+                        <span style="font-weight:bold;font-size:15px;">0xE5</span><br>
+                        <span style="font-size:12px;">电流数据</span>
+                    </button>
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E6','定时请求未运行原因')">
+                        <span style="font-weight:bold;font-size:15px;">0xE6</span><br>
+                        <span style="font-size:12px;">定时请求未运行原因</span>
+                    </button>
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E7','未启动原因')">
+                        <span style="font-weight:bold;font-size:15px;">0xE7</span><br>
+                        <span style="font-size:12px;">未启动原因上报</span>
+                    </button>
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E8','启动请求回复确认')">
+                        <span style="font-weight:bold;font-size:15px;">0xE8</span><br>
+                        <span style="font-size:12px;">启动请求回复确认</span>
+                    </button>
+                    <button class="btn btn-primary" style="text-align:left;padding:12px 14px;"
+                            onclick="triggerReport('E9','清扫记录')">
+                        <span style="font-weight:bold;font-size:15px;">0xE9</span><br>
+                        <span style="font-size:12px;">清扫记录上报</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeTriggerModal()">关闭</button>
             </div>
         </div>
     </div>

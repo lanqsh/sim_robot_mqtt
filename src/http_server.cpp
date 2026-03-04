@@ -78,7 +78,7 @@ void HttpServer::ServerThreadFunc() {
   // OPTIONS请求处理（预检请求）
   svr.Options(".*", [](const httplib::Request&, httplib::Response& res) {
     res.set_header("Access-Control-Allow-Origin", "*");
-    res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set_header("Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS");
     res.set_header("Access-Control-Allow-Headers", "Content-Type");
     res.status = 204;
   });
@@ -496,22 +496,7 @@ void HttpServer::ServerThreadFunc() {
   // API: 获取机器人详细数据
   svr.Get("/api/v1/robots/data", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string identifier = req.get_param_value("identifier");
-      std::string type = req.get_param_value("type");
-      std::string robot_id = identifier;
-
-      if (type == "serial") {
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
+      std::string robot_id = req.get_param_value("robot_id");
 
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
@@ -553,23 +538,7 @@ void HttpServer::ServerThreadFunc() {
   // API: 获取机器人告警
   svr.Get("/api/v1/robots/get_alarms", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string identifier = req.get_param_value("identifier");
-      std::string type = req.get_param_value("type");
-      std::string robot_id = identifier;
-
-      if (type == "serial") {
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
+      std::string robot_id = req.get_param_value("robot_id");
 
       // 从robot对象获取告警
       auto robot = mqtt_manager_->GetRobot(robot_id);
@@ -603,27 +572,8 @@ void HttpServer::ServerThreadFunc() {
   // API: 设置机器人告警
   svr.Post("/api/v1/robots/set_alarms", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string identifier = req.get_param_value("identifier");
+      std::string robot_id = req.get_param_value("robot_id");
       json body = json::parse(req.body);
-
-      // 判断是通过ID还是序号查找
-      std::string robot_id = identifier;
-      std::string type = req.get_param_value("type");
-
-      if (type == "serial") {
-        // 通过序号查找机器人ID
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
 
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
@@ -671,7 +621,7 @@ void HttpServer::ServerThreadFunc() {
 
   // POST /api/v1/robots/motor_params - 发送电机参数设置请求
   svr.Post("/api/v1/robots/motor_params", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
     try {
       json body = json::parse(req.body);
@@ -698,23 +648,6 @@ void HttpServer::ServerThreadFunc() {
           error["success"] = false;
           error["error"] = "缺少必需参数: " + field;
           res.status = 400;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
-
-      std::string robot_id = identifier;
-      std::string type = req.get_param_value("type");
-
-      if (type == "serial") {
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
           res.set_content(error.dump(), "application/json");
           return;
         }
@@ -763,7 +696,7 @@ void HttpServer::ServerThreadFunc() {
   });
 
   svr.Post("/api/v1/robots/battery_params", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
     try {
       json body = json::parse(req.body);
@@ -780,23 +713,6 @@ void HttpServer::ServerThreadFunc() {
           error["success"] = false;
           error["error"] = "缺少必需参数: " + field;
           res.status = 400;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
-
-      std::string robot_id = identifier;
-      std::string type = req.get_param_value("type");
-
-      if (type == "serial") {
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
           res.set_content(error.dump(), "application/json");
           return;
         }
@@ -841,7 +757,7 @@ void HttpServer::ServerThreadFunc() {
   });
 
   svr.Post("/api/v1/robots/schedule_params", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
     try {
       json body = json::parse(req.body);
@@ -887,23 +803,6 @@ void HttpServer::ServerThreadFunc() {
         tasks.push_back(task);
       }
 
-      std::string robot_id = identifier;
-      std::string type = req.get_param_value("type");
-
-      if (type == "serial") {
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
-
       auto robot = mqtt_manager_->GetRobot(robot_id);
       if (!robot) {
         json error;
@@ -933,7 +832,7 @@ void HttpServer::ServerThreadFunc() {
   });
 
   svr.Post("/api/v1/robots/parking_position", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
     try {
       json body = json::parse(req.body);
@@ -944,23 +843,6 @@ void HttpServer::ServerThreadFunc() {
         res.status = 400;
         res.set_content(error.dump(), "application/json");
         return;
-      }
-
-      std::string robot_id = identifier;
-      std::string type = req.get_param_value("type");
-
-      if (type == "serial") {
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
       }
 
       auto robot = mqtt_manager_->GetRobot(robot_id);
@@ -995,7 +877,7 @@ void HttpServer::ServerThreadFunc() {
 
   // POST /api/v1/robots/schedule_start - 发送定时启动请求
   svr.Post("/api/v1/robots/schedule_start", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
     try {
       // 解析请求体
@@ -1016,25 +898,6 @@ void HttpServer::ServerThreadFunc() {
       uint8_t hour = body["hour"].get<int>();
       uint8_t minute = body["minute"].get<int>();
       uint8_t run_count = body["run_count"].get<int>();
-
-      // 判断是通过ID还是序号查找
-      std::string robot_id = identifier;
-      std::string type = req.get_param_value("type");
-
-      if (type == "serial") {
-        // 通过序号查找机器人ID
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
 
       // 查找机器人
       auto robot = mqtt_manager_->GetRobot(robot_id);
@@ -1074,28 +937,9 @@ void HttpServer::ServerThreadFunc() {
 
   // POST /api/v1/robots/start - 发送启动请求
   svr.Post("/api/v1/robots/start", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
     try {
-      // 判断是通过ID还是序号查找
-      std::string robot_id = identifier;
-      std::string type = req.get_param_value("type");
-
-      if (type == "serial") {
-        // 通过序号查找机器人ID
-        int serial_number = std::stoi(identifier);
-        robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号为 " + identifier + " 的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-      }
-
       // 查找机器人
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
@@ -1129,42 +973,15 @@ void HttpServer::ServerThreadFunc() {
 
   // POST /api/v1/robots/time_sync - 发送校时请求
   svr.Post("/api/v1/robots/time_sync", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
-    // 获取查询参数type（id或serial）
-    std::string type = "id";  // 默认为id
-    if (req.has_param("type")) {
-      type = req.get_param_value("type");
-    }
-
-    LOG(INFO) << "收到校时请求 - 标识: " << identifier << ", 类型: " << type;
+    LOG(INFO) << "收到校时请求 - 机器人: " << robot_id;
 
     try {
-      std::shared_ptr<Robot> robot;
-
-      if (type == "serial") {
-        // 通过序号查找robot_id
-        int serial_number = std::stoi(identifier);
-        std::string robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          LOG(WARNING) << "未找到序号对应的机器人: " << serial_number;
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号对应的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-
-        robot = mqtt_manager_->GetRobot(robot_id);
-      } else {
-        // 直接使用robot_id
-        robot = mqtt_manager_->GetRobot(identifier);
-      }
+      auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (!robot) {
-        LOG(WARNING) << "未找到机器人: " << identifier;
+        LOG(WARNING) << "未找到机器人: " << robot_id;
         json error;
         error["success"] = false;
         error["error"] = "未找到机器人";
@@ -1196,42 +1013,15 @@ void HttpServer::ServerThreadFunc() {
 
   // POST /api/v1/robots/lora_clean_settings - 发送Lora参数&清扫设置上报
   svr.Post("/api/v1/robots/lora_clean_settings", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
-    // 获取查询参数type（id或serial）
-    std::string type = "id";  // 默认为id
-    if (req.has_param("type")) {
-      type = req.get_param_value("type");
-    }
-
-    LOG(INFO) << "收到Lora参数&清扫设置上报请求 - 标识: " << identifier << ", 类型: " << type;
+    LOG(INFO) << "收到Lora参数&清扫设置上报请求 - 机器人: " << robot_id;
 
     try {
-      std::shared_ptr<Robot> robot;
-
-      if (type == "serial") {
-        // 通过序号查找robot_id
-        int serial_number = std::stoi(identifier);
-        std::string robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          LOG(WARNING) << "未找到序号对应的机器人: " << serial_number;
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号对应的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-
-        robot = mqtt_manager_->GetRobot(robot_id);
-      } else {
-        // 直接使用robot_id
-        robot = mqtt_manager_->GetRobot(identifier);
-      }
+      auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (!robot) {
-        LOG(WARNING) << "未找到机器人: " << identifier;
+        LOG(WARNING) << "未找到机器人: " << robot_id;
         json error;
         error["success"] = false;
         error["error"] = "未找到机器人";
@@ -1263,42 +1053,15 @@ void HttpServer::ServerThreadFunc() {
 
   // POST /api/v1/robots/robot_data - 发送机器人数据上报
   svr.Post("/api/v1/robots/robot_data", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string identifier = req.get_param_value("identifier");
+    std::string robot_id = req.get_param_value("robot_id");
 
-    // 获取查询参数type（id或serial）
-    std::string type = "id";  // 默认为id
-    if (req.has_param("type")) {
-      type = req.get_param_value("type");
-    }
-
-    LOG(INFO) << "收到机器人数据上报请求 - 标识: " << identifier << ", 类型: " << type;
+    LOG(INFO) << "收到机器人数据上报请求 - 机器人: " << robot_id;
 
     try {
-      std::shared_ptr<Robot> robot;
-
-      if (type == "serial") {
-        // 通过序号查找robot_id
-        int serial_number = std::stoi(identifier);
-        std::string robot_id = config_db_->GetRobotIdBySerial(serial_number);
-
-        if (robot_id.empty()) {
-          LOG(WARNING) << "未找到序号对应的机器人: " << serial_number;
-          json error;
-          error["success"] = false;
-          error["error"] = "未找到序号对应的机器人";
-          res.status = 404;
-          res.set_content(error.dump(), "application/json");
-          return;
-        }
-
-        robot = mqtt_manager_->GetRobot(robot_id);
-      } else {
-        // 直接使用robot_id
-        robot = mqtt_manager_->GetRobot(identifier);
-      }
+      auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (!robot) {
-        LOG(WARNING) << "未找到机器人: " << identifier;
+        LOG(WARNING) << "未找到机器人: " << robot_id;
         json error;
         error["success"] = false;
         error["error"] = "未找到机器人";
@@ -1320,6 +1083,76 @@ void HttpServer::ServerThreadFunc() {
 
     } catch (const std::exception& e) {
       LOG(ERROR) << "发送机器人数据上报失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/trigger_report - 手动触发指定上报指令（E0~E9）
+  svr.Post("/api/v1/robots/trigger_report", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+    std::string code_str = req.get_param_value("code");  // 如 "E0", "E1" ...
+
+    LOG(INFO) << "收到手动触发上报请求 - 机器人: " << robot_id << ", 指令: " << code_str;
+
+    try {
+      if (robot_id.empty() || code_str.empty()) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必要参数 robot_id 或 code";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "未找到机器人: " + robot_id;
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 将 code 字符串转换为字节值（支持 "E0"~"E9" 或 "0xE0"~"0xE9"）
+      std::string hex = code_str;
+      if (hex.size() >= 2 && hex[0] == '0' && (hex[1] == 'x' || hex[1] == 'X')) hex = hex.substr(2);
+      uint8_t code = static_cast<uint8_t>(std::stoul(hex, nullptr, 16));
+
+      std::string desc;
+      switch (code) {
+        case 0xE0: robot->SendLoraAndCleanSettingsReport(); desc = "Lora参数&清扫设置"; break;
+        case 0xE1: robot->SendMotorParamsReport();          desc = "电机和电池参数";   break;
+        case 0xE4: robot->SendRobotDataReport();            desc = "机器人数据";       break;
+        case 0xE9: robot->SendCleanRecordReport();          desc = "清扫记录";         break;
+        case 0xE5: robot->SendCurrentDataReport();       desc = "电流数据";           break;
+        case 0xE6: robot->SendScheduledNotRunReport();   desc = "定时请求未运行原因"; break;
+        case 0xE7: robot->SendNotStartedReport();          desc = "未启动原因";       break;
+        case 0xE8: robot->SendStartupConfirmReport();      desc = "启动请求回复确认"; break;
+        default: {
+          json error;
+          error["success"] = false;
+          error["error"] = "不支持的上报指令: " + code_str;
+          res.status = 400;
+          res.set_content(error.dump(), "application/json");
+          return;
+        }
+      }
+
+      json response;
+      response["success"] = true;
+      response["message"] = desc + " 上报已发送";
+      response["robot_id"] = robot_id;
+      response["code"] = code_str;
+      res.set_content(response.dump(), "application/json");
+
+      LOG(INFO) << "手动触发上报完成 - 机器人: " << robot_id << ", 指令: " << desc;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "手动触发上报失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();
@@ -1364,9 +1197,9 @@ void HttpServer::ServerThreadFunc() {
     try {
       json body = json::parse(req.body);
 
-      int robot_data_s   = body.value("robot_data_report_interval", config_db_->GetIntValue("robot_data_report_interval", 600));
+      int robot_data_s   = body.value("robot_data_report_interval",   config_db_->GetIntValue("robot_data_report_interval",   600));
       int motor_params_s = body.value("motor_params_report_interval", config_db_->GetIntValue("motor_params_report_interval", 3600));
-      int lora_clean_s   = body.value("lora_clean_report_interval", config_db_->GetIntValue("lora_clean_report_interval", 3600));
+      int lora_clean_s   = body.value("lora_clean_report_interval",   config_db_->GetIntValue("lora_clean_report_interval",   3600));
 
       if (robot_data_s < 10 || motor_params_s < 10 || lora_clean_s < 10) {
         json error;

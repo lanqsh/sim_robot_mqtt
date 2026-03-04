@@ -87,6 +87,39 @@ window.closeModal = function() {
     ui.closeModal();
 };
 
+// ── 手动触发上报 ──────────────────────────────────────────────────────────
+
+let _triggerRobotId = null;
+
+// 打开手动触发模态框
+window.openTriggerModal = function(robotId) {
+    _triggerRobotId = robotId;
+    document.getElementById('triggerModalRobotId').textContent = robotId;
+    document.getElementById('triggerModal').style.display = 'flex';
+};
+
+// 关闭手动触发模态框
+window.closeTriggerModal = function() {
+    document.getElementById('triggerModal').style.display = 'none';
+    _triggerRobotId = null;
+};
+
+// 发送触发请求
+window.triggerReport = async function(code, desc) {
+    if (!_triggerRobotId) return;
+    try {
+        const result = await api.triggerReport(_triggerRobotId, code);
+        if (result.success) {
+            alert(`✓ ${desc} 上报已发送成功`);
+        } else {
+            alert('发送失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('触发上报失败:', error);
+        alert('发送失败: ' + error.message);
+    }
+};
+
 // 全局函数：切换表单
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleScheduleParamsForm = () => ui.toggleForm('scheduleParamsFormContent', 'scheduleParamsCollapseIcon');
@@ -123,9 +156,9 @@ window.loadReportIntervals = async function() {
 
 // 全局函数：保存定时上报间隔配置
 window.saveReportIntervals = async function() {
-    const robotDataS   = parseInt(document.getElementById('robotDataInterval').value);
-    const motorParamsS = parseInt(document.getElementById('motorParamsInterval').value);
-    const loraCleanS   = parseInt(document.getElementById('loraCleanInterval').value);
+    const robotDataS    = parseInt(document.getElementById('robotDataInterval').value);
+    const motorParamsS  = parseInt(document.getElementById('motorParamsInterval').value);
+    const loraCleanS    = parseInt(document.getElementById('loraCleanInterval').value);
 
     if (isNaN(robotDataS) || isNaN(motorParamsS) || isNaN(loraCleanS)) {
         alert('请填写所有间隔值');
@@ -155,7 +188,6 @@ window.saveReportIntervals = async function() {
 // 全局函数：发送电池参数设置请求
 window.sendBatteryParamsRequest = async function() {
     const robotId = document.getElementById('batteryRobotId').value.trim();
-    const serialNumber = document.getElementById('batterySerial').value.trim();
 
     const params = {
         protection_current_ma: parseInt(document.getElementById('protectionCurrent').value),
@@ -170,13 +202,12 @@ window.sendBatteryParamsRequest = async function() {
         recovery_battery_level: parseInt(document.getElementById('recoveryBatteryLevel').value)
     };
 
-    await commands.sendBatteryParamsRequest(robotId, serialNumber, params);
+    await commands.sendBatteryParamsRequest(robotId, params);
 };
 
 // 全局函数：发送电机参数设置请求
 window.sendMotorParamsRequest = async function() {
     const robotId = document.getElementById('motorRobotId').value.trim();
-    const serialNumber = document.getElementById('motorSerial').value.trim();
 
     const params = {
         walk_motor_speed: parseInt(document.getElementById('walkMotorSpeed').value),
@@ -195,26 +226,24 @@ window.sendMotorParamsRequest = async function() {
         protection_angle: parseInt(document.getElementById('protectionAngle').value)
     };
 
-    await commands.sendMotorParamsRequest(robotId, serialNumber, params);
+    await commands.sendMotorParamsRequest(robotId, params);
 };
 
 // 全局函数：发送定时启动请求
 window.sendScheduleRequest = async function() {
     const robotId = document.getElementById('scheduleRobotId').value.trim();
-    const serialNumber = document.getElementById('scheduleSerial').value.trim();
     const scheduleId = parseInt(document.getElementById('scheduleId').value);
     const weekday = parseInt(document.getElementById('scheduleWeekday').value);
     const hour = parseInt(document.getElementById('scheduleHour').value);
     const minute = parseInt(document.getElementById('scheduleMinute').value);
     const runCount = parseInt(document.getElementById('scheduleRunCount').value);
 
-    await commands.sendScheduleRequest(robotId, serialNumber, scheduleId, weekday, hour, minute, runCount);
+    await commands.sendScheduleRequest(robotId, scheduleId, weekday, hour, minute, runCount);
 };
 
 // 全局函数：发送定时设置请求(A2)
 window.sendScheduleParamsRequest = async function() {
     const robotId = document.getElementById('scheduleParamsRobotId').value.trim();
-    const serialNumber = document.getElementById('scheduleParamsSerial').value.trim();
 
     const tasks = [];
     for (let i = 1; i <= 7; i++) {
@@ -226,32 +255,29 @@ window.sendScheduleParamsRequest = async function() {
         });
     }
 
-    await commands.sendScheduleParamsRequest(robotId, serialNumber, tasks);
+    await commands.sendScheduleParamsRequest(robotId, tasks);
 };
 
 // 全局函数：发送停机位设置请求(A3)
 window.sendParkingPositionRequest = async function() {
     const robotId = document.getElementById('parkingRobotId').value.trim();
-    const serialNumber = document.getElementById('parkingSerial').value.trim();
     const parkingPosition = parseInt(document.getElementById('parkingPosition').value);
 
-    await commands.sendParkingPositionRequest(robotId, serialNumber, parkingPosition);
+    await commands.sendParkingPositionRequest(robotId, parkingPosition);
 };
 
 // 全局函数：发送启动请求
 window.sendStartRequest = async function() {
     const robotId = document.getElementById('startRobotId').value.trim();
-    const serialNumber = document.getElementById('startSerial').value.trim();
 
-    await commands.sendStartRequest(robotId, serialNumber);
+    await commands.sendStartRequest(robotId);
 };
 
 // 全局函数：发送校时请求
 window.sendTimeSyncRequest = async function() {
     const robotId = document.getElementById('timeSyncRobotId').value.trim();
-    const serialNumber = document.getElementById('timeSyncSerial').value.trim();
 
-    await commands.sendTimeSyncRequest(robotId, serialNumber);
+    await commands.sendTimeSyncRequest(robotId);
 };
 
 // 全局函数：加载告警数据
@@ -270,7 +296,7 @@ window.openAlarmSettings = async function(robotId, serialNumber) {
         ui.showLoading('正在加载告警设置...');
 
         // 从后端获取告警值
-        const result = await api.getRobotAlarms(robotId, 'id');
+        const result = await api.getRobotAlarms(robotId);
 
         if (result.success) {
             // 存储当前机器人信息
@@ -331,7 +357,7 @@ window.saveAlarmSettings = async function() {
 
         ui.showLoading('正在保存告警设置...');
 
-        const result = await api.setRobotAlarms(window.currentAlarmRobotId, 'id', alarmData);
+        const result = await api.setRobotAlarms(window.currentAlarmRobotId, alarmData);
 
         ui.hideLoading();
 
@@ -388,6 +414,16 @@ document.addEventListener('DOMContentLoaded', () => {
         alarmModal.addEventListener('click', (e) => {
             if (e.target.id === 'alarmModal') {
                 ui.closeAlarmModal();
+            }
+        });
+    }
+
+    // 点击手动触发模态框背景关闭
+    const triggerModal = document.getElementById('triggerModal');
+    if (triggerModal) {
+        triggerModal.addEventListener('click', (e) => {
+            if (e.target.id === 'triggerModal') {
+                window.closeTriggerModal();
             }
         });
     }

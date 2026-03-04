@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.3.0
+  version: 1.4.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
     - 所有接口默认返回 `application/json`。
-    - `identifier` 可表示 `robot_id` 或 `serial_number`，通过查询参数 `type=id|serial` 控制。
+    - 机器人均通过查询参数 `robot_id` 进行定位。
     - 部分控制类接口是“触发请求”，成功仅表示已下发到机器人处理流程。
     - https://editor.swagger.io/ 可在线编辑和预览效果。
 servers:
@@ -173,8 +173,7 @@ paths:
       tags: [Robots]
       summary: 获取机器人详细数据
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       responses:
         '200':
           description: 成功
@@ -192,8 +191,7 @@ paths:
       tags: [Alarms]
       summary: 获取机器人告警
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       responses:
         '200':
           description: 成功
@@ -210,8 +208,7 @@ paths:
       tags: [Alarms]
       summary: 设置机器人告警
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -235,8 +232,7 @@ paths:
       tags: [Commands]
       summary: 发送电机参数设置请求
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -262,8 +258,7 @@ paths:
       tags: [Commands]
       summary: 发送电池参数设置请求
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -289,8 +284,7 @@ paths:
       tags: [Commands]
       summary: 发送定时设置请求
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -316,8 +310,7 @@ paths:
       tags: [Commands]
       summary: 发送停机位设置请求
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -343,8 +336,7 @@ paths:
       tags: [Commands]
       summary: 发送定时启动请求
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -370,8 +362,7 @@ paths:
       tags: [Commands]
       summary: 发送启动请求
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       responses:
         '200':
           description: 成功
@@ -389,8 +380,7 @@ paths:
       tags: [Commands]
       summary: 发送校时请求
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       responses:
         '200':
           description: 成功
@@ -408,8 +398,7 @@ paths:
       tags: [Commands]
       summary: 发送 LoRa 参数与清扫设置上报
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       responses:
         '200':
           description: 成功
@@ -427,8 +416,7 @@ paths:
       tags: [Commands]
       summary: 发送机器人数据上报
       parameters:
-        - $ref: '#/components/parameters/IdentifierQuery'
-        - $ref: '#/components/parameters/IdentifierTypeQuery'
+        - $ref: '#/components/parameters/RobotIdQuery'
       responses:
         '200':
           description: 成功
@@ -436,6 +424,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/trigger_report:
+    post:
+      tags: [Commands]
+      summary: 手动触发指定上报指令（E0～E9）
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [E0, E1, E4, E5, E6, E7, E8, E9]
+          description: 上报指令码（支持 "E0" 或 "0xE0" 格式）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        example: E0
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -500,29 +521,13 @@ components:
       schema:
         type: string
       description: 机器人ID（UUID字符串）
-    IdentifierPath:
-      name: identifier
-      in: path
-      required: true
-      schema:
-        type: string
-      description: 机器人标识；当 `type=id` 时为 `robot_id`，当 `type=serial` 时为数字序号字符串
-    IdentifierQuery:
-      name: identifier
+    RobotIdQuery:
+      name: robot_id
       in: query
       required: true
       schema:
         type: string
-      description: 机器人标识；当 `type=id` 时为 `robot_id`，当 `type=serial` 时为数字序号字符串
-    IdentifierTypeQuery:
-      name: type
-      in: query
-      required: false
-      schema:
-        type: string
-        enum: [id, serial]
-        default: id
-      description: 标识类型，默认为 `id`
+      description: 机器人ID（UUID字符串）
 
   responses:
     BadRequest:

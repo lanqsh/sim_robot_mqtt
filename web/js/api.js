@@ -50,7 +50,7 @@ export async function updateRobotStatus(robotId, enabled) {
 
 // 获取机器人详细数据
 export async function fetchRobotData(robotId) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/data?identifier=${robotId}`);
+    const response = await fetch(`${API_BASE}/api/v1/robots/data?robot_id=${robotId}`);
     return await response.json();
 }
 
@@ -75,8 +75,8 @@ export async function batchDeleteRobots(robotIds) {
 }
 
 // 发送定时启动请求
-export async function sendScheduleStartRequest(identifier, type, params) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/schedule_start?identifier=${identifier}&type=${type}`, {
+export async function sendScheduleStartRequest(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/schedule_start?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
@@ -85,8 +85,8 @@ export async function sendScheduleStartRequest(identifier, type, params) {
 }
 
 // 发送电机参数设置请求
-export async function sendMotorParamsRequest(identifier, type, params) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/motor_params?identifier=${identifier}&type=${type}`, {
+export async function sendMotorParamsRequest(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/motor_params?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
@@ -95,8 +95,8 @@ export async function sendMotorParamsRequest(identifier, type, params) {
 }
 
 // 发送电池参数设置请求
-export async function sendBatteryParamsRequest(identifier, type, params) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/battery_params?identifier=${identifier}&type=${type}`, {
+export async function sendBatteryParamsRequest(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/battery_params?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
@@ -105,8 +105,8 @@ export async function sendBatteryParamsRequest(identifier, type, params) {
 }
 
 // 发送定时设置请求
-export async function sendScheduleParamsRequest(identifier, type, params) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/schedule_params?identifier=${identifier}&type=${type}`, {
+export async function sendScheduleParamsRequest(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/schedule_params?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
@@ -115,8 +115,8 @@ export async function sendScheduleParamsRequest(identifier, type, params) {
 }
 
 // 发送停机位设置请求
-export async function sendParkingPositionRequest(identifier, type, params) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/parking_position?identifier=${identifier}&type=${type}`, {
+export async function sendParkingPositionRequest(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/parking_position?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
@@ -125,8 +125,8 @@ export async function sendParkingPositionRequest(identifier, type, params) {
 }
 
 // 发送启动请求
-export async function sendStartRequest(identifier, type) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/start?identifier=${identifier}&type=${type}`, {
+export async function sendStartRequest(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/start?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
     });
@@ -134,8 +134,8 @@ export async function sendStartRequest(identifier, type) {
 }
 
 // 发送校时请求
-export async function sendTimeSyncRequest(identifier, type) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/time_sync?identifier=${identifier}&type=${type}`, {
+export async function sendTimeSyncRequest(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/time_sync?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
     });
@@ -143,8 +143,8 @@ export async function sendTimeSyncRequest(identifier, type) {
 }
 
 // 设置机器人告警
-export async function setRobotAlarms(identifier, type, alarmData) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/set_alarms?identifier=${identifier}&type=${type}`, {
+export async function setRobotAlarms(robotId, alarmData) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/set_alarms?robot_id=${robotId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(alarmData)
@@ -153,8 +153,8 @@ export async function setRobotAlarms(identifier, type, alarmData) {
 }
 
 // 获取机器人告警
-export async function getRobotAlarms(identifier, type) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/get_alarms?identifier=${identifier}&type=${type}`);
+export async function getRobotAlarms(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/get_alarms?robot_id=${robotId}`);
     return await response.json();
 }
 
@@ -175,6 +175,14 @@ export async function setReportIntervals(robotDataS, motorParamsS, loraCleanS) {
             motor_params_report_interval: motorParamsS,
             lora_clean_report_interval: loraCleanS
         })
+    });
+    return await response.json();
+}
+
+// 手动触发指定上报指令（code: "E0"~"E9"）
+export async function triggerReport(robotId, code) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/trigger_report?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {
+        method: 'POST'
     });
     return await response.json();
 }

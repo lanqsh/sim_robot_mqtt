@@ -4,9 +4,9 @@ import * as ui from './ui.js';
 import { WEEKDAY_NAMES } from './config.js';
 
 // 发送停机位设置请求(A3)
-export async function sendParkingPositionRequest(robotId, serialNumber, parkingPosition) {
-    if (!robotId && !serialNumber) {
-        alert('请填写机器人ID或序号（二选一）');
+export async function sendParkingPositionRequest(robotId, parkingPosition) {
+    if (!robotId) {
+        alert('请填写机器人ID');
         return false;
     }
 
@@ -15,7 +15,7 @@ export async function sendParkingPositionRequest(robotId, serialNumber, parkingP
         return false;
     }
 
-    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const robotInfo = `机器人ID: ${robotId}`;
     const confirmMsg = `确定发送停机位设置请求吗？\n\n${robotInfo}\n停机位: ${parkingPosition}`;
     if (!confirm(confirmMsg)) {
         return false;
@@ -24,9 +24,7 @@ export async function sendParkingPositionRequest(robotId, serialNumber, parkingP
     try {
         ui.showLoading('正在发送停机位设置请求...');
 
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.sendParkingPositionRequest(identifier, identifierType, {
+        const result = await api.sendParkingPositionRequest(robotId, {
             parking_position: parkingPosition
         });
 
@@ -48,9 +46,9 @@ export async function sendParkingPositionRequest(robotId, serialNumber, parkingP
 }
 
 // 发送定时设置请求(A2)
-export async function sendScheduleParamsRequest(robotId, serialNumber, tasks) {
-    if (!robotId && !serialNumber) {
-        alert('请填写机器人ID或序号（二选一）');
+export async function sendScheduleParamsRequest(robotId, tasks) {
+    if (!robotId) {
+        alert('请填写机器人ID');
         return false;
     }
 
@@ -79,7 +77,7 @@ export async function sendScheduleParamsRequest(robotId, serialNumber, tasks) {
         }
     }
 
-    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const robotInfo = `机器人ID: ${robotId}`;
     const activeCount = tasks.filter(t => t.run_count > 0).length;
     const confirmMsg = `确定发送定时设置请求吗？\n\n${robotInfo}\n有效定时组数: ${activeCount}/7`;
     if (!confirm(confirmMsg)) {
@@ -89,9 +87,7 @@ export async function sendScheduleParamsRequest(robotId, serialNumber, tasks) {
     try {
         ui.showLoading('正在发送定时设置请求...');
 
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.sendScheduleParamsRequest(identifier, identifierType, { tasks });
+        const result = await api.sendScheduleParamsRequest(robotId, { tasks });
 
         ui.hideLoading();
 
@@ -111,9 +107,9 @@ export async function sendScheduleParamsRequest(robotId, serialNumber, tasks) {
 }
 
 // 发送电池参数设置请求
-export async function sendBatteryParamsRequest(robotId, serialNumber, params) {
-    if (!robotId && !serialNumber) {
-        alert('请填写机器人ID或序号（二选一）');
+export async function sendBatteryParamsRequest(robotId, params) {
+    if (!robotId) {
+        alert('请填写机器人ID');
         return false;
     }
 
@@ -138,7 +134,7 @@ export async function sendBatteryParamsRequest(robotId, serialNumber, params) {
         }
     }
 
-    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const robotInfo = `机器人ID: ${robotId}`;
     const confirmMsg = `确定发送电池参数设置请求吗？\n\n${robotInfo}`;
     if (!confirm(confirmMsg)) {
         return false;
@@ -147,9 +143,7 @@ export async function sendBatteryParamsRequest(robotId, serialNumber, params) {
     try {
         ui.showLoading('正在发送电池参数设置请求...');
 
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.sendBatteryParamsRequest(identifier, identifierType, params);
+        const result = await api.sendBatteryParamsRequest(robotId, params);
 
         ui.hideLoading();
 
@@ -169,9 +163,9 @@ export async function sendBatteryParamsRequest(robotId, serialNumber, params) {
 }
 
 // 发送电机参数设置请求
-export async function sendMotorParamsRequest(robotId, serialNumber, params) {
-    if (!robotId && !serialNumber) {
-        alert('请填写机器人ID或序号（二选一）');
+export async function sendMotorParamsRequest(robotId, params) {
+    if (!robotId) {
+        alert('请填写机器人ID');
         return false;
     }
 
@@ -200,7 +194,7 @@ export async function sendMotorParamsRequest(robotId, serialNumber, params) {
         }
     }
 
-    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const robotInfo = `机器人ID: ${robotId}`;
     const confirmMsg = `确定发送电机参数设置请求吗？\n\n${robotInfo}`;
     if (!confirm(confirmMsg)) {
         return false;
@@ -209,9 +203,7 @@ export async function sendMotorParamsRequest(robotId, serialNumber, params) {
     try {
         ui.showLoading('正在发送电机参数设置请求...');
 
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.sendMotorParamsRequest(identifier, identifierType, params);
+        const result = await api.sendMotorParamsRequest(robotId, params);
 
         ui.hideLoading();
 
@@ -231,10 +223,10 @@ export async function sendMotorParamsRequest(robotId, serialNumber, params) {
 }
 
 // 发送定时启动请求
-export async function sendScheduleRequest(robotId, serialNumber, scheduleId, weekday, hour, minute, runCount) {
+export async function sendScheduleRequest(robotId, scheduleId, weekday, hour, minute, runCount) {
     // 验证必填字段
-    if (!robotId && !serialNumber) {
-        alert('请填写机器人ID或序号（二选一）');
+    if (!robotId) {
+        alert('请填写机器人ID');
         return false;
     }
 
@@ -258,7 +250,7 @@ export async function sendScheduleRequest(robotId, serialNumber, scheduleId, wee
         return false;
     }
 
-    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const robotInfo = `机器人ID: ${robotId}`;
     const confirmMsg = `确定发送定时启动请求吗？\n\n` +
         `${robotInfo}\n` +
         `定时编号: ${scheduleId}\n` +
@@ -273,9 +265,7 @@ export async function sendScheduleRequest(robotId, serialNumber, scheduleId, wee
     try {
         ui.showLoading('正在发送定时启动请求...');
 
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.sendScheduleStartRequest(identifier, identifierType, {
+        const result = await api.sendScheduleStartRequest(robotId, {
             schedule_id: scheduleId,
             weekday: weekday,
             hour: hour,
@@ -307,13 +297,13 @@ export async function sendScheduleRequest(robotId, serialNumber, scheduleId, wee
 }
 
 // 发送启动请求
-export async function sendStartRequest(robotId, serialNumber) {
-    if (!robotId && !serialNumber) {
-        alert('请填写机器人ID或序号（二选一）');
+export async function sendStartRequest(robotId) {
+    if (!robotId) {
+        alert('请填写机器人ID');
         return false;
     }
 
-    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const robotInfo = `机器人ID: ${robotId}`;
     const confirmMsg = `确定发送启动请求吗？\n\n${robotInfo}`;
 
     if (!confirm(confirmMsg)) {
@@ -323,9 +313,7 @@ export async function sendStartRequest(robotId, serialNumber) {
     try {
         ui.showLoading('正在发送启动请求...');
 
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.sendStartRequest(identifier, identifierType);
+        const result = await api.sendStartRequest(robotId);
 
         ui.hideLoading();
 
@@ -345,13 +333,13 @@ export async function sendStartRequest(robotId, serialNumber) {
 }
 
 // 发送校时请求
-export async function sendTimeSyncRequest(robotId, serialNumber) {
-    if (!robotId && !serialNumber) {
-        alert('请填写机器人ID或序号（二选一）');
+export async function sendTimeSyncRequest(robotId) {
+    if (!robotId) {
+        alert('请填写机器人ID');
         return false;
     }
 
-    const robotInfo = robotId ? `机器人ID: ${robotId}` : `机器人序号: ${serialNumber}`;
+    const robotInfo = `机器人ID: ${robotId}`;
     const confirmMsg = `确定发送校时请求吗？\n\n${robotInfo}`;
 
     if (!confirm(confirmMsg)) {
@@ -361,9 +349,7 @@ export async function sendTimeSyncRequest(robotId, serialNumber) {
     try {
         ui.showLoading('正在发送校时请求...');
 
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.sendTimeSyncRequest(identifier, identifierType);
+        const result = await api.sendTimeSyncRequest(robotId);
 
         ui.hideLoading();
 
@@ -386,19 +372,16 @@ export async function sendTimeSyncRequest(robotId, serialNumber) {
 export async function loadAlarmData() {
     // 优先使用模态框中存储的机器人信息
     let robotId = window.currentAlarmRobotId || document.getElementById('alarmRobotId')?.value.trim();
-    let serialNumber = window.currentAlarmSerial || document.getElementById('alarmSerial')?.value.trim();
 
-    if (!robotId && !serialNumber) {
-        // 如果没有输入机器人信息，显示所有告警列表但不勾选任何项
+    if (!robotId) {
+        // 如果没有输入机器人ID，显示所有告警列表但不勾选任何项
         const allCheckboxes = document.querySelectorAll('.alarm-checkboxes input[type="checkbox"]');
         allCheckboxes.forEach(checkbox => checkbox.checked = false);
         return;
     }
 
     try {
-        const identifier = robotId || serialNumber;
-        const identifierType = robotId ? 'id' : 'serial';
-        const result = await api.getRobotAlarms(identifier, identifierType);
+        const result = await api.getRobotAlarms(robotId);
 
         if (result.success) {
             // 更新所有告警类型的复选框

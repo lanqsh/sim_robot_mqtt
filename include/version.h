@@ -9,10 +9,10 @@
 //   PATCH：Bug 修复或修正
 // ============================================================
 #define APP_VERSION_MAJOR 1
-#define APP_VERSION_MINOR 3
+#define APP_VERSION_MINOR 4
 #define APP_VERSION_PATCH 0
 
-#define APP_VERSION_STR "1.3.0"
+#define APP_VERSION_STR "1.4.0"
 
 // 版本历史
 // 1.3.0 (2026-03-03) - 三类数据独立定时上报（机器人数据/电机参数/Lora&清扫设置）
