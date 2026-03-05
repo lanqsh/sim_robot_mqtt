@@ -601,11 +601,55 @@ void HttpServer::ServerThreadFunc() {
         res.set_content(robot_data.dump(), "application/json");
         LOG(INFO) << "API: 获取机器人数据 - " << robot_id;
       } else {
-        json error;
-        error["success"] = false;
-        error["error"] = "机器人不存在或未运行";
-        res.status = 404;
-        res.set_content(error.dump(), "application/json");
+        // 机器人不在 MqttManager（可能已禁用）- 尝试从数据库读取快照
+        auto all_robots = config_db_->GetAllRobots();
+        const ConfigDb::RobotInfo* found_info = nullptr;
+        for (const auto& r : all_robots) {
+          if (r.robot_id == robot_id) { found_info = &r; break; }
+        }
+
+        if (found_info) {
+          json robot_data;
+          robot_data["robot_id"] = robot_id;
+          robot_data["serial_number"] = found_info->serial_number;
+          robot_data["robot_name"] = found_info->robot_name;
+          robot_data["status"] = "stopped";
+
+          // 读取数据库快照，构造与 GetLastData() 兼容的 last_data 结构
+          std::string snapshot = config_db_->GetRobotDataSnapshot(robot_id);
+          json last_data_json;
+          last_data_json["robot_id"] = robot_id;
+          last_data_json["running"] = false;
+          try {
+            last_data_json["data"] = snapshot.empty() ? json::object() : json::parse(snapshot);
+          } catch (...) {
+            last_data_json["data"] = json::object();
+          }
+          robot_data["last_data"] = last_data_json.dump();
+
+          // 从快照提取 software_version
+          std::string sw_ver;
+          try {
+            if (!snapshot.empty()) {
+              sw_ver = json::parse(snapshot).value("software_version", "");
+            }
+          } catch (...) {}
+          robot_data["software_version"] = sw_ver;
+
+          // 从数据库读取告警状态
+          auto alarms = config_db_->GetRobotAlarms(robot_id);
+          robot_data["fault_status"] = (alarms.alarm_fa != 0 || alarms.alarm_fb != 0 ||
+                                        alarms.alarm_fc != 0 || alarms.alarm_fd != 0);
+
+          res.set_content(robot_data.dump(), "application/json");
+          LOG(INFO) << "API: 获取机器人数据(已禁用) - " << robot_id;
+        } else {
+          json error;
+          error["success"] = false;
+          error["error"] = "机器人不存在";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+        }
       }
     } catch (const std::exception& e) {
       LOG(ERROR) << "获取机器人数据失败: " << e.what();
