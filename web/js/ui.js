@@ -48,6 +48,14 @@ export function renderRobots(robots) {
                     ${robot.enabled ? '已启用' : '已禁用'}
                 </span>
             </div>
+            <div class="robot-version-col">
+                <span style="font-size:0.85em;color:#555;">${robot.software_version || '-'}</span>
+            </div>
+            <div class="robot-fault-col">
+                ${robot.fault_status
+                    ? '<span style="color:#e74c3c;font-weight:600;">⚠ 有故障</span>'
+                    : '<span style="color:#27ae60;">✓ 正常</span>'}
+            </div>
             <div class="robot-actions">
                 <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
                     编辑

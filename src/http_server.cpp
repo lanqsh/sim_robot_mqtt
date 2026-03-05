@@ -206,6 +206,17 @@ void HttpServer::ServerThreadFunc() {
         robot_json["robot_name"] = robot.robot_name;
         robot_json["serial_number"] = robot.serial_number;
         robot_json["enabled"] = robot.enabled;
+        {
+          auto live = mqtt_manager_->GetRobot(robot.robot_id);
+          if (live) {
+            const auto& rd = live->GetData();
+            robot_json["software_version"] = rd.software_version;
+            robot_json["fault_status"] = (rd.alarm_fa != 0 || rd.alarm_fb != 0 || rd.alarm_fc != 0 || rd.alarm_fd != 0);
+          } else {
+            robot_json["software_version"] = "";
+            robot_json["fault_status"] = false;
+          }
+        }
         data.push_back(robot_json);
       }
 

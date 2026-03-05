@@ -566,7 +566,7 @@ components:
 
     RobotItem:
       type: object
-      required: [robot_id, robot_name, serial_number, enabled]
+      required: [robot_id, robot_name, serial_number, enabled, software_version, fault_status]
       properties:
         robot_id:
           type: string
@@ -580,6 +580,14 @@ components:
         enabled:
           type: boolean
           example: true
+        software_version:
+          type: string
+          description: 机器人软件版本，未连接时为空字符串
+          example: "1.2.3"
+        fault_status:
+          type: boolean
+          description: 故障状态，alarm_fa/fb/fc/fd 任意非零则为 true
+          example: false
 
     Pagination:
       type: object
