@@ -236,6 +236,15 @@ export function renderRobotData(data) {
     }
     html += `<div class="data-item"><span class="data-label">运行状态:</span><span class="data-value">${data.status === 'running' ? '运行中' : '已停止'}</span></div>`;
 
+    if (data.software_version !== undefined) {
+        html += `<div class="data-item"><span class="data-label">软件版本:</span><span class="data-value">${data.software_version || '未知'}</span></div>`;
+    }
+    if (data.fault_status !== undefined) {
+        const faultText = data.fault_status ? '⚠ 有故障' : '✓ 正常';
+        const faultColor = data.fault_status ? '#e74c3c' : '#27ae60';
+        html += `<div class="data-item"><span class="data-label">故障状态:</span><span class="data-value" style="color:${faultColor};font-weight:600;">${faultText}</span></div>`;
+    }
+
     // MQTT相关信息
     if (lastData.publish_topic) {
         html += `<div class="data-item"><span class="data-label">发布主题:</span><span class="data-value">${lastData.publish_topic}</span></div>`;
