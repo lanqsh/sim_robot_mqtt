@@ -608,7 +608,7 @@ components:
 
     RobotStatistics:
       type: object
-      required: [total, enabled, disabled]
+      required: [total, enabled, disabled, normal, fault]
       properties:
         total:
           type: integer
@@ -619,6 +619,14 @@ components:
         disabled:
           type: integer
           example: 13
+        normal:
+          type: integer
+          description: 无故障机器人数量（alarm_fa/fb/fc/fd 均为 0）
+          example: 50
+        fault:
+          type: integer
+          description: 有故障机器人数量（alarm_fa/fb/fc/fd 任一非零）
+          example: 6
 
     RobotListResponse:
       type: object

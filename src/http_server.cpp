@@ -183,12 +183,25 @@ void HttpServer::ServerThreadFunc() {
       int total = all_robots.size();
       int enabled_count = 0;
       int disabled_count = 0;
+      int fault_count = 0;
+      int normal_count = 0;
 
       for (const auto& robot : all_robots) {
         if (robot.enabled) {
           enabled_count++;
         } else {
           disabled_count++;
+        }
+        auto live = mqtt_manager_->GetRobot(robot.robot_id);
+        if (live) {
+          const auto& rd = live->GetData();
+          if (rd.alarm_fa != 0 || rd.alarm_fb != 0 || rd.alarm_fc != 0 || rd.alarm_fd != 0) {
+            fault_count++;
+          } else {
+            normal_count++;
+          }
+        } else {
+          normal_count++;
         }
       }
 
@@ -232,7 +245,9 @@ void HttpServer::ServerThreadFunc() {
       response["statistics"] = {
         {"total", total},
         {"enabled", enabled_count},
-        {"disabled", disabled_count}
+        {"disabled", disabled_count},
+        {"normal", normal_count},
+        {"fault", fault_count}
       };
 
       res.set_content(response.dump(), "application/json");

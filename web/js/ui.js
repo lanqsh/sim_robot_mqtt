@@ -6,17 +6,23 @@ export function updateStatistics(statistics) {
     const totalEl = document.getElementById('statTotal');
     const enabledEl = document.getElementById('statEnabled');
     const disabledEl = document.getElementById('statDisabled');
+    const normalEl = document.getElementById('statNormal');
+    const faultEl = document.getElementById('statFault');
 
     if (!statistics) {
         if (totalEl) totalEl.textContent = 0;
         if (enabledEl) enabledEl.textContent = 0;
         if (disabledEl) disabledEl.textContent = 0;
+        if (normalEl) normalEl.textContent = 0;
+        if (faultEl) faultEl.textContent = 0;
         return;
     }
 
     if (totalEl) totalEl.textContent = statistics.total;
     if (enabledEl) enabledEl.textContent = statistics.enabled;
     if (disabledEl) disabledEl.textContent = statistics.disabled;
+    if (normalEl) normalEl.textContent = statistics.normal ?? 0;
+    if (faultEl) faultEl.textContent = statistics.fault ?? 0;
 }
 
 // 渲染机器人列表
