@@ -100,6 +100,12 @@ paths:
     post:
       tags: [Robots]
       summary: 添加机器人
+      description: |
+        `robot_name`、`robot_id`、`serial_number` 三选一，至少填写一项，均不填时返回 400。
+        `serial_number <= 0` 或不填时后端自动分配当前最大序号 +1。
+        `robot_id` 不填时后端自动生成 16 位十六进制 UUID；填写时若与已有记录冲突返回 400。
+        序号已存在时同样返回 400。
+        `enabled` 默认为 `true`，启用的机器人会立即注册到 MQTT 管理器。
       requestBody:
         required: true
         content:
@@ -122,6 +128,10 @@ paths:
     post:
       tags: [Robots]
       summary: 批量添加机器人
+      description: |
+        每条记录的 `robot_id` 由后端自动生成 UUID，无需填写。
+        `serial_number` 在批量数据内部不得重复，且不得与数据库已有序号冲突，违反时返回 400 并终止整批操作。
+        全部校验通过后一次性写入数据库，启用的机器人同步注册到 MQTT 管理器。
       requestBody:
         required: true
         content:
@@ -144,6 +154,9 @@ paths:
     post:
       tags: [Robots]
       summary: 批量删除机器人
+      description: |
+        传入 `robot_ids` 数组，后端先从 MQTT 管理器逐一注销，再从数据库批量删除。
+        响应 `count` 为实际操作的机器人数量。
       requestBody:
         required: true
         content:
@@ -166,6 +179,9 @@ paths:
     post:
       tags: [Robots]
       summary: 删除机器人
+      description: |
+        从 MQTT 管理器注销后再从数据库删除。
+        `robot_id` 为 query 参数，不传时返回 400。
       parameters:
         - name: robot_id
           in: query
@@ -219,6 +235,10 @@ paths:
     get:
       tags: [Robots]
       summary: 获取机器人详细数据
+      description: |
+        优先从 MQTT 管理器（在线机器人）读取实时数据。
+        若机器人不在线（如已禁用），则从数据库读取最后一次持久化的数据快照和告警，`status` 固定为 `stopped`，`last_data.running` 为 `false`。
+        机器人在数据库中完全不存在时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -237,6 +257,9 @@ paths:
     get:
       tags: [Alarms]
       summary: 获取机器人告警
+      description: |
+        从 MQTT 管理器的在线机器人对象读取内存中的告警值（alarm_fa/fb/fc/fd）。
+        机器人未在线（禁用或 MQTT 未连接）时返回 404。如需查看禁用机器人的告警，使用 `/api/v1/robots/data` 中的 `fault_status` 字段。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -254,6 +277,9 @@ paths:
     post:
       tags: [Alarms]
       summary: 设置机器人告警
+      description: |
+        修改在线机器人内存中的告警值并同步写入数据库。四个字段均可选，只传需要修改的字段。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -278,6 +304,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送电机参数设置请求
+      description: |
+        向在线机器人发送电机参数设置 MQTT 指令，所有 14 个字段均为必填。
+        成功仅表示指令已下发，不代表机器人已应用。机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -304,6 +333,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送电池参数设置请求
+      description: |
+        向在线机器人发送电池（温压）保护参数设置 MQTT 指令，所有 10 个字段均为必填。
+        成功仅表示指令已下发，不代表机器人已应用。机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -330,6 +362,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送定时设置请求
+      description: |
+        向在线机器人发送 7 路定时任务设置 MQTT 指令。`tasks` 数组**必须恰好包含 7 个元素**，对应 7 个定时器编号（索引 0～6），不足或超出均返回 400。
+        成功仅表示指令已下发。机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -356,6 +391,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送停机位设置请求
+      description: |
+        向在线机器人发送停机位设置 MQTT 指令。`parking_position` 为 1 字节无符号整数（0～255）。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -382,6 +420,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送定时启动请求
+      description: |
+        向在线机器人发送指定定时器编号的启动 MQTT 指令，五个字段均为必填。
+        成功响应中回显传入的所有参数。机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -407,7 +448,10 @@ paths:
   /api/v1/robots/start:
     post:
       tags: [Commands]
-      summary: 发送启动请求
+      summary: 发送立即启动请求
+      description: |
+        向在线机器人发送立即启动 MQTT 指令（无需指定定时器编号）。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -426,6 +470,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送校时请求
+      description: |
+        向在线机器人发送系统时间同步 MQTT 指令，后端以当前系统时间作为校时数据。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -443,7 +490,10 @@ paths:
   /api/v1/robots/lora_clean_settings:
     post:
       tags: [Commands]
-      summary: 发送 LoRa 参数与清扫设置上报
+      summary: 触发 LoRa 参数与清扫设置上报（E0）
+      description: |
+        触发在线机器人立即发送一次 E0 上报帧（LoRa 参数和清扫设置）。
+        无请求体，机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -461,7 +511,10 @@ paths:
   /api/v1/robots/robot_data:
     post:
       tags: [Commands]
-      summary: 发送机器人数据上报
+      summary: 触发机器人数据上报（E4）
+      description: |
+        触发在线机器人立即发送一次 E4 上报帧（机器人全量数据）。
+        无请求体，机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -747,6 +800,9 @@ components:
         - $ref: '#/components/schemas/BasicSuccessResponse'
         - type: object
           properties:
+            message:
+              type: string
+              example: 机器人添加成功
             robot_id:
               type: string
               example: 8f9e7d6c5b4a3210
@@ -1168,7 +1224,7 @@ components:
 
     SetReportIntervalsRequest:
       type: object
-      required: [robot_data_report_interval, motor_params_report_interval, lora_clean_report_interval]
+      description: 三个字段均可选，不填则保持数据库当前值（默认：robot_data=600s，其余=3600s），每类最小值 10 秒。
       properties:
         robot_data_report_interval:
           type: integer
