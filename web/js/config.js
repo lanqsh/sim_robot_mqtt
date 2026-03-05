@@ -91,10 +91,15 @@ export const LABEL_MAP = {
     run_count: '运行次数',
     robot_name: '机器人名称',
     serial_number: '序号',
-    alarm_fa: 'FA',
-    alarm_fb: 'FB',
-    alarm_fc: 'FC',
-    alarm_fd: 'FD'
+    alarm_fa: 'FA告警',
+    alarm_fb: 'FB告警',
+    alarm_fc: 'FC告警',
+    alarm_fd: 'FD告警',
+    board_humidity: '主板湿度(%)',
+    scheduled_not_run_id: '定时器编号(定时未运行)',
+    scheduled_not_run_reason: '定时未运行原因',
+    not_started_reason: '未启动原因',
+    startup_confirm_id: '启动确认定时器编号'
 };
 
 // 星期名称映射
