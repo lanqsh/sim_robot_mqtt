@@ -149,7 +149,7 @@ void HttpServer::ServerThreadFunc() {
         std::string lid   = to_lower(filter_robot_id);
 
         all_robots.erase(std::remove_if(all_robots.begin(), all_robots.end(),
-          [&](const RobotInfo& r) {
+          [&](const ConfigDb::RobotInfo& r) {
             if (!lname.empty()) {
               return to_lower(r.robot_name).find(lname) == std::string::npos;
             }
