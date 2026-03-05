@@ -334,8 +334,10 @@
                     <option value="false">禁用</option>
                 </select>
                 <small style="color: var(--color-text-secondary); align-self: center;">名称/ID/状态三选一</small>
-                <button class="btn btn-primary" onclick="searchRobots()">查询</button>
-                <button class="btn btn-secondary" onclick="clearSearch()">清除</button>
+                <span style="margin-left: auto; display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="searchRobots()">查询</button>
+                    <button class="btn btn-secondary" onclick="clearSearch()">清除</button>
+                </span>
             </div>
 
             <div id="robotsList">
