@@ -139,35 +139,6 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /api/v1/robots/status:
-    post:
-      tags: [Robots]
-      summary: 更新机器人启用状态
-      parameters:
-        - name: robot_id
-          in: query
-          required: true
-          schema:
-            type: string
-          description: 机器人 UUID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateRobotStatusRequest'
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BasicSuccessResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/ServerError'
-
   /api/v1/robots/data:
     get:
       tags: [Robots]
@@ -687,14 +658,6 @@ components:
             robot_id:
               type: string
               example: 8f9e7d6c5b4a3210
-
-    UpdateRobotStatusRequest:
-      type: object
-      required: [enabled]
-      properties:
-        enabled:
-          type: boolean
-          example: true
 
     BatchCreateRobotItem:
       type: object

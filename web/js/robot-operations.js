@@ -2,30 +2,6 @@
 import * as api from './api.js';
 import * as ui from './ui.js';
 
-// 切换机器人启用状态
-export async function toggleRobotStatus(robotId, currentStatus, reloadCallback) {
-    const newStatus = !currentStatus;
-    const action = newStatus ? '启用' : '禁用';
-
-    if (!confirm(`确定要${action}该机器人吗？`)) {
-        return;
-    }
-
-    try {
-        const result = await api.updateRobotStatus(robotId, newStatus);
-
-        if (result.success) {
-            alert(result.message);
-            reloadCallback();
-        } else {
-            alert('操作失败: ' + result.error);
-        }
-    } catch (error) {
-        console.error('切换状态失败:', error);
-        alert('切换状态失败: ' + error.message);
-    }
-}
-
 // 添加机器人
 export async function addRobot(robotName, serialNumber, reloadCallback, robotId, enabled = true) {
     // 序号可选，如果为空或<=0，后端会自动生成

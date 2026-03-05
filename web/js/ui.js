@@ -49,10 +49,6 @@ export function renderRobots(robots) {
                 </span>
             </div>
             <div class="robot-actions">
-                <button class="btn btn-sm ${robot.enabled ? 'btn-warning' : 'btn-success'} ${!robot.enabled ? 'disabled-btn' : ''}"
-                        onclick="window.toggleRobotStatus('${robot.robot_id}', ${robot.enabled})">
-                    ${robot.enabled ? '禁用' : '启用'}
-                </button>
                 <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
                     编辑
                 </button>

@@ -48,11 +48,6 @@ window.changePageSize = function() {
     loadRobots();
 };
 
-// 全局函数：切换机器人状态
-window.toggleRobotStatus = function(robotId, currentStatus) {
-    robotOps.toggleRobotStatus(robotId, currentStatus, loadRobots);
-};
-
 // 全局函数：删除机器人
 window.deleteRobot = function(robotId) {
     robotOps.deleteRobot(robotId, loadRobots);

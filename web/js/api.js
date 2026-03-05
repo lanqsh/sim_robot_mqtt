@@ -53,16 +53,6 @@ export async function deleteRobot(robotId) {
     return await response.json();
 }
 
-// 切换机器人状态
-export async function updateRobotStatus(robotId, enabled) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/status?robot_id=${robotId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
-    });
-    return await response.json();
-}
-
 // 获取机器人详细数据
 export async function fetchRobotData(robotId) {
     const response = await fetch(`${API_BASE}/api/v1/robots/data?robot_id=${robotId}`);
