@@ -441,6 +441,37 @@
         </div>
     </div>
 
+    <!-- 编辑机器人模态框 -->
+    <div id="editRobotModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:460px; width:95%;">
+            <div class="modal-header">
+                <h2>编辑机器人</h2>
+                <span class="close-btn" onclick="closeEditModal()">&times;</span>
+            </div>
+            <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
+                <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">机器人名称</label>
+                    <input type="text" id="editRobotName" style="width:100%; box-sizing:border-box;" placeholder="机器人名称">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">机器人ID</label>
+                    <input type="text" id="editRobotId" style="width:100%; box-sizing:border-box;" placeholder="机器人ID">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">启用状态</label>
+                    <select id="editRobotEnabled" style="width:100%;">
+                        <option value="true">启用</option>
+                        <option value="false">禁用</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
+                <button class="btn btn-success" onclick="saveEditRobot()">保存</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="../js/app.js"></script>
 </body>
 </html>

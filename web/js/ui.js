@@ -53,6 +53,9 @@ export function renderRobots(robots) {
                         onclick="window.toggleRobotStatus('${robot.robot_id}', ${robot.enabled})">
                     ${robot.enabled ? '禁用' : '启用'}
                 </button>
+                <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
+                    编辑
+                </button>
                 <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
                     查看数据
                 </button>

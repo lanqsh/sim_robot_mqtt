@@ -412,6 +412,47 @@ window.closeAlarmModal = function() {
     ui.closeAlarmModal();
 };
 
+// ── 编辑机器人 ─────────────────────────────────────────────────────────
+let _editOldRobotId = null;
+
+window.openEditModal = function(robotId, robotName, enabled) {
+    _editOldRobotId = robotId;
+    document.getElementById('editRobotId').value    = robotId;
+    document.getElementById('editRobotName').value  = robotName;
+    document.getElementById('editRobotEnabled').value = enabled ? 'true' : 'false';
+    document.getElementById('editRobotModal').style.display = 'flex';
+};
+
+window.closeEditModal = function() {
+    document.getElementById('editRobotModal').style.display = 'none';
+    _editOldRobotId = null;
+};
+
+window.saveEditRobot = async function() {
+    if (!_editOldRobotId) return;
+    const newId      = document.getElementById('editRobotId').value.trim();
+    const newName    = document.getElementById('editRobotName').value.trim();
+    const newEnabled = document.getElementById('editRobotEnabled').value === 'true';
+
+    if (!newId) { alert('机器人ID 不能为空'); return; }
+
+    try {
+        const result = await api.updateRobot(_editOldRobotId, {
+            robot_id:    newId,
+            robot_name:  newName,
+            enabled:     newEnabled
+        });
+        if (result.success) {
+            window.closeEditModal();
+            loadRobots();
+        } else {
+            alert('保存失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('保存失败: ' + error.message);
+    }
+};
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 添加机器人表单提交
@@ -460,6 +501,16 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerModal.addEventListener('click', (e) => {
             if (e.target.id === 'triggerModal') {
                 window.closeTriggerModal();
+            }
+        });
+    }
+
+    // 点击编辑模态框背景关闭
+    const editRobotModal = document.getElementById('editRobotModal');
+    if (editRobotModal) {
+        editRobotModal.addEventListener('click', (e) => {
+            if (e.target.id === 'editRobotModal') {
+                window.closeEditModal();
             }
         });
     }

@@ -12,6 +12,16 @@ export async function fetchRobots(page, pageSize, filters = {}) {
     return await response.json();
 }
 
+// 编辑机器人信息
+export async function updateRobot(oldRobotId, data) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/update?robot_id=${encodeURIComponent(oldRobotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    return await response.json();
+}
+
 // 添加单个机器人
 export async function addRobot(robotName, serialNumber, robotId, enabled = true) {
     const body = {

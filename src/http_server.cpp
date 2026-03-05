@@ -407,6 +407,64 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // API: 编辑机器人信息（名称/ID/启用状态）
+  svr.Post("/api/v1/robots/update", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string old_robot_id = req.get_param_value("robot_id");
+      if (old_robot_id.empty()) {
+        json error; error["success"] = false; error["error"] = "缺少 robot_id 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      json body = json::parse(req.body);
+      std::string new_robot_id  = body.value("robot_id",    old_robot_id);
+      std::string new_robot_name = body.value("robot_name", "");
+      bool new_enabled           = body.value("enabled",    true);
+
+      // 如果 robot_id 要改变，检查新 ID 是否干冲
+      if (new_robot_id != old_robot_id) {
+        auto all = config_db_->GetAllRobots();
+        for (const auto& r : all) {
+          if (r.robot_id == new_robot_id) {
+            json error; error["success"] = false;
+            error["error"] = "robot_id \"" + new_robot_id + "\" 已存在";
+            res.status = 400; res.set_content(error.dump(), "application/json"); return;
+          }
+        }
+      }
+
+      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled);
+      if (!success) {
+        json error; error["success"] = false; error["error"] = "数据库更新失败";
+        res.status = 500; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 同步 MqttManager
+      if (new_robot_id != old_robot_id) {
+        // ID 改变：移除旧的，如果启用则添加新的
+        mqtt_manager_->RemoveRobot(old_robot_id);
+        if (new_enabled) mqtt_manager_->AddRobot(new_robot_id);
+      } else if (new_enabled) {
+        mqtt_manager_->AddRobot(new_robot_id);
+      } else {
+        mqtt_manager_->RemoveRobot(new_robot_id);
+      }
+
+      json response;
+      response["success"]    = true;
+      response["message"]    = "机器人信息已更新";
+      response["robot_id"]   = new_robot_id;
+      response["robot_name"] = new_robot_name;
+      response["enabled"]    = new_enabled;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 编辑机器人 - " << old_robot_id << " -> " << new_robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "编辑机器人失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 400; res.set_content(error.dump(), "application/json");
+    }
+  });
+
   // API: 批量添加机器人
   svr.Post("/api/v1/robots/batch_add", [this](const httplib::Request& req, httplib::Response& res) {
     try {
