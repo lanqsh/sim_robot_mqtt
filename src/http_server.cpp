@@ -3,6 +3,7 @@
 #include <glog/logging.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <sstream>
@@ -132,6 +133,37 @@ void HttpServer::ServerThreadFunc() {
     try {
       auto all_robots = config_db_->GetAllRobots();
 
+      // 查询过滤参数（三选一）
+      std::string filter_name     = req.has_param("robot_name") ? req.get_param_value("robot_name") : "";
+      std::string filter_robot_id = req.has_param("robot_id")   ? req.get_param_value("robot_id")   : "";
+      std::string filter_enabled  = req.has_param("enabled")     ? req.get_param_value("enabled")     : "";
+
+      // 如果有查询条件，过滤列表
+      if (!filter_name.empty() || !filter_robot_id.empty() || !filter_enabled.empty()) {
+        // 小写转换辅助函数
+        auto to_lower = [](std::string s) {
+          std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+          return s;
+        };
+        std::string lname = to_lower(filter_name);
+        std::string lid   = to_lower(filter_robot_id);
+
+        all_robots.erase(std::remove_if(all_robots.begin(), all_robots.end(),
+          [&](const ConfigDb::RobotInfo& r) {
+            if (!lname.empty()) {
+              return to_lower(r.robot_name).find(lname) == std::string::npos;
+            }
+            if (!lid.empty()) {
+              return to_lower(r.robot_id).find(lid) == std::string::npos;
+            }
+            if (!filter_enabled.empty()) {
+              bool want_enabled = (filter_enabled == "true" || filter_enabled == "1");
+              return r.enabled != want_enabled;
+            }
+            return false;
+          }), all_robots.end());
+      }
+
       // 获取分页参数
       int page = 1;
       int pageSize = 20;
@@ -151,12 +183,25 @@ void HttpServer::ServerThreadFunc() {
       int total = all_robots.size();
       int enabled_count = 0;
       int disabled_count = 0;
+      int fault_count = 0;
+      int normal_count = 0;
 
       for (const auto& robot : all_robots) {
         if (robot.enabled) {
           enabled_count++;
         } else {
           disabled_count++;
+        }
+        auto live = mqtt_manager_->GetRobot(robot.robot_id);
+        if (live) {
+          const auto& rd = live->GetData();
+          if (rd.alarm_fa != 0 || rd.alarm_fb != 0 || rd.alarm_fc != 0 || rd.alarm_fd != 0) {
+            fault_count++;
+          } else {
+            normal_count++;
+          }
+        } else {
+          normal_count++;
         }
       }
 
@@ -174,6 +219,17 @@ void HttpServer::ServerThreadFunc() {
         robot_json["robot_name"] = robot.robot_name;
         robot_json["serial_number"] = robot.serial_number;
         robot_json["enabled"] = robot.enabled;
+        {
+          auto live = mqtt_manager_->GetRobot(robot.robot_id);
+          if (live) {
+            const auto& rd = live->GetData();
+            robot_json["software_version"] = rd.software_version;
+            robot_json["fault_status"] = (rd.alarm_fa != 0 || rd.alarm_fb != 0 || rd.alarm_fc != 0 || rd.alarm_fd != 0);
+          } else {
+            robot_json["software_version"] = "";
+            robot_json["fault_status"] = false;
+          }
+        }
         data.push_back(robot_json);
       }
 
@@ -189,7 +245,9 @@ void HttpServer::ServerThreadFunc() {
       response["statistics"] = {
         {"total", total},
         {"enabled", enabled_count},
-        {"disabled", disabled_count}
+        {"disabled", disabled_count},
+        {"normal", normal_count},
+        {"fault", fault_count}
       };
 
       res.set_content(response.dump(), "application/json");
@@ -211,8 +269,22 @@ void HttpServer::ServerThreadFunc() {
       json body = json::parse(req.body);
       std::string robot_name = body.value("robot_name", "");
       int serial_number = body.value("serial_number", 0);
+      bool enabled = body.value("enabled", true);
 
-      // 如果未提供序号或序号为0，自动生成
+      // 检查三选一：robot_name / robot_id / serial_number 至少填一个
+      bool has_robot_id  = body.contains("robot_id") && !body["robot_id"].get<std::string>().empty();
+      bool has_robot_name = !robot_name.empty();
+      bool has_serial     = serial_number > 0;
+      if (!has_robot_id && !has_robot_name && !has_serial) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人名称、机器人ID、序号三选一，至少填写一项";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 如果未提供序号，自动生成
       if (serial_number <= 0) {
         serial_number = config_db_->GetMaxSerialNumber() + 1;
         LOG(INFO) << "自动生成序号: " << serial_number;
@@ -249,7 +321,7 @@ void HttpServer::ServerThreadFunc() {
       }
 
       // 添加到数据库
-      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, true);
+      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, enabled);
       if (success) {
         // 添加到MQTT管理器
         mqtt_manager_->AddRobot(robot_id);
@@ -310,54 +382,61 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // API: 更新机器人状态（启用/禁用）
-  svr.Post("/api/v1/robots/status", [this](const httplib::Request& req, httplib::Response& res) {
+  // API: 编辑机器人信息（名称/ID/启用状态）
+  svr.Post("/api/v1/robots/update", [this](const httplib::Request& req, httplib::Response& res) {
     try {
-      std::string robot_id = req.get_param_value("robot_id");
+      std::string old_robot_id = req.get_param_value("robot_id");
+      if (old_robot_id.empty()) {
+        json error; error["success"] = false; error["error"] = "缺少 robot_id 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
       json body = json::parse(req.body);
+      std::string new_robot_id  = body.value("robot_id",    old_robot_id);
+      std::string new_robot_name = body.value("robot_name", "");
+      bool new_enabled           = body.value("enabled",    true);
 
-      if (!body.contains("enabled")) {
-        json error;
-        error["success"] = false;
-        error["error"] = "缺少enabled参数";
-        res.status = 400;
-        res.set_content(error.dump(), "application/json");
-        return;
-      }
-
-      bool enabled = body["enabled"];
-
-      // 更新数据库中的状态
-      bool success = config_db_->UpdateRobotStatus(robot_id, enabled);
-      if (success) {
-        // 根据状态添加或移除机器人
-        if (enabled) {
-          // 启用：添加到MQTT管理器
-          mqtt_manager_->AddRobot(robot_id);
-        } else {
-          // 禁用：从MQTT管理器移除
-          mqtt_manager_->RemoveRobot(robot_id);
+      // 如果 robot_id 要改变，检查新 ID 是否干冲
+      if (new_robot_id != old_robot_id) {
+        auto all = config_db_->GetAllRobots();
+        for (const auto& r : all) {
+          if (r.robot_id == new_robot_id) {
+            json error; error["success"] = false;
+            error["error"] = "robot_id \"" + new_robot_id + "\" 已存在";
+            res.status = 400; res.set_content(error.dump(), "application/json"); return;
+          }
         }
-
-        json response;
-        response["success"] = true;
-        response["message"] = enabled ? "机器人已启用" : "机器人已禁用";
-        res.set_content(response.dump(), "application/json");
-        LOG(INFO) << "API: 更新机器人状态 - " << robot_id << " (" << (enabled ? "启用" : "禁用") << ")";
-      } else {
-        json error;
-        error["success"] = false;
-        error["error"] = "更新机器人状态失败";
-        res.status = 500;
-        res.set_content(error.dump(), "application/json");
       }
+
+      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled);
+      if (!success) {
+        json error; error["success"] = false; error["error"] = "数据库更新失败";
+        res.status = 500; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 同步 MqttManager
+      if (new_robot_id != old_robot_id) {
+        // ID 改变：移除旧的，如果启用则添加新的
+        mqtt_manager_->RemoveRobot(old_robot_id);
+        if (new_enabled) mqtt_manager_->AddRobot(new_robot_id);
+      } else if (new_enabled) {
+        mqtt_manager_->AddRobot(new_robot_id);
+      } else {
+        mqtt_manager_->RemoveRobot(new_robot_id);
+      }
+
+      json response;
+      response["success"]    = true;
+      response["message"]    = "机器人信息已更新";
+      response["robot_id"]   = new_robot_id;
+      response["robot_name"] = new_robot_name;
+      response["enabled"]    = new_enabled;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 编辑机器人 - " << old_robot_id << " -> " << new_robot_id;
     } catch (const std::exception& e) {
-      LOG(ERROR) << "更新机器人状态失败: " << e.what();
-      json error;
-      error["success"] = false;
-      error["error"] = e.what();
-      res.status = 500;
-      res.set_content(error.dump(), "application/json");
+      LOG(ERROR) << "编辑机器人失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 400; res.set_content(error.dump(), "application/json");
     }
   });
 
@@ -505,6 +584,9 @@ void HttpServer::ServerThreadFunc() {
         robot_data["robot_id"] = robot->GetId();
         robot_data["status"] = robot->IsRunning() ? "running" : "stopped";
         robot_data["last_data"] = robot->GetLastData();
+        robot_data["software_version"] = robot->GetData().software_version;
+        const auto& d = robot->GetData();
+        robot_data["fault_status"] = (d.alarm_fa != 0 || d.alarm_fb != 0 || d.alarm_fc != 0 || d.alarm_fd != 0);
 
         // 从数据库获取serial_number和robot_name
         auto all_robots = config_db_->GetAllRobots();
@@ -519,11 +601,55 @@ void HttpServer::ServerThreadFunc() {
         res.set_content(robot_data.dump(), "application/json");
         LOG(INFO) << "API: 获取机器人数据 - " << robot_id;
       } else {
-        json error;
-        error["success"] = false;
-        error["error"] = "机器人不存在或未运行";
-        res.status = 404;
-        res.set_content(error.dump(), "application/json");
+        // 机器人不在 MqttManager（可能已禁用）- 尝试从数据库读取快照
+        auto all_robots = config_db_->GetAllRobots();
+        const ConfigDb::RobotInfo* found_info = nullptr;
+        for (const auto& r : all_robots) {
+          if (r.robot_id == robot_id) { found_info = &r; break; }
+        }
+
+        if (found_info) {
+          json robot_data;
+          robot_data["robot_id"] = robot_id;
+          robot_data["serial_number"] = found_info->serial_number;
+          robot_data["robot_name"] = found_info->robot_name;
+          robot_data["status"] = "stopped";
+
+          // 读取数据库快照，构造与 GetLastData() 兼容的 last_data 结构
+          std::string snapshot = config_db_->GetRobotDataSnapshot(robot_id);
+          json last_data_json;
+          last_data_json["robot_id"] = robot_id;
+          last_data_json["running"] = false;
+          try {
+            last_data_json["data"] = snapshot.empty() ? json::object() : json::parse(snapshot);
+          } catch (...) {
+            last_data_json["data"] = json::object();
+          }
+          robot_data["last_data"] = last_data_json.dump();
+
+          // 从快照提取 software_version
+          std::string sw_ver;
+          try {
+            if (!snapshot.empty()) {
+              sw_ver = json::parse(snapshot).value("software_version", "");
+            }
+          } catch (...) {}
+          robot_data["software_version"] = sw_ver;
+
+          // 从数据库读取告警状态
+          auto alarms = config_db_->GetRobotAlarms(robot_id);
+          robot_data["fault_status"] = (alarms.alarm_fa != 0 || alarms.alarm_fb != 0 ||
+                                        alarms.alarm_fc != 0 || alarms.alarm_fd != 0);
+
+          res.set_content(robot_data.dump(), "application/json");
+          LOG(INFO) << "API: 获取机器人数据(已禁用) - " << robot_id;
+        } else {
+          json error;
+          error["success"] = false;
+          error["error"] = "机器人不存在";
+          res.status = 404;
+          res.set_content(error.dump(), "application/json");
+        }
       }
     } catch (const std::exception& e) {
       LOG(ERROR) << "获取机器人数据失败: " << e.what();

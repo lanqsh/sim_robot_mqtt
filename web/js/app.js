@@ -8,10 +8,13 @@ import { PaginationManager } from './pagination.js';
 // 分页管理器
 const paginationManager = new PaginationManager();
 
+// 查询过滤状态
+let searchFilters = {};
+
 // 加载机器人列表
 async function loadRobots() {
     try {
-        const result = await api.fetchRobots(paginationManager.getCurrentPage(), paginationManager.getPageSize());
+        const result = await api.fetchRobots(paginationManager.getCurrentPage(), paginationManager.getPageSize(), searchFilters);
 
         paginationManager.updatePagination(result.pagination);
 
@@ -43,11 +46,6 @@ window.changePageSize = function() {
     const newPageSize = parseInt(document.getElementById('pageSize').value);
     paginationManager.changePageSize(newPageSize);
     loadRobots();
-};
-
-// 全局函数：切换机器人状态
-window.toggleRobotStatus = function(robotId, currentStatus) {
-    robotOps.toggleRobotStatus(robotId, currentStatus, loadRobots);
 };
 
 // 全局函数：删除机器人
@@ -130,6 +128,36 @@ window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseI
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
+
+// 全局函数：执行查询
+window.searchRobots = function() {
+    const nameVal = document.getElementById('searchRobotName').value.trim();
+    const idVal   = document.getElementById('searchRobotId').value.trim();
+    const enVal   = document.getElementById('searchEnabled').value;
+
+    // 三选一：只取第一个非空的栏
+    if (nameVal) {
+        searchFilters = { robot_name: nameVal };
+    } else if (idVal) {
+        searchFilters = { robot_id: idVal };
+    } else if (enVal !== '') {
+        searchFilters = { enabled: enVal };
+    } else {
+        searchFilters = {};
+    }
+    paginationManager.goToPage(1);
+    loadRobots();
+};
+
+// 全局函数：清除查询
+window.clearSearch = function() {
+    searchFilters = {};
+    document.getElementById('searchRobotName').value = '';
+    document.getElementById('searchRobotId').value = '';
+    document.getElementById('searchEnabled').value = '';
+    paginationManager.goToPage(1);
+    loadRobots();
+};
 window.toggleReportIntervalsForm = async function() {
     const content = document.getElementById('reportIntervalsContent');
     const wasHidden = content.style.display === 'none' || content.style.display === '';
@@ -379,6 +407,47 @@ window.closeAlarmModal = function() {
     ui.closeAlarmModal();
 };
 
+// ── 编辑机器人 ─────────────────────────────────────────────────────────
+let _editOldRobotId = null;
+
+window.openEditModal = function(robotId, robotName, enabled) {
+    _editOldRobotId = robotId;
+    document.getElementById('editRobotId').value    = robotId;
+    document.getElementById('editRobotName').value  = robotName;
+    document.getElementById('editRobotEnabled').value = enabled ? 'true' : 'false';
+    document.getElementById('editRobotModal').style.display = 'flex';
+};
+
+window.closeEditModal = function() {
+    document.getElementById('editRobotModal').style.display = 'none';
+    _editOldRobotId = null;
+};
+
+window.saveEditRobot = async function() {
+    if (!_editOldRobotId) return;
+    const newId      = document.getElementById('editRobotId').value.trim();
+    const newName    = document.getElementById('editRobotName').value.trim();
+    const newEnabled = document.getElementById('editRobotEnabled').value === 'true';
+
+    if (!newId) { alert('机器人ID 不能为空'); return; }
+
+    try {
+        const result = await api.updateRobot(_editOldRobotId, {
+            robot_id:    newId,
+            robot_name:  newName,
+            enabled:     newEnabled
+        });
+        if (result.success) {
+            window.closeEditModal();
+            loadRobots();
+        } else {
+            alert('保存失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('保存失败: ' + error.message);
+    }
+};
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 添加机器人表单提交
@@ -388,10 +457,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const robotName = document.getElementById('robotName').value.trim();
         const serialNumber = parseInt(document.getElementById('serialNumber').value);
         const robotId = document.getElementById('robotIdInput').value.trim();
+        const enabled = document.getElementById('robotEnabled').value === 'true';
 
-        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId);
+        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId, enabled);
         if (success) {
             document.getElementById('addRobotForm').reset();
+            // 重置后确保 enabled 恢复默认值 "true"
+            document.getElementById('robotEnabled').value = 'true';
         }
     });
 
@@ -424,6 +496,16 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerModal.addEventListener('click', (e) => {
             if (e.target.id === 'triggerModal') {
                 window.closeTriggerModal();
+            }
+        });
+    }
+
+    // 点击编辑模态框背景关闭
+    const editRobotModal = document.getElementById('editRobotModal');
+    if (editRobotModal) {
+        editRobotModal.addEventListener('click', (e) => {
+            if (e.target.id === 'editRobotModal') {
+                window.closeEditModal();
             }
         });
     }

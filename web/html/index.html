@@ -27,12 +27,17 @@
                 <div id="message"></div>
                 <form id="addRobotForm">
                     <div class="inline-form">
-                        <input type="number" id="serialNumber" name="serialNumber" min="1"
-                               placeholder="序号（可选）" style="width: 120px;">
                         <input type="text" id="robotName" name="robotName"
-                               placeholder="机器人名称（可选）" style="width: 180px;">
+                               placeholder="机器人名称" style="width: 180px;">
                         <input type="text" id="robotIdInput" name="robotIdInput"
-                               placeholder="robot_id（可选，不填自动生成）" style="width: 220px;">
+                               placeholder="机器人ID" style="width: 220px;">
+                        <input type="number" id="serialNumber" name="serialNumber" min="1"
+                               placeholder="序号" style="width: 100px;">
+                        <select id="robotEnabled" name="robotEnabled" style="width: 90px;">
+                            <option value="true" selected>启用</option>
+                            <option value="false">禁用</option>
+                        </select>
+                        <small style="color: var(--color-text-secondary); align-self: center;">名称/ID/序号三选一</small>
                         <div class="form-spacer"></div>
                         <button type="submit" class="btn btn-success">发送请求</button>
                     </div>
@@ -296,6 +301,14 @@
                     <div class="stat-label">已禁用</div>
                     <div class="stat-value" id="statDisabled">0</div>
                 </div>
+                <div class="stat-card" style="border-left:4px solid #27ae60;">
+                    <div class="stat-label">正常</div>
+                    <div class="stat-value" id="statNormal" style="color:#27ae60;">0</div>
+                </div>
+                <div class="stat-card" style="border-left:4px solid #e74c3c;">
+                    <div class="stat-label">故障</div>
+                    <div class="stat-value" id="statFault" style="color:#e74c3c;">0</div>
+                </div>
             </div>
 
             <div class="pagination-controls" style="display: none;">
@@ -310,6 +323,23 @@
                     <span id="totalCount" style="margin-left: 15px;"></span>
                 </div>
             </div>
+
+            <!-- 查询栏 -->
+            <div class="inline-form" style="margin: 10px 0 8px; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <input type="text" id="searchRobotName" placeholder="机器人名称" style="width: 180px;">
+                <input type="text" id="searchRobotId"   placeholder="机器人ID"   style="width: 220px;">
+                <select id="searchEnabled" style="width: 100px;">
+                    <option value="">启用状态</option>
+                    <option value="true">启用</option>
+                    <option value="false">禁用</option>
+                </select>
+                <small style="color: var(--color-text-secondary); align-self: center;">名称/ID/状态三选一</small>
+                <span style="margin-left: auto; display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="searchRobots()">查询</button>
+                    <button class="btn btn-secondary" onclick="clearSearch()">清除</button>
+                </span>
+            </div>
+
             <div id="robotsList">
                 <div class="loading">加载中...</div>
             </div>
@@ -417,6 +447,37 @@
             </div>
             <div class="modal-footer" style="padding:12px 20px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closeTriggerModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑机器人模态框 -->
+    <div id="editRobotModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:460px; width:95%;">
+            <div class="modal-header">
+                <h2>编辑机器人</h2>
+                <span class="close-btn" onclick="closeEditModal()">&times;</span>
+            </div>
+            <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
+                <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">机器人名称</label>
+                    <input type="text" id="editRobotName" style="width:100%; box-sizing:border-box;" placeholder="机器人名称">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">机器人ID</label>
+                    <input type="text" id="editRobotId" style="width:100%; box-sizing:border-box;" placeholder="机器人ID">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">启用状态</label>
+                    <select id="editRobotEnabled" style="width:100%;">
+                        <option value="true">启用</option>
+                        <option value="false">禁用</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
+                <button class="btn btn-success" onclick="saveEditRobot()">保存</button>
             </div>
         </div>
     </div>

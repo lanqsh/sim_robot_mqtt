@@ -1,20 +1,35 @@
 // API 调用模块
 import { API_BASE } from './config.js';
 
-// 获取机器人列表（分页）
-export async function fetchRobots(page, pageSize) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/get?page=${page}&pageSize=${pageSize}`);
+// 获取机器人列表（分页 + 可选查询过滤）
+export async function fetchRobots(page, pageSize, filters = {}) {
+    const params = new URLSearchParams({ page, pageSize });
+    if (filters.robot_name)  params.set('robot_name',  filters.robot_name);
+    if (filters.robot_id)    params.set('robot_id',    filters.robot_id);
+    if (filters.enabled !== undefined && filters.enabled !== '') params.set('enabled', filters.enabled);
+    const response = await fetch(`${API_BASE}/api/v1/robots/get?${params}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
 }
 
+// 编辑机器人信息
+export async function updateRobot(oldRobotId, data) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/update?robot_id=${encodeURIComponent(oldRobotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    return await response.json();
+}
+
 // 添加单个机器人
-export async function addRobot(robotName, serialNumber, robotId) {
+export async function addRobot(robotName, serialNumber, robotId, enabled = true) {
     const body = {
-        robot_name: robotName || ''
+        robot_name: robotName || '',
+        enabled: enabled
     };
 
-    // 如果提供了序号且大于0，才发送序号；否则发送0让后端自动生成
+    // 如果提供了序号且大于0，才发送序号
     body.serial_number = (serialNumber && serialNumber > 0) ? parseInt(serialNumber) : 0;
 
     // 如果提供了 robot_id，则加入请求体
@@ -34,16 +49,6 @@ export async function addRobot(robotName, serialNumber, robotId) {
 export async function deleteRobot(robotId) {
     const response = await fetch(`${API_BASE}/api/v1/robots/delete?robot_id=${robotId}`, {
         method: 'POST'
-    });
-    return await response.json();
-}
-
-// 切换机器人状态
-export async function updateRobotStatus(robotId, enabled) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/status?robot_id=${robotId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled })
     });
     return await response.json();
 }

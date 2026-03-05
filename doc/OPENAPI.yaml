@@ -139,35 +139,6 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /api/v1/robots/status:
-    post:
-      tags: [Robots]
-      summary: 更新机器人启用状态
-      parameters:
-        - name: robot_id
-          in: query
-          required: true
-          schema:
-            type: string
-          description: 机器人 UUID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateRobotStatusRequest'
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BasicSuccessResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/ServerError'
-
   /api/v1/robots/data:
     get:
       tags: [Robots]
@@ -433,6 +404,18 @@ paths:
     post:
       tags: [Commands]
       summary: 手动触发指定上报指令（E0～E9）
+      description: |
+        各指令数据域说明：
+        | 指令 | 含义 | 数据域（含标识符） |
+        |------|------|-------------------|
+        | E0 | Lora参数&清扫设置上报 | — |
+        | E1 | 电机和电池参数上报 | — |
+        | E4 | 机器人数据上报 | — |
+        | E5 | 电流数据上报 | E5(1)+位置(2,大端)+方向(1)+间隔(2,=0)+10组主/从电流各1字节交叉 = 26字节 |
+        | E6 | 定时请求/未运行原因 | E6(1)+定时器编号(1)+周(1)+时(1)+分(1)+运行次数(1)+原因(1)+alarm_fa(4) = 11字节；定时器编号取机器人数据 `scheduled_not_run_id`，原因取 `scheduled_not_run_reason` |
+        | E7 | 未启动原因上报 | E7(1)+原因(1)+alarm_fa(4) = 6字节；原因取机器人数据 `not_started_reason` |
+        | E8 | 启动请求回复接收后确认 | E8(1)+定时器编号(1) = 2字节；定时器编号取机器人数据 `startup_confirm_id` |
+        | E9 | 清扫记录上报 | — |
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
         - name: code
@@ -583,7 +566,7 @@ components:
 
     RobotItem:
       type: object
-      required: [robot_id, robot_name, serial_number, enabled]
+      required: [robot_id, robot_name, serial_number, enabled, software_version, fault_status]
       properties:
         robot_id:
           type: string
@@ -597,6 +580,14 @@ components:
         enabled:
           type: boolean
           example: true
+        software_version:
+          type: string
+          description: 机器人软件版本，未连接时为空字符串
+          example: "1.2.3"
+        fault_status:
+          type: boolean
+          description: 故障状态，alarm_fa/fb/fc/fd 任意非零则为 true
+          example: false
 
     Pagination:
       type: object
@@ -617,7 +608,7 @@ components:
 
     RobotStatistics:
       type: object
-      required: [total, enabled, disabled]
+      required: [total, enabled, disabled, normal, fault]
       properties:
         total:
           type: integer
@@ -628,6 +619,14 @@ components:
         disabled:
           type: integer
           example: 13
+        normal:
+          type: integer
+          description: 无故障机器人数量（alarm_fa/fb/fc/fd 均为 0）
+          example: 50
+        fault:
+          type: integer
+          description: 有故障机器人数量（alarm_fa/fb/fc/fd 任一非零）
+          example: 6
 
     RobotListResponse:
       type: object
@@ -644,6 +643,10 @@ components:
 
     CreateRobotRequest:
       type: object
+      description: |
+        `robot_name`、`robot_id`、`serial_number` 三选一，至少填写一项；
+        均不填时后端返回 400。
+        `serial_number <= 0` 时后端自动分配最大序号 +1。
       properties:
         robot_name:
           type: string
@@ -651,12 +654,17 @@ components:
           example: 清扫机器人-02
         serial_number:
           type: integer
-          description: 序号；`<=0` 时后端自动分配
+          description: 序号；`<=0` 或不填时后端自动分配
           example: 0
         robot_id:
           type: string
           description: 可选；指定机器人ID，不填则后端自动生成16位十六进制ID，填写时不得与已有 robot_id 重复
           example: a1b2c3d4e5f60001
+        enabled:
+          type: boolean
+          description: 启用状态，默认为 `true`
+          default: true
+          example: true
 
     CreateRobotResponse:
       allOf:
@@ -666,14 +674,6 @@ components:
             robot_id:
               type: string
               example: 8f9e7d6c5b4a3210
-
-    UpdateRobotStatusRequest:
-      type: object
-      required: [enabled]
-      properties:
-        enabled:
-          type: boolean
-          example: true
 
     BatchCreateRobotItem:
       type: object
@@ -719,7 +719,7 @@ components:
 
     RobotDataResponse:
       type: object
-      required: [robot_id, status, last_data]
+      required: [robot_id, status, last_data, software_version, fault_status]
       properties:
         robot_id:
           type: string
@@ -741,6 +741,14 @@ components:
           description: |
             `Robot::GetLastData()` 的 JSON 字符串（注意当前实现不是 JSON 对象，而是字符串）。
             客户端如需结构化字段，应先对该字符串进行二次 JSON 解析。
+        software_version:
+          type: string
+          description: 机器人软件版本号
+          example: "1.2.3"
+        fault_status:
+          type: boolean
+          description: 故障状态，alarm_fa/fb/fc/fd 任意一个非零则为 true
+          example: false
 
     GetAlarmsResponse:
       type: object
@@ -1077,13 +1085,13 @@ components:
         version:
           type: string
           description: 完整版本字符串
-          example: "1.3.0"
+          example: "1.4.0"
         major:
           type: integer
           example: 1
         minor:
           type: integer
-          example: 3
+          example: 4
         patch:
           type: integer
           example: 0

@@ -6,17 +6,23 @@ export function updateStatistics(statistics) {
     const totalEl = document.getElementById('statTotal');
     const enabledEl = document.getElementById('statEnabled');
     const disabledEl = document.getElementById('statDisabled');
+    const normalEl = document.getElementById('statNormal');
+    const faultEl = document.getElementById('statFault');
 
     if (!statistics) {
         if (totalEl) totalEl.textContent = 0;
         if (enabledEl) enabledEl.textContent = 0;
         if (disabledEl) disabledEl.textContent = 0;
+        if (normalEl) normalEl.textContent = 0;
+        if (faultEl) faultEl.textContent = 0;
         return;
     }
 
     if (totalEl) totalEl.textContent = statistics.total;
     if (enabledEl) enabledEl.textContent = statistics.enabled;
     if (disabledEl) disabledEl.textContent = statistics.disabled;
+    if (normalEl) normalEl.textContent = statistics.normal ?? 0;
+    if (faultEl) faultEl.textContent = statistics.fault ?? 0;
 }
 
 // 渲染机器人列表
@@ -48,10 +54,17 @@ export function renderRobots(robots) {
                     ${robot.enabled ? '已启用' : '已禁用'}
                 </span>
             </div>
+            <div class="robot-version-col">
+                <span style="font-size:0.85em;color:#555;">${robot.software_version || '-'}</span>
+            </div>
+            <div class="robot-fault-col">
+                ${robot.fault_status
+                    ? '<span style="color:#e74c3c;font-weight:600;">故障</span>'
+                    : '<span style="color:#27ae60;">正常</span>'}
+            </div>
             <div class="robot-actions">
-                <button class="btn btn-sm ${robot.enabled ? 'btn-warning' : 'btn-success'} ${!robot.enabled ? 'disabled-btn' : ''}"
-                        onclick="window.toggleRobotStatus('${robot.robot_id}', ${robot.enabled})">
-                    ${robot.enabled ? '禁用' : '启用'}
+                <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
+                    编辑
                 </button>
                 <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
                     查看数据
@@ -236,6 +249,15 @@ export function renderRobotData(data) {
         html += `<div class="data-item"><span class="data-label">机器人名称:</span><span class="data-value">${data.robot_name}</span></div>`;
     }
     html += `<div class="data-item"><span class="data-label">运行状态:</span><span class="data-value">${data.status === 'running' ? '运行中' : '已停止'}</span></div>`;
+
+    if (data.software_version !== undefined) {
+        html += `<div class="data-item"><span class="data-label">软件版本:</span><span class="data-value">${data.software_version || '未知'}</span></div>`;
+    }
+    if (data.fault_status !== undefined) {
+        const faultText = data.fault_status ? '故障' : '正常';
+        const faultColor = data.fault_status ? '#e74c3c' : '#27ae60';
+        html += `<div class="data-item"><span class="data-label">故障状态:</span><span class="data-value" style="color:${faultColor};font-weight:600;">${faultText}</span></div>`;
+    }
 
     // MQTT相关信息
     if (lastData.publish_topic) {

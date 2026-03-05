@@ -346,6 +346,31 @@ bool ConfigDb::UpdateRobotStatus(const std::string& robot_id, bool enabled) {
   return success;
 }
 
+bool ConfigDb::UpdateRobotInfo(const std::string& old_robot_id,
+                               const std::string& new_robot_id,
+                               const std::string& robot_name,
+                               bool enabled) {
+  if (!initialized_) return false;
+
+  const char* sql =
+    "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ? WHERE robot_id = ?";
+  sqlite3_stmt* stmt;
+
+  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    return false;
+  }
+
+  sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+  sqlite3_bind_text(stmt, 4, old_robot_id.c_str(), -1, SQLITE_STATIC);
+
+  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  sqlite3_finalize(stmt);
+
+  return success;
+}
+
 bool ConfigDb::IsSerialNumberExists(int serial_number) {
   if (!initialized_) return false;
 
