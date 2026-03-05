@@ -703,7 +703,7 @@ components:
 
     RobotDataResponse:
       type: object
-      required: [robot_id, status, last_data]
+      required: [robot_id, status, last_data, software_version, fault_status]
       properties:
         robot_id:
           type: string
@@ -725,6 +725,14 @@ components:
           description: |
             `Robot::GetLastData()` 的 JSON 字符串（注意当前实现不是 JSON 对象，而是字符串）。
             客户端如需结构化字段，应先对该字符串进行二次 JSON 解析。
+        software_version:
+          type: string
+          description: 机器人软件版本号
+          example: "1.2.3"
+        fault_status:
+          type: boolean
+          description: 故障状态，alarm_fa/fb/fc/fd 任意一个非零则为 true
+          example: false
 
     GetAlarmsResponse:
       type: object

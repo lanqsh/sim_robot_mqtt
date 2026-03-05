@@ -558,6 +558,9 @@ void HttpServer::ServerThreadFunc() {
         robot_data["robot_id"] = robot->GetId();
         robot_data["status"] = robot->IsRunning() ? "running" : "stopped";
         robot_data["last_data"] = robot->GetLastData();
+        robot_data["software_version"] = robot->GetData().software_version;
+        const auto& d = robot->GetData();
+        robot_data["fault_status"] = (d.alarm_fa != 0 || d.alarm_fb != 0 || d.alarm_fc != 0 || d.alarm_fd != 0);
 
         // 从数据库获取serial_number和robot_name
         auto all_robots = config_db_->GetAllRobots();
