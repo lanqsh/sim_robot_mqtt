@@ -211,8 +211,22 @@ void HttpServer::ServerThreadFunc() {
       json body = json::parse(req.body);
       std::string robot_name = body.value("robot_name", "");
       int serial_number = body.value("serial_number", 0);
+      bool enabled = body.value("enabled", true);
 
-      // 如果未提供序号或序号为0，自动生成
+      // 检查三选一：robot_name / robot_id / serial_number 至少填一个
+      bool has_robot_id  = body.contains("robot_id") && !body["robot_id"].get<std::string>().empty();
+      bool has_robot_name = !robot_name.empty();
+      bool has_serial     = serial_number > 0;
+      if (!has_robot_id && !has_robot_name && !has_serial) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人名称、机器人ID、序号三选一，至少填写一项";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      // 如果未提供序号，自动生成
       if (serial_number <= 0) {
         serial_number = config_db_->GetMaxSerialNumber() + 1;
         LOG(INFO) << "自动生成序号: " << serial_number;
@@ -249,7 +263,7 @@ void HttpServer::ServerThreadFunc() {
       }
 
       // 添加到数据库
-      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, true);
+      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, enabled);
       if (success) {
         // 添加到MQTT管理器
         mqtt_manager_->AddRobot(robot_id);

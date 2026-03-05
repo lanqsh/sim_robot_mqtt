@@ -388,10 +388,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const robotName = document.getElementById('robotName').value.trim();
         const serialNumber = parseInt(document.getElementById('serialNumber').value);
         const robotId = document.getElementById('robotIdInput').value.trim();
+        const enabled = document.getElementById('robotEnabled').value === 'true';
 
-        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId);
+        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId, enabled);
         if (success) {
             document.getElementById('addRobotForm').reset();
+            // 重置后确保 enabled 恢复默认值 "true"
+            document.getElementById('robotEnabled').value = 'true';
         }
     });
 

@@ -9,12 +9,13 @@ export async function fetchRobots(page, pageSize) {
 }
 
 // 添加单个机器人
-export async function addRobot(robotName, serialNumber, robotId) {
+export async function addRobot(robotName, serialNumber, robotId, enabled = true) {
     const body = {
-        robot_name: robotName || ''
+        robot_name: robotName || '',
+        enabled: enabled
     };
 
-    // 如果提供了序号且大于0，才发送序号；否则发送0让后端自动生成
+    // 如果提供了序号且大于0，才发送序号
     body.serial_number = (serialNumber && serialNumber > 0) ? parseInt(serialNumber) : 0;
 
     // 如果提供了 robot_id，则加入请求体

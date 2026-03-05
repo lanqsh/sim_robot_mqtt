@@ -27,12 +27,12 @@ export async function toggleRobotStatus(robotId, currentStatus, reloadCallback) 
 }
 
 // 添加机器人
-export async function addRobot(robotName, serialNumber, reloadCallback, robotId) {
+export async function addRobot(robotName, serialNumber, reloadCallback, robotId, enabled = true) {
     // 序号可选，如果为空或<=0，后端会自动生成
     const serial = serialNumber && serialNumber > 0 ? parseInt(serialNumber) : 0;
 
     try {
-        const result = await api.addRobot(robotName, serial, robotId);
+        const result = await api.addRobot(robotName, serial, robotId, enabled);
 
         if (result.success) {
             const serialInfo = serial === 0 ? '（自动生成序号）' : '';

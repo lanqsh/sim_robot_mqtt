@@ -27,12 +27,17 @@
                 <div id="message"></div>
                 <form id="addRobotForm">
                     <div class="inline-form">
-                        <input type="number" id="serialNumber" name="serialNumber" min="1"
-                               placeholder="序号（可选）" style="width: 120px;">
                         <input type="text" id="robotName" name="robotName"
-                               placeholder="机器人名称（可选）" style="width: 180px;">
+                               placeholder="机器人名称" style="width: 180px;">
                         <input type="text" id="robotIdInput" name="robotIdInput"
-                               placeholder="robot_id（可选，不填自动生成）" style="width: 220px;">
+                               placeholder="机器人ID" style="width: 220px;">
+                        <input type="number" id="serialNumber" name="serialNumber" min="1"
+                               placeholder="序号" style="width: 100px;">
+                        <select id="robotEnabled" name="robotEnabled" style="width: 90px;">
+                            <option value="true" selected>启用</option>
+                            <option value="false">禁用</option>
+                        </select>
+                        <small style="color: var(--color-text-secondary); align-self: center;">名称/ID/序号三选一</small>
                         <div class="form-spacer"></div>
                         <button type="submit" class="btn btn-success">发送请求</button>
                     </div>
