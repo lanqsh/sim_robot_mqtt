@@ -139,6 +139,38 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/v1/robots/update:
+    post:
+      tags: [Robots]
+      summary: 编辑机器人信息
+      description: |
+        通过 query 参数 `robot_id` 指定要编辑的目标机器人，请求体中可修改 robot_id、robot_name、enabled。
+        若 robot_id 要改变，后端会检查新 ID 是否已存在。
+      parameters:
+        - name: robot_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 当前机器人 ID（用于定位记录）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRobotRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/v1/robots/data:
     get:
       tags: [Robots]
@@ -716,6 +748,41 @@ components:
             count:
               type: integer
               example: 3
+
+    UpdateRobotRequest:
+      type: object
+      description: 字段均可选，不填则保持原内容。
+      properties:
+        robot_id:
+          type: string
+          description: 新机器人 ID，不填则保持原 ID
+          example: a1b2c3d4e5f60002
+        robot_name:
+          type: string
+          description: 新机器人名称
+          example: 清扫机器人-02
+        enabled:
+          type: boolean
+          description: 启用状态
+          example: true
+
+    UpdateRobotResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessResponse'
+        - type: object
+          properties:
+            message:
+              type: string
+              example: 机器人信息已更新
+            robot_id:
+              type: string
+              example: a1b2c3d4e5f60002
+            robot_name:
+              type: string
+              example: 清扫机器人-02
+            enabled:
+              type: boolean
+              example: true
 
     RobotDataResponse:
       type: object
