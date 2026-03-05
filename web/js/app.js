@@ -8,10 +8,13 @@ import { PaginationManager } from './pagination.js';
 // 分页管理器
 const paginationManager = new PaginationManager();
 
+// 查询过滤状态
+let searchFilters = {};
+
 // 加载机器人列表
 async function loadRobots() {
     try {
-        const result = await api.fetchRobots(paginationManager.getCurrentPage(), paginationManager.getPageSize());
+        const result = await api.fetchRobots(paginationManager.getCurrentPage(), paginationManager.getPageSize(), searchFilters);
 
         paginationManager.updatePagination(result.pagination);
 
@@ -130,6 +133,36 @@ window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseI
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
+
+// 全局函数：执行查询
+window.searchRobots = function() {
+    const nameVal = document.getElementById('searchRobotName').value.trim();
+    const idVal   = document.getElementById('searchRobotId').value.trim();
+    const enVal   = document.getElementById('searchEnabled').value;
+
+    // 三选一：只取第一个非空的栏
+    if (nameVal) {
+        searchFilters = { robot_name: nameVal };
+    } else if (idVal) {
+        searchFilters = { robot_id: idVal };
+    } else if (enVal !== '') {
+        searchFilters = { enabled: enVal };
+    } else {
+        searchFilters = {};
+    }
+    paginationManager.goToPage(1);
+    loadRobots();
+};
+
+// 全局函数：清除查询
+window.clearSearch = function() {
+    searchFilters = {};
+    document.getElementById('searchRobotName').value = '';
+    document.getElementById('searchRobotId').value = '';
+    document.getElementById('searchEnabled').value = '';
+    paginationManager.goToPage(1);
+    loadRobots();
+};
 window.toggleReportIntervalsForm = async function() {
     const content = document.getElementById('reportIntervalsContent');
     const wasHidden = content.style.display === 'none' || content.style.display === '';

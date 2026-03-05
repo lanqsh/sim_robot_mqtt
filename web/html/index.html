@@ -315,6 +315,21 @@
                     <span id="totalCount" style="margin-left: 15px;"></span>
                 </div>
             </div>
+
+            <!-- 查询栏 -->
+            <div class="inline-form" style="margin: 10px 0 8px; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <input type="text" id="searchRobotName" placeholder="机器人名称" style="width: 180px;">
+                <input type="text" id="searchRobotId"   placeholder="机器人ID"   style="width: 220px;">
+                <select id="searchEnabled" style="width: 100px;">
+                    <option value="">启用状态</option>
+                    <option value="true">启用</option>
+                    <option value="false">禁用</option>
+                </select>
+                <small style="color: var(--color-text-secondary); align-self: center;">名称/ID/状态三选一</small>
+                <button class="btn btn-primary" onclick="searchRobots()">查询</button>
+                <button class="btn btn-secondary" onclick="clearSearch()">清除</button>
+            </div>
+
             <div id="robotsList">
                 <div class="loading">加载中...</div>
             </div>

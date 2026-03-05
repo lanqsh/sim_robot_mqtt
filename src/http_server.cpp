@@ -3,6 +3,7 @@
 #include <glog/logging.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <sstream>
@@ -131,6 +132,37 @@ void HttpServer::ServerThreadFunc() {
   svr.Get("/api/v1/robots/get", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       auto all_robots = config_db_->GetAllRobots();
+
+      // 查询过滤参数（三选一）
+      std::string filter_name     = req.has_param("robot_name") ? req.get_param_value("robot_name") : "";
+      std::string filter_robot_id = req.has_param("robot_id")   ? req.get_param_value("robot_id")   : "";
+      std::string filter_enabled  = req.has_param("enabled")     ? req.get_param_value("enabled")     : "";
+
+      // 如果有查询条件，过滤列表
+      if (!filter_name.empty() || !filter_robot_id.empty() || !filter_enabled.empty()) {
+        // 小写转换辅助函数
+        auto to_lower = [](std::string s) {
+          std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+          return s;
+        };
+        std::string lname = to_lower(filter_name);
+        std::string lid   = to_lower(filter_robot_id);
+
+        all_robots.erase(std::remove_if(all_robots.begin(), all_robots.end(),
+          [&](const RobotInfo& r) {
+            if (!lname.empty()) {
+              return to_lower(r.robot_name).find(lname) == std::string::npos;
+            }
+            if (!lid.empty()) {
+              return to_lower(r.robot_id).find(lid) == std::string::npos;
+            }
+            if (!filter_enabled.empty()) {
+              bool want_enabled = (filter_enabled == "true" || filter_enabled == "1");
+              return r.enabled != want_enabled;
+            }
+            return false;
+          }), all_robots.end());
+      }
 
       // 获取分页参数
       int page = 1;

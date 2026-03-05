@@ -1,9 +1,13 @@
 // API 调用模块
 import { API_BASE } from './config.js';
 
-// 获取机器人列表（分页）
-export async function fetchRobots(page, pageSize) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/get?page=${page}&pageSize=${pageSize}`);
+// 获取机器人列表（分页 + 可选查询过滤）
+export async function fetchRobots(page, pageSize, filters = {}) {
+    const params = new URLSearchParams({ page, pageSize });
+    if (filters.robot_name)  params.set('robot_name',  filters.robot_name);
+    if (filters.robot_id)    params.set('robot_id',    filters.robot_id);
+    if (filters.enabled !== undefined && filters.enabled !== '') params.set('enabled', filters.enabled);
+    const response = await fetch(`${API_BASE}/api/v1/robots/get?${params}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
 }
