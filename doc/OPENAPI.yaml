@@ -25,23 +25,48 @@ paths:
   /api/v1/robots/get:
     get:
       tags: [Robots]
-      summary: 获取机器人列表（分页）
+      summary: 获取机器人列表（分页 + 过滤）
+      description: |
+        返回机器人列表，支持分页和按条件过滤。
+        过滤参数 `robot_name`、`robot_id`、`enabled` **三选一**，同时传入时只有第一个生效（顺序：robot_name > robot_id > enabled）。
+        不传过滤参数时返回全部机器人。
+        每条记录包含实时 `software_version`（未连接时为空串）和 `fault_status`（告警汇总）。
+        `statistics` 字段统计过滤后的全量数据，而非仅当前页。
       parameters:
         - name: page
           in: query
-          description: 页码，最小 1
+          description: 页码，最小 1，默认 1
           schema:
             type: integer
             minimum: 1
             default: 1
         - name: pageSize
           in: query
-          description: 每页数量，最小 1，最大 1000
+          description: 每页数量，最小 1，最大 1000，默认 20
           schema:
             type: integer
             minimum: 1
             maximum: 1000
             default: 20
+        - name: robot_name
+          in: query
+          description: 按机器人名称模糊过滤（不区分大小写），与 robot_id/enabled 三选一
+          schema:
+            type: string
+          example: 清扫
+        - name: robot_id
+          in: query
+          description: 按机器人 ID 模糊过滤（不区分大小写），与 robot_name/enabled 三选一
+          schema:
+            type: string
+          example: a1b2
+        - name: enabled
+          in: query
+          description: 按启用状态精确过滤，`true` 或 `1` 表示启用，`false` 或 `0` 表示禁用，与 robot_name/robot_id 三选一
+          schema:
+            type: string
+            enum: [true, false, "1", "0"]
+          example: "true"
       responses:
         '200':
           description: 成功
@@ -49,6 +74,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RobotListResponse'
+              example:
+                data:
+                  - robot_id: a1b2c3d4e5f67890
+                    robot_name: 清扫机器人-01
+                    serial_number: 101
+                    enabled: true
+                    software_version: "1.2.3"
+                    fault_status: false
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 1
+                  totalPages: 1
+                statistics:
+                  total: 1
+                  enabled: 1
+                  disabled: 0
+                  normal: 1
+                  fault: 0
         '500':
           $ref: '#/components/responses/ServerError'
 
