@@ -448,6 +448,154 @@ window.saveEditRobot = async function() {
     }
 };
 
+// ── 参数配置弹窗 ─────────────────────────────────────────────────────────
+
+let _paramConfigRobotId = null;
+
+// 打开参数配置弹窗
+window.openParamConfig = function(robotId) {
+    _paramConfigRobotId = robotId;
+    document.getElementById('paramConfigRobotId').textContent = robotId;
+    document.getElementById('paramConfigModal').style.display = 'flex';
+};
+
+// 关闭参数配置弹窗
+window.closeParamConfigModal = function() {
+    document.getElementById('paramConfigModal').style.display = 'none';
+    _paramConfigRobotId = null;
+};
+
+// 折叠/展开参数配置项
+window.toggleParamSection = function(sectionId, iconId) {
+    const section = document.getElementById(sectionId);
+    const icon    = document.getElementById(iconId);
+    if (!section) return;
+    const isHidden = section.style.display === 'none' || section.style.display === '';
+    section.style.display = isHidden ? 'block' : 'none';
+    if (icon) icon.textContent = isHidden ? '▼' : '▶';
+};
+
+// 参数配置 - 发送电机参数
+window.pcSendMotorParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const id = v => { const el = document.getElementById(v); return el ? parseInt(el.value) : NaN; };
+    const params = {
+        walk_motor_speed:                    id('pc_walkMotorSpeed'),
+        brush_motor_speed:                   id('pc_brushMotorSpeed'),
+        windproof_motor_speed:               id('pc_windproofMotorSpeed'),
+        walk_motor_max_current_ma:           id('pc_walkMotorMaxCurrent'),
+        brush_motor_max_current_ma:          id('pc_brushMotorMaxCurrent'),
+        windproof_motor_max_current_ma:      id('pc_windproofMotorMaxCurrent'),
+        walk_motor_warning_current_ma:       id('pc_walkMotorWarningCurrent'),
+        brush_motor_warning_current_ma:      id('pc_brushMotorWarningCurrent'),
+        windproof_motor_warning_current_ma:  id('pc_windproofMotorWarningCurrent'),
+        walk_motor_mileage_m:                id('pc_walkMotorMileage'),
+        brush_motor_timeout_s:               id('pc_brushMotorTimeout'),
+        windproof_motor_timeout_s:           id('pc_windproofMotorTimeout'),
+        reverse_time_s:                      id('pc_reverseTime'),
+        protection_angle:                    id('pc_protectionAngle')
+    };
+    if (Object.values(params).some(isNaN)) { alert('请填写所有电机参数字段'); return; }
+    try {
+        ui.showLoading('正在发送电机参数...');
+        const result = await api.sendMotorParamsRequest(_paramConfigRobotId, params);
+        ui.hideLoading();
+        if (result.success) alert('电机参数设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送电池参数
+window.pcSendBatteryParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const id = v => { const el = document.getElementById(v); return el ? parseInt(el.value) : NaN; };
+    const params = {
+        protection_current_ma:     id('pc_protectionCurrent'),
+        high_temp_threshold:       id('pc_highTempThreshold'),
+        low_temp_threshold:        id('pc_lowTempThreshold'),
+        protection_temp:           id('pc_protectionTemp'),
+        recovery_temp:             id('pc_recoveryTemp'),
+        protection_voltage:        id('pc_protectionVoltage'),
+        recovery_voltage:          id('pc_recoveryVoltage'),
+        protection_battery_level:  id('pc_protectionBatteryLevel'),
+        limit_run_battery_level:   id('pc_limitRunBatteryLevel'),
+        recovery_battery_level:    id('pc_recoveryBatteryLevel')
+    };
+    if (Object.values(params).some(isNaN)) { alert('请填写所有电池参数字段'); return; }
+    try {
+        ui.showLoading('正在发送电池参数...');
+        const result = await api.sendBatteryParamsRequest(_paramConfigRobotId, params);
+        ui.hideLoading();
+        if (result.success) alert('电池参数设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送定时设置（7个任务）
+window.pcSendScheduleParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const tasks = [];
+    for (let i = 1; i <= 7; i++) {
+        const wday = parseInt(document.getElementById(`pc_wday${i}`).value);
+        const hour = parseInt(document.getElementById(`pc_hour${i}`).value);
+        const min  = parseInt(document.getElementById(`pc_min${i}`).value);
+        const cnt  = parseInt(document.getElementById(`pc_cnt${i}`).value);
+        if ([wday, hour, min, cnt].some(isNaN)) { alert(`请填写任务${i}的所有字段`); return; }
+        tasks.push({ weekday: wday, hour, minute: min, run_count: cnt });
+    }
+    try {
+        ui.showLoading('正在发送定时设置...');
+        const result = await api.sendScheduleParamsRequest(_paramConfigRobotId, { tasks });
+        ui.hideLoading();
+        if (result.success) alert('定时设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送停机位设置
+window.pcSendParkingPosition = async function() {
+    if (!_paramConfigRobotId) return;
+    const pos = parseInt(document.getElementById('pc_parkingPosition').value);
+    if (isNaN(pos) || pos < 0 || pos > 255) { alert('请输入有效的停机位（0-255）'); return; }
+    try {
+        ui.showLoading('正在发送停机位设置...');
+        const result = await api.sendParkingPositionRequest(_paramConfigRobotId, { parking_position: pos });
+        ui.hideLoading();
+        if (result.success) alert('停机位设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送Lora参数
+window.pcSendLoraParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const power     = parseInt(document.getElementById('pc_loraPower').value);
+    const frequency = parseInt(document.getElementById('pc_loraFrequency').value);
+    const rate      = parseInt(document.getElementById('pc_loraRate').value);
+    if ([power, frequency, rate].some(isNaN)) { alert('请填写所有Lora参数（功率、频率、速率）'); return; }
+    try {
+        ui.showLoading('正在发送Lora参数...');
+        const result = await api.sendLoraParamsRequest(_paramConfigRobotId, { power, frequency, rate });
+        ui.hideLoading();
+        if (result.success) alert('Lora参数已发送！机器人将推送E0上报。');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送白天防误扫设置
+window.pcSendDaytimeScanProtect = async function() {
+    if (!_paramConfigRobotId) return;
+    const onRadio = document.getElementById('pc_daytimeScanOn');
+    const enabled = onRadio && onRadio.checked;
+    try {
+        ui.showLoading('正在发送白天防误扫设置...');
+        const result = await api.sendDaytimeScanProtectRequest(_paramConfigRobotId, enabled);
+        ui.hideLoading();
+        if (result.success) alert(`白天防误扫已设置为：${enabled ? '开启' : '关闭'}，机器人将推送E0上报。`);
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 添加机器人表单提交
@@ -506,6 +654,16 @@ document.addEventListener('DOMContentLoaded', () => {
         editRobotModal.addEventListener('click', (e) => {
             if (e.target.id === 'editRobotModal') {
                 window.closeEditModal();
+            }
+        });
+    }
+
+    // 点击参数配置模态框背景关闭
+    const paramConfigModal = document.getElementById('paramConfigModal');
+    if (paramConfigModal) {
+        paramConfigModal.addEventListener('click', (e) => {
+            if (e.target.id === 'paramConfigModal') {
+                window.closeParamConfigModal();
             }
         });
     }

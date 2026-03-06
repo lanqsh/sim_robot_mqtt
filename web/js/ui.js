@@ -69,6 +69,9 @@ export function renderRobots(robots) {
                 <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
                     查看数据
                 </button>
+                <button class="btn btn-sm btn-success" onclick="window.openParamConfig('${robot.robot_id}')">
+                    参数配置
+                </button>
                 <button class="btn btn-sm btn-warning" onclick="window.openTriggerModal('${robot.robot_id}')">
                     手动触发
                 </button>

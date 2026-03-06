@@ -184,6 +184,26 @@ export async function setReportIntervals(robotDataS, motorParamsS, loraCleanS) {
     return await response.json();
 }
 
+// 设置Lora参数（功率/频率/速率）
+export async function sendLoraParamsRequest(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/lora_params?robot_id=${robotId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 设置白天防误扫开关
+export async function sendDaytimeScanProtectRequest(robotId, enabled) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/daytime_scan_protect?robot_id=${robotId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+    });
+    return await response.json();
+}
+
 // 手动触发指定上报指令（code: "E0"~"E9"）
 export async function triggerReport(robotId, code) {
     const response = await fetch(`${API_BASE}/api/v1/robots/trigger_report?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {

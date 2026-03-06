@@ -416,6 +416,64 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/v1/robots/lora_params:
+    post:
+      tags: [Commands]
+      summary: 设置Lora参数
+      description: |
+        设置指定机器人的 Lora 通信参数（功率、频率、速率），并触发机器人推送 E0（Lora参数&清扫设置）上报包。
+        三个字段均为必填，取值范围 0～255。机器人未在线时返回 404。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoraParamsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/daytime_scan_protect:
+    post:
+      tags: [Commands]
+      summary: 设置白天防误扫功能开关
+      description: |
+        开启或关闭指定机器人的白天防误扫功能，并触发机器人推送 E0（Lora参数&清扫设置）上报包。
+        `enabled` 为布尔值（true=开启，false=关闭）。机器人未在线时返回 404。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DaytimeScanProtectRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaytimeScanProtectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/v1/robots/schedule_start:
     post:
       tags: [Commands]
@@ -1144,6 +1202,47 @@ components:
             parking_position:
               type: integer
               example: 1
+
+    LoraParamsRequest:
+      type: object
+      required: [power, frequency, rate]
+      properties:
+        power:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Lora功率
+          example: 20
+        frequency:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Lora频率
+          example: 10
+        rate:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Lora速率
+          example: 5
+
+    DaytimeScanProtectRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: 是否开启白天防误扫
+          example: true
+
+    DaytimeScanProtectResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
 
     ScheduleStartRequest:
       type: object

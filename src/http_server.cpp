@@ -1001,6 +1001,97 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // POST /api/v1/robots/lora_params - 设置Lora参数（功率/频率/速率）
+  svr.Post("/api/v1/robots/lora_params", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("power") || !body.contains("frequency") || !body.contains("rate")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: power, frequency, rate";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->GetData().lora_params.power     = body["power"].get<int>();
+      robot->GetData().lora_params.frequency = body["frequency"].get<int>();
+      robot->GetData().lora_params.rate      = body["rate"].get<int>();
+      robot->SendLoraAndCleanSettingsReport();
+
+      json response;
+      response["success"] = true;
+      response["message"] = "Lora参数设置已发送";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置Lora参数 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "设置Lora参数失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/daytime_scan_protect - 设置白天防误扫开关
+  svr.Post("/api/v1/robots/daytime_scan_protect", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("enabled")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: enabled";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->GetData().daytime_scan_protect = body["enabled"].get<bool>();
+      robot->SendLoraAndCleanSettingsReport();
+
+      json response;
+      response["success"] = true;
+      response["message"] = "白天防误扫设置已发送";
+      response["robot_id"] = robot_id;
+      response["enabled"] = robot->GetData().daytime_scan_protect;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置白天防误扫 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "设置白天防误扫失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   // POST /api/v1/robots/schedule_start - 发送定时启动请求
   svr.Post("/api/v1/robots/schedule_start", [this](const httplib::Request& req, httplib::Response& res) {
     std::string robot_id = req.get_param_value("robot_id");
