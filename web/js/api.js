@@ -214,6 +214,23 @@ export async function sendRobotE4DataRequest(robotId, params) {
     return await response.json();
 }
 
+// 获取 MQTT 服务配置
+export async function getMqttConfig() {
+    const response = await fetch(`${API_BASE}/api/v1/system/mqtt_config`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+}
+
+// 更新 MQTT 服务配置并重新连接
+export async function setMqttConfig(broker, username, password) {
+    const response = await fetch(`${API_BASE}/api/v1/system/mqtt_config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ broker, username, password })
+    });
+    return await response.json();
+}
+
 // 手动触发指定上报指令（code: "E0"~"E9"）
 export async function triggerReport(robotId, code) {
     const response = await fetch(`${API_BASE}/api/v1/robots/trigger_report?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {

@@ -11,6 +11,9 @@ MqttManager::MqttManager(const std::string& broker,
                          const std::string& client_id, int qos,
                          std::shared_ptr<ConfigDb> config_db)
     : broker_(broker), client_id_(client_id), qos_(qos), config_db_(config_db) {
+  // 从数据库加载用户名/密码
+  username_ = config_db_->GetValue("mqtt_username", "");
+  password_ = config_db_->GetValue("mqtt_password", "");
   client_ = std::make_unique<mqtt::async_client>(broker_, client_id_);
   client_->set_callback(*this);
 }
@@ -25,6 +28,10 @@ bool MqttManager::Connect(int keepalive) {
   try {
     mqtt::connect_options conn_opts;
     conn_opts.set_keep_alive_interval(keepalive);
+    if (!username_.empty()) {
+      conn_opts.set_user_name(username_);
+      conn_opts.set_password(password_);
+    }
 
     LOG(INFO) << "正在连接到 broker: " << broker_;
     client_->connect(conn_opts)->wait();
@@ -312,6 +319,59 @@ void MqttManager::UpdateAllRobotsReportIntervals(int robot_data_s, int motor_par
     robot->SetReportIntervals(robot_data_s, motor_params_s, lora_clean_s);
     LOG(INFO) << "  已更新机器人: " << id;
   }
+}
+
+bool MqttManager::ReconfigureAndReconnect(const std::string& broker,
+                                           const std::string& username,
+                                           const std::string& password,
+                                           int keepalive) {
+  LOG(INFO) << "MQTT 重新配置 - broker: " << broker
+            << ", user: " << username;
+
+  // 1. 保存到数据库
+  config_db_->SetValue("broker",         broker);
+  config_db_->SetValue("mqtt_username",  username);
+  config_db_->SetValue("mqtt_password",  password);
+
+  // 2. 更新内存成员
+  broker_   = broker;
+  username_ = username;
+  password_ = password;
+
+  // 3. 断开旧连接
+  if (client_ && client_->is_connected()) {
+    try { client_->disconnect()->wait(); } catch (...) {}
+  }
+
+  // 4. 重建客户端
+  client_ = std::make_unique<mqtt::async_client>(broker_, client_id_);
+  client_->set_callback(*this);
+
+  // 5. 重新连接
+  if (!Connect(keepalive)) {
+    LOG(ERROR) << "MQTT 重连失败";
+    return false;
+  }
+
+  // 6. 重新订阅所有机器人的主题
+  std::vector<std::string> topics;
+  {
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    for (const auto& [id, robot] : robots_) {
+      topics.push_back(robot->GetSubscribeTopic());
+    }
+  }
+  for (const auto& topic : topics) {
+    try {
+      client_->subscribe(topic, qos_)->wait();
+      LOG(INFO) << "已重新订阅: " << topic;
+    } catch (const mqtt::exception& e) {
+      LOG(ERROR) << "重订阅失败: " << topic << " - " << e.what();
+    }
+  }
+
+  LOG(INFO) << "MQTT 重新配置并连接成功";
+  return true;
 }
 
 void MqttManager::Stop() {

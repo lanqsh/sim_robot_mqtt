@@ -1564,6 +1564,65 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // ─── MQTT 服务配置 ─────────────────────────────────────────────────────────
+
+  // GET /api/v1/system/mqtt_config - 获取 MQTT 服务地址、用户名及连接状态
+  svr.Get("/api/v1/system/mqtt_config", [this](const httplib::Request&, httplib::Response& res) {
+    try {
+      json response;
+      response["success"]   = true;
+      response["broker"]    = mqtt_manager_->GetBroker();
+      response["username"]  = mqtt_manager_->GetUsername();
+      response["connected"] = mqtt_manager_->IsConnected();
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/system/mqtt_config - 更新 MQTT 服务配置并重新连接
+  svr.Post("/api/v1/system/mqtt_config", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("broker") || body["broker"].get<std::string>().empty()) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必填参数: broker"
+; res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      std::string broker   = body["broker"].get<std::string>();
+      std::string username = body.value("username", "");
+      std::string password = body.value("password", "");
+
+      bool ok = mqtt_manager_->ReconfigureAndReconnect(broker, username, password);
+
+      json response;
+      response["success"]   = ok;
+      response["message"]   = ok ? "MQTT 服务配置已更新并重新连接" : "MQTT 重连失败，配置已保存";
+      response["broker"]    = mqtt_manager_->GetBroker();
+      response["username"]  = mqtt_manager_->GetUsername();
+      response["connected"] = mqtt_manager_->IsConnected();
+      if (!ok) res.status = 500;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 更新 MQTT 配置 - broker: " << broker
+                << ", user: " << username << ", 连接: " << (ok ? "ok" : "fail");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "MQTT 配置更新失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   LOG(INFO) << "HTTP服务器线程启动，监听端口: " << port_;
 
   // 启动服务器（阻塞）

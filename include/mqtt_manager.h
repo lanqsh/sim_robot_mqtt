@@ -75,6 +75,17 @@ class MqttManager : public virtual mqtt::callback,
   // 获取当前管理的机器人数量（供 Robot 内部计算错峰偏移用）
   int GetRobotCount();
 
+  // 获取 MQTT 连接配置
+  std::string GetBroker() const { return broker_; }
+  std::string GetUsername() const { return username_; }
+  bool IsConnected() const { return client_ && client_->is_connected(); }
+
+  // 更新 MQTT 服务配置并重新连接（保存到数据库）
+  bool ReconfigureAndReconnect(const std::string& broker,
+                               const std::string& username,
+                               const std::string& password,
+                               int keepalive = 60);
+
   // MQTT回调
   void connection_lost(const std::string& cause) override;
   void message_arrived(mqtt::const_message_ptr msg) override;
@@ -82,6 +93,8 @@ class MqttManager : public virtual mqtt::callback,
 
  private:
   std::string broker_;
+  std::string username_;
+  std::string password_;
   std::string client_id_;
   int qos_;
   std::shared_ptr<ConfigDb> config_db_;

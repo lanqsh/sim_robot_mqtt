@@ -165,6 +165,63 @@ window.toggleReportIntervalsForm = async function() {
     if (wasHidden) await window.loadReportIntervals();
 };
 
+// MQTT 配置区域开关
+window.toggleMqttConfigForm = async function() {
+    const content = document.getElementById('mqttConfigContent');
+    const wasHidden = content.style.display === 'none' || content.style.display === '';
+    ui.toggleForm('mqttConfigContent', 'mqttConfigCollapseIcon');
+    if (wasHidden) await window.loadMqttConfig();
+};
+
+// 读取当前 MQTT 配置
+window.loadMqttConfig = async function() {
+    try {
+        const result = await api.getMqttConfig();
+        if (result.success) {
+            document.getElementById('mqttBroker').value   = result.broker   || '';
+            document.getElementById('mqttUsername').value = result.username  || '';
+            document.getElementById('mqttPassword').value = '';
+            _updateMqttStatusBadge(result.connected);
+        }
+    } catch (e) {
+        console.error('获取 MQTT 配置失败:', e);
+    }
+};
+
+// 保存 MQTT 配置并重连
+window.saveMqttConfig = async function() {
+    const broker   = document.getElementById('mqttBroker').value.trim();
+    const username = document.getElementById('mqttUsername').value.trim();
+    const password = document.getElementById('mqttPassword').value;
+    if (!broker) { alert('服务地址不能为空'); return; }
+    try {
+        ui.showLoading('正在重新连接 MQTT...');
+        const result = await api.setMqttConfig(broker, username, password);
+        ui.hideLoading();
+        _updateMqttStatusBadge(result.connected);
+        if (result.success) {
+            document.getElementById('mqttPassword').value = '';
+            alert('✓ MQTT 配置已保存并重新连接成功');
+        } else {
+            alert('配置已保存，但 MQTT 重连失败: ' + (result.message || ''));
+        }
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+function _updateMqttStatusBadge(connected) {
+    const badge = document.getElementById('mqttStatusBadge');
+    if (!badge) return;
+    if (connected) {
+        badge.textContent = '✔ 已连接';
+        badge.style.background = '#d4edda';
+        badge.style.color = '#276032';
+    } else {
+        badge.textContent = '✖ 未连接';
+        badge.style.background = '#fce8e8';
+        badge.style.color = '#a93226';
+    }
+}
+
 // 全局函数：读取定时上报间隔配置
 window.loadReportIntervals = async function() {
     try {
