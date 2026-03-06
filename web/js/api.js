@@ -240,12 +240,14 @@ export async function listFirmwareFiles() {
 
 // 触发浏览器下载指定固件文件
 export function downloadFirmwareFile(filename) {
+    const url = `${API_BASE}/api/v1/system/firmware/download?filename=${encodeURIComponent(filename)}`;
     const a = document.createElement('a');
-    a.href = `${API_BASE}/api/v1/system/firmware/download?filename=${encodeURIComponent(filename)}`;
+    a.href = url;
     a.download = filename;
+    a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    setTimeout(() => document.body.removeChild(a), 1000);
 }
 
 // 手动触发指定上报指令（code: "E0"~"E9"）
