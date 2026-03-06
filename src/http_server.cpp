@@ -1630,6 +1630,7 @@ void HttpServer::ServerThreadFunc() {
     std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
     json result;
     result["success"] = true;
+    result["version"] = APP_VERSION_STR;
     json files_arr = json::array();
     try {
       if (!fs::exists(firmware_dir)) {

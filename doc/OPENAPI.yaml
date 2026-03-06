@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.8.0
+  version: 1.9.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
@@ -789,6 +789,7 @@ paths:
                 $ref: '#/components/schemas/FirmwareListResponse'
               example:
                 success: true
+                version: "1.0"
                 files:
                   - filename: 20250226132000.bin
                     size: 524288
@@ -1600,11 +1601,15 @@ components:
 
     FirmwareListResponse:
       type: object
-      required: [success, files]
+      required: [success, version, files]
       properties:
         success:
           type: boolean
           example: true
+        version:
+          type: string
+          description: 当前机器人软件版本号（同 /api/v1/system/version 返回的 version 字段）
+          example: "1.0"
         files:
           type: array
           description: 目录下所有 .bin 固件文件列表
