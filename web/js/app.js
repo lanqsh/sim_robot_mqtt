@@ -195,9 +195,7 @@ window.saveMqttConfig = async function() {
     const password = document.getElementById('mqttPassword').value;
     if (!broker) { alert('服务地址不能为空'); return; }
     try {
-        ui.showLoading('正在重新连接 MQTT...');
         const result = await api.setMqttConfig(broker, username, password);
-        ui.hideLoading();
         _updateMqttStatusBadge(result.connected);
         if (result.success) {
             document.getElementById('mqttPassword').value = '';
@@ -205,7 +203,7 @@ window.saveMqttConfig = async function() {
         } else {
             alert('配置已保存，但 MQTT 重连失败: ' + (result.message || ''));
         }
-    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+    } catch (e) { alert('保存失败: ' + e.message); }
 };
 
 function _updateMqttStatusBadge(connected) {

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.4.0
+  version: 1.5.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
@@ -707,6 +707,70 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/ServerError'
+
+  /api/v1/system/mqtt_config:
+    get:
+      tags: [System]
+      summary: 获取 MQTT 服务配置
+      description: 读取数据库中的 MQTT Broker 地址和用户名，以及当前连接状态。密码不会返回。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttConfigResponse'
+              example:
+                success: true
+                broker: "tcp://192.168.1.100:1883"
+                username: admin
+                connected: true
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [System]
+      summary: 更新 MQTT 服务配置并重新连接
+      description: |
+        将 broker/username/password 保存到数据库，断开旧连接后以新地址重新连接 Broker。
+        所有已管理的机器人主题会自动重订阅。密码可留空（不传或传空串表示匿名连接）。
+        重连失败时返回 HTTP 500，但配置已写入数据库。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetMqttConfigRequest'
+            example:
+              broker: "tcp://192.168.1.100:1883"
+              username: admin
+              password: secret
+      responses:
+        '200':
+          description: 成功（重连成功）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttConfigResponse'
+              example:
+                success: true
+                message: MQTT 重连成功
+                broker: "tcp://192.168.1.100:1883"
+                username: admin
+                connected: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          description: 配置已保存但 MQTT 重连失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttConfigResponse'
+              example:
+                success: false
+                message: MQTT 重连失败
+                broker: "tcp://192.168.1.100:1883"
+                username: admin
+                connected: false
 
 components:
   parameters:
@@ -1443,6 +1507,47 @@ components:
           description: Lora参数&清扫设置上报间隔（秒），最小 10
           minimum: 10
           example: 3600
+
+    MqttConfigResponse:
+      type: object
+      required: [success, broker, username, connected]
+      properties:
+        success:
+          type: boolean
+          example: true
+        broker:
+          type: string
+          description: MQTT Broker 地址
+          example: "tcp://192.168.1.100:1883"
+        username:
+          type: string
+          description: MQTT 用户名（密码不会回显）
+          example: admin
+        connected:
+          type: boolean
+          description: 当前是否已连接到 Broker
+          example: true
+        message:
+          type: string
+          description: 操作说明（仅 POST 返回）
+          example: MQTT 重连成功
+
+    SetMqttConfigRequest:
+      type: object
+      required: [broker]
+      properties:
+        broker:
+          type: string
+          description: MQTT Broker 地址，格式如 tcp://host:1883，不得为空
+          example: "tcp://192.168.1.100:1883"
+        username:
+          type: string
+          description: 用户名，可留空（不传或传空串表示匿名连接）
+          example: admin
+        password:
+          type: string
+          description: 密码，可留空
+          example: secret
 
     SystemVersionResponse:
       type: object
