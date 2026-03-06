@@ -242,7 +242,7 @@ window.loadFirmwareList = async function() {
                 <td style="padding:8px 12px;">${f.version || '<span style="color:#aaa;">-</span>'}</td>
                 <td style="padding:8px 12px; word-break:break-all;">${f.filename}</td>
                 <td style="padding:8px 12px; text-align:center;">
-                    <button class="btn btn-secondary btn-sm" onclick="window.downloadFirmwareFile(${JSON.stringify(f.filename)})">&#11015; 下载</button>
+                    <button class="btn btn-secondary btn-sm" data-fname="${f.filename}" onclick="window.downloadFirmwareFile(this.dataset.fname)">&#11015; 下载</button>
                 </td>
             </tr>
         `).join('');

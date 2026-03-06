@@ -1642,6 +1642,8 @@ void HttpServer::ServerThreadFunc() {
         for (const auto& entry : fs::directory_iterator(firmware_dir)) {
           if (!entry.is_regular_file()) continue;
           std::string fname = entry.path().filename().string();
+          // 只列出 .bin 固件文件
+          if (entry.path().extension().string() != ".bin") continue;
           std::string version;
           std::smatch m;
           if (std::regex_search(fname, m, ver_re)) version = m[1].str();
