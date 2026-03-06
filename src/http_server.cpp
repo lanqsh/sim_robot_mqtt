@@ -1630,7 +1630,7 @@ void HttpServer::ServerThreadFunc() {
     std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
     json result;
     result["success"] = true;
-    result["version"] = APP_VERSION_STR;
+    result["version"] = config_db_->GetValue("robot_version", "");
     json files_arr = json::array();
     try {
       if (!fs::exists(firmware_dir)) {
@@ -1652,6 +1652,24 @@ void HttpServer::ServerThreadFunc() {
     }
     result["files"] = files_arr;
     res.set_content(result.dump(), "application/json");
+  });
+
+  // POST /api/v1/system/robot_version - 设置机器人版本号
+  svr.Post("/api/v1/system/robot_version", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      auto body = json::parse(req.body);
+      std::string version = body.value("version", "");
+      config_db_->SetValue("robot_version", version);
+      json response;
+      response["success"] = true;
+      response["version"] = version;
+      response["message"] = "机器人版本号已保存";
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置机器人版本号: " << version;
+    } catch (const std::exception& e) {
+      res.status = 400;
+      res.set_content(json{{"success", false}, {"error", e.what()}}.dump(), "application/json");
+    }
   });
 
   // GET /api/v1/system/firmware/download?filename=xxx - 下载固件文件

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.9.0
+  version: 2.0.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
@@ -779,7 +779,7 @@ paths:
       description: |
         扫描服务器 `./firmware/` 目录（可通过数据库 `firmware_dir` 键自定义），
         **只列出 `.bin` 文件**，目录不存在时自动创建。
-        版本信息统一通过 `/api/v1/system/version` 获取，文件列表不含版本字段。
+        同时返回当前机器人版本号（数据库键 `robot_version`，可通过 `POST /api/v1/system/robot_version` 设置）。
       responses:
         '200':
           description: 成功（目录为空时 files 为空数组）
@@ -793,6 +793,42 @@ paths:
                 files:
                   - filename: 20250226132000.bin
                     size: 524288
+
+  /api/v1/system/robot_version:
+    post:
+      tags: [System]
+      summary: 设置机器人版本号
+      description: 将版本号写入数据库键 `robot_version`，展示于「机器人版本信息」面板。可传空字符串清除版本号。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: string
+                  description: 版本号，可为空字符串
+                  example: "1.0"
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  version:
+                    type: string
+                    example: "1.0"
+                  message:
+                    type: string
+                    example: 机器人版本号已保存
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/v1/system/firmware/download:
     get:

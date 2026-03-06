@@ -321,11 +321,10 @@
                 <span class="collapse-icon" id="firmwareCollapseIcon">▼</span>
             </div>
             <div class="schedule-controls start-controls" id="firmwareContent" style="display: none;">
-                <div style="margin: 12px 16px 4px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
-                        <span style="font-weight: 600; white-space: nowrap;">版本：</span>
-                        <span id="firmwareCurrentVersion" style="color: #333;">—</span>
-                    </div>
+                <div style="margin: 12px 16px 4px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <span style="font-weight: 600; font-size: 14px; white-space: nowrap;">版本：</span>
+                    <input type="text" id="firmwareVersionInput" placeholder="输入版本号" style="width: 140px; font-size: 14px;">
+                    <button class="btn btn-success" onclick="saveRobotVersion()">&#10003; 保存</button>
                     <button class="btn btn-secondary" onclick="loadFirmwareList()">&#8635; 刷新</button>
                 </div>
                 <div id="firmwareFileList" style="margin: 8px 16px 10px;">

@@ -229,13 +229,13 @@ window.toggleFirmwareForm = async function() {
 };
 
 window.loadFirmwareList = async function() {
-    const versionEl = document.getElementById('firmwareCurrentVersion');
-    const listEl    = document.getElementById('firmwareFileList');
+    const versionInput = document.getElementById('firmwareVersionInput');
+    const listEl       = document.getElementById('firmwareFileList');
 
     listEl.innerHTML = '<div style="color:#999;font-size:14px;padding:8px 0;">加载中...</div>';
     try {
         const result = await api.listFirmwareFiles();
-        if (versionEl) versionEl.textContent = result.version || '未知';
+        if (versionInput) versionInput.value = result.version || '';
         if (!result.files || result.files.length === 0) {
             listEl.innerHTML = '<div style="color:#999;font-size:14px;padding:8px 0;">暂无升级包，请将 .bin 文件放入服务器 ./firmware/ 目录</div>';
             return;
@@ -248,9 +248,20 @@ window.loadFirmwareList = async function() {
             </div>
         `).join('');
     } catch (e) {
-        if (versionEl) versionEl.textContent = '获取失败';
+        if (document.getElementById('firmwareVersionInput'))
+            document.getElementById('firmwareVersionInput').value = '';
         listEl.innerHTML = `<div style="color:#c00;font-size:14px;padding:8px 0;">加载失败: ${e.message}</div>`;
     }
+};
+
+window.saveRobotVersion = async function() {
+    const input = document.getElementById('firmwareVersionInput');
+    const version = input ? input.value.trim() : '';
+    try {
+        const result = await api.setRobotVersion(version);
+        if (result.success) alert('✓ 版本号已保存: ' + (result.version || '(空)'));
+        else alert('保存失败: ' + (result.error || ''));
+    } catch (e) { alert('保存失败: ' + e.message); }
 };
 
 window.downloadFirmwareFile = function(filename) {

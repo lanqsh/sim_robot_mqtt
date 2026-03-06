@@ -245,6 +245,16 @@ export async function listFirmwareFiles() {
     return await response.json();
 }
 
+// 设置机器人版本号
+export async function setRobotVersion(version) {
+    const response = await fetch(`${API_BASE}/api/v1/system/robot_version`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version })
+    });
+    return await response.json();
+}
+
 // 触发浏览器下载指定固件文件
 export function downloadFirmwareFile(filename) {
     const url = `${API_BASE}/api/v1/system/firmware/download?filename=${encodeURIComponent(filename)}`;
