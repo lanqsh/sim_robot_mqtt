@@ -252,6 +252,32 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Commands]
+      summary: 设置机器人运行数据（E4上报字段）
+      description: |
+        直接将 E4 上报数据字段写入机器人内存及数据库快照，**不触发 MQTT 指令**。
+        所有字段均为可选，只传需要修改的字段；空字段保持数据库中的原值不变。
+        机器人未在线时返回 404。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotE4DataRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/get_alarms:
     get:
@@ -1243,6 +1269,83 @@ components:
             enabled:
               type: boolean
               example: true
+
+    RobotE4DataRequest:
+      type: object
+      description: 机器人运行数据（E4上报字段），所有字段均为可选，只传需修改的字段。
+      properties:
+        main_motor_current:
+          type: integer
+          description: 主电机电流（单位：100mA）
+          example: 15
+        slave_motor_current:
+          type: integer
+          description: 从电机电流（单位：100mA）
+          example: 12
+        battery_voltage:
+          type: integer
+          description: 电池电压（单位：100mV）
+          example: 246
+        battery_current:
+          type: integer
+          description: 电池电流（单位：100mA）
+          example: 30
+        battery_status:
+          type: integer
+          description: 电池状态标志位
+          example: 1
+        battery_level:
+          type: integer
+          description: 电池电量（%）
+          example: 80
+        battery_temperature:
+          type: integer
+          description: 电池温度（°C）
+          example: 25
+        position:
+          type: integer
+          description: 位置编号
+          example: 3
+        working_duration:
+          type: integer
+          description: 工作时长（分钟）
+          example: 120
+        solar_voltage:
+          type: integer
+          description: 光伏板输出电压（单位：100mV）
+          example: 175
+        solar_current:
+          type: integer
+          description: 光伏板输出电流（单位：100mA）
+          example: 50
+        total_run_count:
+          type: integer
+          description: 累计运行次数
+          example: 200
+        current_lap_count:
+          type: integer
+          description: 当前运行圈数
+          example: 5
+        board_temperature:
+          type: integer
+          description: 主板温度（°C）
+          example: 32
+        alarm_fa:
+          type: integer
+          description: 告警FA（4字节标志，按位表示）
+          example: 0
+        alarm_fb:
+          type: integer
+          description: 告警FB（2字节标志，按位表示）
+          example: 0
+        alarm_fc:
+          type: integer
+          description: 告警FC（4字节标志，按位表示）
+          example: 0
+        alarm_fd:
+          type: integer
+          description: 告警FD（2字节标志，按位表示）
+          example: 0
 
     ScheduleStartRequest:
       type: object

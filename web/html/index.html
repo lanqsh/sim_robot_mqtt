@@ -648,6 +648,38 @@
                     </div>
                 </div>
 
+                <!-- ⑦ 机器人运行数据设置（E4上报字段模拟，不触发MQTT） -->
+                <div class="collapsible-header" onclick="toggleParamSection('e4DataSection','e4DataSectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">⑦ 机器人运行数据设置</span>
+                    <span id="e4DataSectionIcon">▶</span>
+                </div>
+                <div id="e4DataSection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                        <input type="number" id="pc_e4_mainMotorCurrent"  placeholder="主电机电流(100mA)" style="width:170px;">
+                        <input type="number" id="pc_e4_slaveMotorCurrent" placeholder="从电机电流(100mA)" style="width:170px;">
+                        <input type="number" id="pc_e4_batteryVoltage"    placeholder="电池电压(100mV)" style="width:160px;">
+                        <input type="number" id="pc_e4_batteryCurrent"    placeholder="电池电流(100mA)" style="width:160px;">
+                        <input type="number" id="pc_e4_batteryStatus"     placeholder="电池状态" style="width:120px;">
+                        <input type="number" id="pc_e4_batteryLevel"      placeholder="电池电量(%)" style="width:130px;">
+                        <input type="number" id="pc_e4_batteryTemp"       placeholder="电池温度" style="width:120px;">
+                        <input type="number" id="pc_e4_position"          placeholder="位置" style="width:100px;">
+                        <input type="number" id="pc_e4_workingDuration"   placeholder="工作时长(min)" style="width:145px;">
+                        <input type="number" id="pc_e4_solarVoltage"      placeholder="光伏电压(100mV)" style="width:160px;">
+                        <input type="number" id="pc_e4_solarCurrent"      placeholder="光伏电流(100mA)" style="width:160px;">
+                        <input type="number" id="pc_e4_totalRunCount"     placeholder="累计运行次数" style="width:140px;">
+                        <input type="number" id="pc_e4_currentLapCount"   placeholder="当前圈数" style="width:120px;">
+                        <input type="number" id="pc_e4_boardTemp"         placeholder="主板温度" style="width:120px;">
+                        <input type="number" id="pc_e4_alarmFa"           placeholder="告警FA" style="width:100px;">
+                        <input type="number" id="pc_e4_alarmFb"           placeholder="告警FB" style="width:100px;">
+                        <input type="number" id="pc_e4_alarmFc"           placeholder="告警FC" style="width:100px;">
+                        <input type="number" id="pc_e4_alarmFd"           placeholder="告警FD" style="width:100px;">
+                    </div>
+                    <p style="font-size:12px;color:#888;margin:6px 0 0;">说明：直接写入数据库快照，不发送 MQTT 指令。空字段保持原值不变。</p>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendRobotE4Data()">保存</button>
+                    </div>
+                </div>
+
 
             </div>
             <div class="modal-footer" style="padding:12px 20px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;">

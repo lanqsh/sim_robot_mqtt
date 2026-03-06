@@ -204,6 +204,16 @@ export async function sendDaytimeScanProtectRequest(robotId, enabled) {
     return await response.json();
 }
 
+// 设置机器人运行数据（E4上报字段），仅写数据库快照，不触发MQTT
+export async function sendRobotE4DataRequest(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/data?robot_id=${robotId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
 // 手动触发指定上报指令（code: "E0"~"E9"）
 export async function triggerReport(robotId, code) {
     const response = await fetch(`${API_BASE}/api/v1/robots/trigger_report?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {

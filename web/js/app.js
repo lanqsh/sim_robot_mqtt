@@ -596,6 +596,50 @@ window.pcSendDaytimeScanProtect = async function() {
     } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
 };
 
+// 参数配置 - 设置机器人运行数据（E4字段，仅写数据库）
+window.pcSendRobotE4Data = async function() {
+    if (!_paramConfigRobotId) return;
+    const numVal = (id) => {
+        const el = document.getElementById(id);
+        if (!el || el.value === '') return undefined;
+        const n = parseInt(el.value);
+        return isNaN(n) ? undefined : n;
+    };
+    const params = {};
+    const mapping = {
+        main_motor_current:  'pc_e4_mainMotorCurrent',
+        slave_motor_current: 'pc_e4_slaveMotorCurrent',
+        battery_voltage:     'pc_e4_batteryVoltage',
+        battery_current:     'pc_e4_batteryCurrent',
+        battery_status:      'pc_e4_batteryStatus',
+        battery_level:       'pc_e4_batteryLevel',
+        battery_temperature: 'pc_e4_batteryTemp',
+        position:            'pc_e4_position',
+        working_duration:    'pc_e4_workingDuration',
+        solar_voltage:       'pc_e4_solarVoltage',
+        solar_current:       'pc_e4_solarCurrent',
+        total_run_count:     'pc_e4_totalRunCount',
+        current_lap_count:   'pc_e4_currentLapCount',
+        board_temperature:   'pc_e4_boardTemp',
+        alarm_fa:            'pc_e4_alarmFa',
+        alarm_fb:            'pc_e4_alarmFb',
+        alarm_fc:            'pc_e4_alarmFc',
+        alarm_fd:            'pc_e4_alarmFd'
+    };
+    for (const [key, elemId] of Object.entries(mapping)) {
+        const v = numVal(elemId);
+        if (v !== undefined) params[key] = v;
+    }
+    if (Object.keys(params).length === 0) { alert('请至少填写一个字段'); return; }
+    try {
+        ui.showLoading('正在保存运行数据...');
+        const result = await api.sendRobotE4DataRequest(_paramConfigRobotId, params);
+        ui.hideLoading();
+        if (result.success) alert('机器人运行数据已保存到数据库！');
+        else alert('保存失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 添加机器人表单提交

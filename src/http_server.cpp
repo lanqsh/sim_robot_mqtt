@@ -805,6 +805,26 @@ void HttpServer::ServerThreadFunc() {
           static_cast<uint8_t>(body["reverse_time_s"].get<int>()),
           static_cast<uint8_t>(body["protection_angle"].get<int>()));
 
+      // 同步到内存 data_ 并持久化到数据库
+      {
+        auto& mp = robot->GetData().motor_params;
+        mp.walk_motor_speed                   = static_cast<uint8_t>(body["walk_motor_speed"].get<int>());
+        mp.brush_motor_speed                  = static_cast<uint8_t>(body["brush_motor_speed"].get<int>());
+        mp.windproof_motor_speed              = static_cast<uint8_t>(body["windproof_motor_speed"].get<int>());
+        mp.walk_motor_max_current_ma          = static_cast<uint16_t>(body["walk_motor_max_current_ma"].get<int>());
+        mp.brush_motor_max_current_ma         = static_cast<uint16_t>(body["brush_motor_max_current_ma"].get<int>());
+        mp.windproof_motor_max_current_ma     = static_cast<uint16_t>(body["windproof_motor_max_current_ma"].get<int>());
+        mp.walk_motor_warning_current_ma      = static_cast<uint16_t>(body["walk_motor_warning_current_ma"].get<int>());
+        mp.brush_motor_warning_current_ma     = static_cast<uint16_t>(body["brush_motor_warning_current_ma"].get<int>());
+        mp.windproof_motor_warning_current_ma = static_cast<uint16_t>(body["windproof_motor_warning_current_ma"].get<int>());
+        mp.walk_motor_mileage_m               = static_cast<uint16_t>(body["walk_motor_mileage_m"].get<int>());
+        mp.brush_motor_timeout_s              = static_cast<uint16_t>(body["brush_motor_timeout_s"].get<int>());
+        mp.windproof_motor_timeout_s          = static_cast<uint16_t>(body["windproof_motor_timeout_s"].get<int>());
+        mp.reverse_time_s                     = static_cast<uint8_t>(body["reverse_time_s"].get<int>());
+        mp.protection_angle                   = static_cast<uint8_t>(body["protection_angle"].get<int>());
+        config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      }
+
       json response;
       response["success"] = true;
       response["message"] = "电机参数设置请求已发送";
@@ -865,6 +885,22 @@ void HttpServer::ServerThreadFunc() {
           static_cast<uint8_t>(body["protection_battery_level"].get<int>()),
           static_cast<uint8_t>(body["limit_run_battery_level"].get<int>()),
           static_cast<uint8_t>(body["recovery_battery_level"].get<int>()));
+
+      // 同步到内存 data_ 并持久化到数据库
+      {
+        auto& tv = robot->GetData().temp_voltage_protection;
+        tv.protection_current_ma    = static_cast<uint16_t>(body["protection_current_ma"].get<int>());
+        tv.high_temp_threshold      = static_cast<uint8_t>(body["high_temp_threshold"].get<int>());
+        tv.low_temp_threshold       = static_cast<uint8_t>(body["low_temp_threshold"].get<int>());
+        tv.protection_temp          = static_cast<uint8_t>(body["protection_temp"].get<int>());
+        tv.recovery_temp            = static_cast<uint8_t>(body["recovery_temp"].get<int>());
+        tv.protection_voltage       = static_cast<uint8_t>(body["protection_voltage"].get<int>());
+        tv.recovery_voltage         = static_cast<uint8_t>(body["recovery_voltage"].get<int>());
+        tv.protection_battery_level = static_cast<uint8_t>(body["protection_battery_level"].get<int>());
+        tv.limit_run_battery_level  = static_cast<uint8_t>(body["limit_run_battery_level"].get<int>());
+        tv.recovery_battery_level   = static_cast<uint8_t>(body["recovery_battery_level"].get<int>());
+        config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      }
 
       json response;
       response["success"] = true;
@@ -941,6 +977,10 @@ void HttpServer::ServerThreadFunc() {
 
       robot->SendScheduleParamsRequest(tasks);
 
+      // 同步到内存 data_ 并持久化到数据库
+      robot->GetData().schedule_tasks = tasks;
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+
       json response;
       response["success"] = true;
       response["message"] = "定时设置请求已发送";
@@ -983,6 +1023,10 @@ void HttpServer::ServerThreadFunc() {
 
       uint8_t parking_position = static_cast<uint8_t>(body["parking_position"].get<int>());
       robot->SendParkingPositionRequest(parking_position);
+
+      // 同步到内存 data_ 并持久化到数据库
+      robot->GetData().parking_position = parking_position;
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
 
       json response;
       response["success"] = true;
@@ -1030,6 +1074,7 @@ void HttpServer::ServerThreadFunc() {
       robot->GetData().lora_params.frequency = body["frequency"].get<int>();
       robot->GetData().lora_params.rate      = body["rate"].get<int>();
       robot->SendLoraAndCleanSettingsReport();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
 
       json response;
       response["success"] = true;
@@ -1074,6 +1119,7 @@ void HttpServer::ServerThreadFunc() {
 
       robot->GetData().daytime_scan_protect = body["enabled"].get<bool>();
       robot->SendLoraAndCleanSettingsReport();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
 
       json response;
       response["success"] = true;
@@ -1084,6 +1130,61 @@ void HttpServer::ServerThreadFunc() {
       LOG(INFO) << "API: 设置白天防误扫 - 机器人: " << robot_id;
     } catch (const std::exception& e) {
       LOG(ERROR) << "设置白天防误扫失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/data - 设置机器人运行数据（E4上报字段），仅更新UI模拟数据，不触发MQTT
+  svr.Post("/api/v1/robots/data", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      json body = json::parse(req.body);
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      auto& d = robot->GetData();
+      if (body.contains("main_motor_current"))  d.main_motor_current  = body["main_motor_current"].get<int>();
+      if (body.contains("slave_motor_current")) d.slave_motor_current = body["slave_motor_current"].get<int>();
+      if (body.contains("battery_voltage"))     d.battery_voltage     = body["battery_voltage"].get<int>();
+      if (body.contains("battery_current"))     d.battery_current     = body["battery_current"].get<int>();
+      if (body.contains("battery_status"))      d.battery_status      = body["battery_status"].get<int>();
+      if (body.contains("battery_level"))       d.battery_level       = body["battery_level"].get<int>();
+      if (body.contains("battery_temperature")) d.battery_temperature = body["battery_temperature"].get<int>();
+      if (body.contains("position"))            d.position            = body["position"].get<int>();
+      if (body.contains("working_duration"))    d.working_duration    = body["working_duration"].get<int>();
+      if (body.contains("solar_voltage"))       d.solar_voltage       = body["solar_voltage"].get<int>();
+      if (body.contains("solar_current"))       d.solar_current       = body["solar_current"].get<int>();
+      if (body.contains("total_run_count"))     d.total_run_count     = body["total_run_count"].get<int>();
+      if (body.contains("current_lap_count"))   d.current_lap_count   = body["current_lap_count"].get<int>();
+      if (body.contains("board_temperature"))   d.board_temperature   = body["board_temperature"].get<int>();
+      if (body.contains("alarm_fa"))            d.alarm_fa            = body["alarm_fa"].get<int>();
+      if (body.contains("alarm_fb"))            d.alarm_fb            = body["alarm_fb"].get<int>();
+      if (body.contains("alarm_fc"))            d.alarm_fc            = body["alarm_fc"].get<int>();
+      if (body.contains("alarm_fd"))            d.alarm_fd            = body["alarm_fd"].get<int>();
+
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+
+      json response;
+      response["success"] = true;
+      response["message"] = "机器人运行数据已更新并持久化";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置机器人运行数据(E4) - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "设置机器人运行数据失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();
