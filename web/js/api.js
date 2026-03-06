@@ -163,6 +163,13 @@ export async function getRobotAlarms(robotId) {
     return await response.json();
 }
 
+// 获取后端系统版本
+export async function getSystemVersion() {
+    const response = await fetch(`${API_BASE}/api/v1/system/version`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+}
+
 // 获取定时上报间隔配置
 export async function getReportIntervals() {
     const response = await fetch(`${API_BASE}/api/v1/system/report_intervals`);

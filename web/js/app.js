@@ -229,25 +229,34 @@ window.toggleFirmwareForm = async function() {
 };
 
 window.loadFirmwareList = async function() {
-    const tbody = document.getElementById('firmwareTableBody');
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;padding:16px;">加载中...</td></tr>';
+    const versionEl = document.getElementById('firmwareCurrentVersion');
+    const listEl    = document.getElementById('firmwareFileList');
+
+    // 获取当前系统版本
+    try {
+        const ver = await api.getSystemVersion();
+        if (versionEl) versionEl.textContent = ver.version || '未知';
+    } catch (e) {
+        if (versionEl) versionEl.textContent = '获取失败';
+    }
+
+    // 获取固件文件列表
+    listEl.innerHTML = '<div style="color:#999;font-size:14px;padding:8px 0;">加载中...</div>';
     try {
         const result = await api.listFirmwareFiles();
         if (!result.files || result.files.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;padding:16px;">暂无固件文件（请将升级包放入服务器 ./firmware/ 目录）</td></tr>';
+            listEl.innerHTML = '<div style="color:#999;font-size:14px;padding:8px 0;">暂无升级包，请将 .bin 文件放入服务器 ./firmware/ 目录</div>';
             return;
         }
-        tbody.innerHTML = result.files.map(f => `
-            <tr style="border-bottom:1px solid #eee;">
-                <td style="padding:8px 12px;">${f.version || '<span style="color:#aaa;">-</span>'}</td>
-                <td style="padding:8px 12px; word-break:break-all;">${f.filename}</td>
-                <td style="padding:8px 12px; text-align:center;">
-                    <button class="btn btn-secondary btn-sm" data-fname="${f.filename}" onclick="window.downloadFirmwareFile(this.dataset.fname)">&#11015; 下载</button>
-                </td>
-            </tr>
+        listEl.innerHTML = result.files.map(f => `
+            <div style="display:flex; align-items:center; gap:16px; padding:6px 0; border-bottom:1px solid #eee; font-size:14px;">
+                <span style="font-weight:600; white-space:nowrap;">文件：</span>
+                <span style="flex:1; word-break:break-all;">${f.filename}</span>
+                <button class="btn btn-secondary btn-sm" data-fname="${f.filename}" onclick="window.downloadFirmwareFile(this.dataset.fname)">&#11015; 下载</button>
+            </div>
         `).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#c00;padding:16px;">加载失败: ${e.message}</td></tr>`;
+        listEl.innerHTML = `<div style="color:#c00;font-size:14px;padding:8px 0;">加载失败: ${e.message}</div>`;
     }
 };
 
