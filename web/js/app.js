@@ -220,6 +220,41 @@ function _updateMqttStatusBadge(connected) {
     }
 }
 
+// 机器人版本信息 / 固件下载
+window.toggleFirmwareForm = async function() {
+    const content = document.getElementById('firmwareContent');
+    const wasHidden = content.style.display === 'none' || content.style.display === '';
+    ui.toggleForm('firmwareContent', 'firmwareCollapseIcon');
+    if (wasHidden) await window.loadFirmwareList();
+};
+
+window.loadFirmwareList = async function() {
+    const tbody = document.getElementById('firmwareTableBody');
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;padding:16px;">加载中...</td></tr>';
+    try {
+        const result = await api.listFirmwareFiles();
+        if (!result.files || result.files.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999;padding:16px;">暂无固件文件（请将升级包放入服务器 ./firmware/ 目录）</td></tr>';
+            return;
+        }
+        tbody.innerHTML = result.files.map(f => `
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:8px 12px;">${f.version || '<span style="color:#aaa;">-</span>'}</td>
+                <td style="padding:8px 12px; word-break:break-all;">${f.filename}</td>
+                <td style="padding:8px 12px; text-align:center;">
+                    <button class="btn btn-secondary btn-sm" onclick="window.downloadFirmwareFile(${JSON.stringify(f.filename)})">&#11015; 下载</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#c00;padding:16px;">加载失败: ${e.message}</td></tr>`;
+    }
+};
+
+window.downloadFirmwareFile = function(filename) {
+    api.downloadFirmwareFile(filename);
+};
+
 // 全局函数：读取定时上报间隔配置
 window.loadReportIntervals = async function() {
     try {

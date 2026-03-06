@@ -314,6 +314,34 @@
             </div>
         </div>
 
+        <!-- 机器人版本信息 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleFirmwareForm()">
+                <h2>机器人版本信息</h2>
+                <span class="collapse-icon" id="firmwareCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="firmwareContent" style="display: none;">
+                <div style="margin: 10px 16px 6px; display: flex; align-items: center; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="loadFirmwareList()">&#8635; 刷新列表</button>
+                </div>
+                <div style="margin: 6px 16px 10px; overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="background: #f0f0f0;">
+                                <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #ddd; width: 120px;">版本</th>
+                                <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #ddd;">文件</th>
+                                <th style="padding: 8px 12px; text-align: center; border-bottom: 2px solid #ddd; width: 100px;">下载</th>
+                            </tr>
+                        </thead>
+                        <tbody id="firmwareTableBody">
+                            <tr><td colspan="3" style="text-align:center; color:#999; padding:16px;">点击「刷新列表」加载固件文件</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p style="margin: 4px 16px 8px; font-size: 13px; color: #666;">说明：固件文件存放于服务器 <code>./firmware/</code> 目录，版本号从文件名中自动解析。</p>
+            </div>
+        </div>
+
         <!-- 机器人列表 -->
         <div class="robots-container">
             <!-- 统计信息 -->

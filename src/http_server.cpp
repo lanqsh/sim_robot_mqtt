@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
+#include <regex>
 #include <sstream>
 #include <random>
 #include <iomanip>
@@ -1621,6 +1623,72 @@ void HttpServer::ServerThreadFunc() {
       res.status = 500;
       res.set_content(error.dump(), "application/json");
     }
+  });
+
+  // GET /api/v1/system/firmware - 列出固件目录中的升级包文件
+  svr.Get("/api/v1/system/firmware", [this](const httplib::Request&, httplib::Response& res) {
+    namespace fs = std::filesystem;
+    std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+    json result;
+    result["success"] = true;
+    json files_arr = json::array();
+    try {
+      if (!fs::exists(firmware_dir)) {
+        fs::create_directories(firmware_dir);
+        LOG(INFO) << "固件目录不存在，已自动创建: " << firmware_dir;
+      }
+      if (fs::is_directory(firmware_dir)) {
+        std::regex ver_re(R"(v?(\d+\.\d+(?:\.\d+)?))" );
+        for (const auto& entry : fs::directory_iterator(firmware_dir)) {
+          if (!entry.is_regular_file()) continue;
+          std::string fname = entry.path().filename().string();
+          std::string version;
+          std::smatch m;
+          if (std::regex_search(fname, m, ver_re)) version = m[1].str();
+          json item;
+          item["filename"] = fname;
+          item["version"]  = version;
+          item["size"]     = static_cast<uint64_t>(entry.file_size());
+          files_arr.push_back(item);
+        }
+      }
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "扫描固件目录失败: " << e.what();
+    }
+    result["files"] = files_arr;
+    res.set_content(result.dump(), "application/json");
+  });
+
+  // GET /api/v1/system/firmware/download?filename=xxx - 下载固件文件
+  svr.Get("/api/v1/system/firmware/download", [this](const httplib::Request& req, httplib::Response& res) {
+    if (!req.has_param("filename")) {
+      res.status = 400;
+      res.set_content(json{{"success", false}, {"error", "缺少 filename 参数"}}.dump(), "application/json");
+      return;
+    }
+    std::string filename = req.get_param_value("filename");
+    if (filename.find("..") != std::string::npos ||
+        filename.find('/') != std::string::npos  ||
+        filename.find('\\') != std::string::npos) {
+      res.status = 400;
+      res.set_content(json{{"success", false}, {"error", "非法文件名"}}.dump(), "application/json");
+      return;
+    }
+    std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+    std::string filepath = firmware_dir + "/" + filename;
+    std::ifstream ifs(filepath, std::ios::binary | std::ios::ate);
+    if (!ifs.is_open()) {
+      res.status = 404;
+      res.set_content(json{{"success", false}, {"error", "文件不存在: " + filename}}.dump(), "application/json");
+      return;
+    }
+    auto sz = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    std::string content(static_cast<size_t>(sz), '\0');
+    ifs.read(content.data(), sz);
+    res.set_header("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+    res.set_content(content, "application/octet-stream");
+    LOG(INFO) << "API: 固件文件下载 - " << filename << " (" << sz << " bytes)";
   });
 
   LOG(INFO) << "HTTP服务器线程启动，监听端口: " << port_;

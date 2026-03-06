@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.5.0
+  version: 1.6.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
@@ -771,6 +771,55 @@ paths:
                 broker: "tcp://192.168.1.100:1883"
                 username: admin
                 connected: false
+
+  /api/v1/system/firmware:
+    get:
+      tags: [System]
+      summary: 列出可用固件升级包
+      description: |
+        扫描服务器 `./firmware/` 目录（可通过数据库 `firmware_dir` 键自定义），
+        返回所有普通文件信息。版本号从文件名中自动解析（匹配 `v?\d+\.\d+(\.\d+)?` 格式）。
+      responses:
+        '200':
+          description: 成功（目录不存在或为空时 files 为空数组）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmwareListResponse'
+              example:
+                success: true
+                files:
+                  - filename: firmware_v1.2.3.bin
+                    version: "1.2.3"
+                    size: 524288
+
+  /api/v1/system/firmware/download:
+    get:
+      tags: [System]
+      summary: 下载固件升级包
+      description: |
+        以二进制流形式返回 `./firmware/` 目录中的指定文件，触发浏览器下载。
+        **安全限制**：`filename` 不可包含 `..`、`/`、`\`，防止路径穿越攻击。
+      parameters:
+        - name: filename
+          in: query
+          required: true
+          description: 文件名（仅文件名，不含路径）
+          schema:
+            type: string
+          example: firmware_v1.2.3.bin
+      responses:
+        '200':
+          description: 文件内容（二进制流）
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 components:
   parameters:
@@ -1548,6 +1597,33 @@ components:
           type: string
           description: 密码，可留空
           example: secret
+
+    FirmwareListResponse:
+      type: object
+      required: [success, files]
+      properties:
+        success:
+          type: boolean
+          example: true
+        files:
+          type: array
+          items:
+            type: object
+            required: [filename, version, size]
+            properties:
+              filename:
+                type: string
+                description: 文件名
+                example: firmware_v1.2.3.bin
+              version:
+                type: string
+                description: 从文件名解析的版本号，无法解析时为空字符串
+                example: "1.2.3"
+              size:
+                type: integer
+                format: int64
+                description: 文件大小（字节）
+                example: 524288
 
     SystemVersionResponse:
       type: object

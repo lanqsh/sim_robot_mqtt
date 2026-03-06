@@ -231,6 +231,23 @@ export async function setMqttConfig(broker, username, password) {
     return await response.json();
 }
 
+// 获取固件目录文件列表
+export async function listFirmwareFiles() {
+    const response = await fetch(`${API_BASE}/api/v1/system/firmware`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+}
+
+// 触发浏览器下载指定固件文件
+export function downloadFirmwareFile(filename) {
+    const a = document.createElement('a');
+    a.href = `${API_BASE}/api/v1/system/firmware/download?filename=${encodeURIComponent(filename)}`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
 // 手动触发指定上报指令（code: "E0"~"E9"）
 export async function triggerReport(robotId, code) {
     const response = await fetch(`${API_BASE}/api/v1/robots/trigger_report?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {
