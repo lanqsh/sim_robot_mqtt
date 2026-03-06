@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.6.0
+  version: 1.7.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
@@ -778,7 +778,8 @@ paths:
       summary: 列出可用固件升级包
       description: |
         扫描服务器 `./firmware/` 目录（可通过数据库 `firmware_dir` 键自定义），
-        返回所有普通文件信息。版本号从文件名中自动解析（匹配 `v?\d+\.\d+(\.\d+)?` 格式）。
+        **只列出 `.bin` 文件**。目录不存在时自动创建。
+        版本号从文件名中自动解析（匹配 `v?\d+\.\d+(\.\d+)?` 格式）。
       responses:
         '200':
           description: 成功（目录不存在或为空时 files 为空数组）
