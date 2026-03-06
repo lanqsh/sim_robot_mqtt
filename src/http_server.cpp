@@ -7,7 +7,6 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include <regex>
 #include <sstream>
 #include <random>
 #include <iomanip>
@@ -1638,18 +1637,11 @@ void HttpServer::ServerThreadFunc() {
         LOG(INFO) << "固件目录不存在，已自动创建: " << firmware_dir;
       }
       if (fs::is_directory(firmware_dir)) {
-        std::regex ver_re(R"(v?(\d+\.\d+(?:\.\d+)?))" );
         for (const auto& entry : fs::directory_iterator(firmware_dir)) {
           if (!entry.is_regular_file()) continue;
-          std::string fname = entry.path().filename().string();
-          // 只列出 .bin 固件文件
           if (entry.path().extension().string() != ".bin") continue;
-          std::string version;
-          std::smatch m;
-          if (std::regex_search(fname, m, ver_re)) version = m[1].str();
           json item;
-          item["filename"] = fname;
-          item["version"]  = version;
+          item["filename"] = entry.path().filename().string();
           item["size"]     = static_cast<uint64_t>(entry.file_size());
           files_arr.push_back(item);
         }

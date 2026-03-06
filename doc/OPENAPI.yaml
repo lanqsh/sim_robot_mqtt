@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.7.0
+  version: 1.8.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
@@ -778,11 +778,11 @@ paths:
       summary: 列出可用固件升级包
       description: |
         扫描服务器 `./firmware/` 目录（可通过数据库 `firmware_dir` 键自定义），
-        **只列出 `.bin` 文件**。目录不存在时自动创建。
-        版本号从文件名中自动解析（匹配 `v?\d+\.\d+(\.\d+)?` 格式）。
+        **只列出 `.bin` 文件**，目录不存在时自动创建。
+        版本信息统一通过 `/api/v1/system/version` 获取，文件列表不含版本字段。
       responses:
         '200':
-          description: 成功（目录不存在或为空时 files 为空数组）
+          description: 成功（目录为空时 files 为空数组）
           content:
             application/json:
               schema:
@@ -790,8 +790,7 @@ paths:
               example:
                 success: true
                 files:
-                  - filename: firmware_v1.2.3.bin
-                    version: "1.2.3"
+                  - filename: 20250226132000.bin
                     size: 524288
 
   /api/v1/system/firmware/download:
@@ -1608,18 +1607,15 @@ components:
           example: true
         files:
           type: array
+          description: 目录下所有 .bin 固件文件列表
           items:
             type: object
-            required: [filename, version, size]
+            required: [filename, size]
             properties:
               filename:
                 type: string
                 description: 文件名
-                example: firmware_v1.2.3.bin
-              version:
-                type: string
-                description: 从文件名解析的版本号，无法解析时为空字符串
-                example: "1.2.3"
+                example: 20250226132000.bin
               size:
                 type: integer
                 format: int64
