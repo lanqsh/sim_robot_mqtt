@@ -22,6 +22,59 @@
 
 using json = nlohmann::json;
 
+static std::string FormatStartReplyTimeString(const RobotData::RequestReply& reply) {
+  if (!reply.available) {
+    return "";
+  }
+
+  std::ostringstream oss;
+  oss << "20" << std::setfill('0') << std::setw(2) << static_cast<int>(reply.year)
+      << "-" << std::setw(2) << static_cast<int>(reply.month)
+      << "-" << std::setw(2) << static_cast<int>(reply.day)
+      << " " << std::setw(2) << static_cast<int>(reply.hour)
+      << ":" << std::setw(2) << static_cast<int>(reply.minute)
+      << ":" << std::setw(2) << static_cast<int>(reply.second);
+  return oss.str();
+}
+
+static bool IsWindProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x80) != 0;
+}
+
+static bool IsHumidityProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x40) != 0;
+}
+
+static bool IsBracketProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x20) != 0;
+}
+
+static bool IsAmbientTemperatureProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x10) != 0;
+}
+
+static json BuildProtectionInfoJson(uint8_t protection_info) {
+  return {
+      {"wind_protection", IsWindProtectionEnabled(protection_info)},
+      {"humidity_protection", IsHumidityProtectionEnabled(protection_info)},
+      {"bracket_protection", IsBracketProtectionEnabled(protection_info)},
+      {"ambient_temperature_protection", IsAmbientTemperatureProtectionEnabled(protection_info)},
+  };
+}
+
+static json BuildStartReplyJson(const RobotData::RequestReply& start_reply) {
+  return {
+      {"available", start_reply.available},
+      {"start_flag", start_reply.start_flag},
+      {"start_time", FormatStartReplyTimeString(start_reply)},
+      {"weekday", start_reply.weekday},
+      {"wind_speed", start_reply.wind_speed},
+      {"comm_box_count", start_reply.comm_box_count},
+      {"robot_count", start_reply.robot_count},
+      {"protection_info", BuildProtectionInfoJson(start_reply.protection_info)},
+  };
+}
+
 // 生成16位十六进制ID
 static std::string GenerateUUID() {
   std::random_device rd;
@@ -1222,8 +1275,11 @@ void HttpServer::ServerThreadFunc() {
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (robot) {
+        uint64_t request_id = robot->BeginRequestReplyTracking();
+
         // 发送定时启动请求
         robot->SendScheduleStartRequest(schedule_id, weekday, hour, minute, run_count);
+        const auto& start_reply = robot->GetData().request_reply;
 
         json response;
         response["success"] = true;
@@ -1234,6 +1290,8 @@ void HttpServer::ServerThreadFunc() {
         response["hour"] = hour;
         response["minute"] = minute;
         response["run_count"] = run_count;
+        response["request_id"] = request_id;
+        response["start_reply"] = BuildStartReplyJson(start_reply);
 
         res.set_content(response.dump(), "application/json");
         LOG(INFO) << "API: 发送定时启动请求 - 机器人: " << robot_id;
@@ -1263,13 +1321,18 @@ void HttpServer::ServerThreadFunc() {
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (robot) {
+        uint64_t request_id = robot->BeginRequestReplyTracking();
+
         // 发送启动请求
         robot->SendStartRequest();
+        const auto& start_reply = robot->GetData().request_reply;
 
         json response;
         response["success"] = true;
         response["message"] = "启动请求已发送";
         response["robot_id"] = robot_id;
+        response["request_id"] = request_id;
+        response["start_reply"] = BuildStartReplyJson(start_reply);
 
         res.set_content(response.dump(), "application/json");
         LOG(INFO) << "API: 发送启动请求 - 机器人: " << robot_id;
@@ -1309,19 +1372,85 @@ void HttpServer::ServerThreadFunc() {
         return;
       }
 
+      uint64_t request_id = robot->BeginRequestReplyTracking();
+
       // 发送校时请求
       robot->SendTimeSyncRequest();
+      const auto& start_reply = robot->GetData().request_reply;
 
       json response;
       response["success"] = true;
       response["message"] = "校时请求已发送";
       response["robot_id"] = robot->GetId();
+      response["request_id"] = request_id;
+      response["start_reply"] = BuildStartReplyJson(start_reply);
       res.set_content(response.dump(), "application/json");
 
       LOG(INFO) << "校时请求已发送 - 机器人: " << robot->GetId();
 
     } catch (const std::exception& e) {
       LOG(ERROR) << "发送校时请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/request_reply - 查询请求回复状态（F0/F1/F2）
+  svr.Get("/api/v1/robots/request_reply", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      uint64_t request_id = 0;
+      if (req.has_param("request_id")) {
+        request_id = std::stoull(req.get_param_value("request_id"));
+      }
+
+      int wait_ms = 0;
+      if (req.has_param("wait_ms")) {
+        wait_ms = std::stoi(req.get_param_value("wait_ms"));
+      }
+      if (wait_ms < 0) {
+        wait_ms = 0;
+      }
+      if (wait_ms > 10000) {
+        wait_ms = 10000;
+      }
+
+      RobotData::RequestReply reply;
+      bool received = false;
+      if (!robot->WaitForRequestReply(request_id, wait_ms, &reply, &received)) {
+        json error;
+        error["success"] = false;
+        error["error"] = "查询请求回复状态失败";
+        res.status = 500;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      json response;
+      response["success"] = true;
+      response["robot_id"] = robot_id;
+      response["request_id"] = request_id;
+      response["wait_ms"] = wait_ms;
+      response["received"] = received;
+      response["start_reply"] = BuildStartReplyJson(reply);
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "查询请求回复状态失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();

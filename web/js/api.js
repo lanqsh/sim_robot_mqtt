@@ -147,6 +147,19 @@ export async function sendTimeSyncRequest(robotId) {
     return await response.json();
 }
 
+// 查询请求回复状态（F0/F1/F2）
+export async function getRequestReply(robotId, requestId, waitMs = 0) {
+    const params = new URLSearchParams({ robot_id: robotId });
+    if (requestId !== null && requestId !== undefined) {
+        params.set('request_id', String(requestId));
+    }
+    if (waitMs > 0) {
+        params.set('wait_ms', String(waitMs));
+    }
+    const response = await fetch(`${API_BASE}/api/v1/robots/request_reply?${params}`);
+    return await response.json();
+}
+
 // 设置机器人告警
 export async function setRobotAlarms(robotId, alarmData) {
     const response = await fetch(`${API_BASE}/api/v1/robots/set_alarms?robot_id=${robotId}`, {

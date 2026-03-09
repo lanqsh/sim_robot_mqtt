@@ -3,6 +3,99 @@ import * as api from './api.js';
 import * as ui from './ui.js';
 import { WEEKDAY_NAMES } from './config.js';
 
+function formatProtectionInfoText(protectionInfo, multiLine = false) {
+    if (protectionInfo === null || protectionInfo === undefined) {
+        return '无';
+    }
+
+    if (typeof protectionInfo === 'string') {
+        return protectionInfo;
+    }
+
+    if (typeof protectionInfo === 'number') {
+        return `protection_info=${protectionInfo}`;
+    }
+
+    const windProtection = protectionInfo.wind_protection;
+    const humidityProtection = protectionInfo.humidity_protection;
+    const bracketProtection = protectionInfo.bracket_protection;
+    const ambientTemperatureProtection = protectionInfo.ambient_temperature_protection;
+
+    const lines = [
+        `大风保护: ${windProtection ? 1 : 0}`,
+        `湿度保护: ${humidityProtection ? 1 : 0}`,
+        `支架保护: ${bracketProtection ? 1 : 0}`,
+        `环境温度保护: ${ambientTemperatureProtection ? 1 : 0}`
+    ];
+
+    return multiLine ? lines.join('\n') : lines.join(', ');
+}
+
+function renderStartReplyResult(result) {
+    const resultEl = document.getElementById('startReplyResult');
+    if (!resultEl) return;
+
+    const reply = result?.start_reply;
+    if (!reply) {
+        resultEl.style.display = 'none';
+        resultEl.textContent = '';
+        return;
+    }
+
+    if (!reply.available) {
+        resultEl.style.display = 'block';
+        resultEl.textContent = '启动请求已发送，尚未收到启动回复（0xF1）。';
+        return;
+    }
+
+    const weekdayText = WEEKDAY_NAMES?.[reply.weekday] ?? `星期${reply.weekday}`;
+    const timeText = reply.start_time || '';
+    const protectionText = formatProtectionInfoText(reply.protection_info, true);
+
+    resultEl.style.display = 'block';
+    resultEl.textContent =
+`启动回复信息（0xF1）
+启动运行标志: ${reply.start_flag}
+时间: ${timeText}${timeText ? ` ${weekdayText}` : ''}
+当前风速: ${reply.wind_speed}
+通信箱数量: ${reply.comm_box_count}
+机器人数量: ${reply.robot_count}
+后台保护信息: ${protectionText}`;
+}
+
+function formatStartReplyText(reply) {
+    if (!reply) return 'start_reply: 无';
+    if (!reply.available) return 'start_reply: 尚未收到回复';
+
+    const weekdayText = WEEKDAY_NAMES?.[reply.weekday] ?? `星期${reply.weekday}`;
+    const timeText = reply.start_time || '';
+    const protectionText = formatProtectionInfoText(reply.protection_info);
+
+    return `start_reply:\n` +
+        `  启动运行标志: ${reply.start_flag}\n` +
+        `  时间: ${timeText}${timeText ? ` ${weekdayText}` : ''}\n` +
+        `  当前风速: ${reply.wind_speed}\n` +
+        `  通信箱数量: ${reply.comm_box_count}\n` +
+        `  机器人数量: ${reply.robot_count}\n` +
+        `  后台保护信息: ${protectionText}`;
+}
+
+async function pollRequestReply(robotId, requestId, options = {}) {
+    const intervalMs = options.intervalMs ?? 1000;
+    const timeoutMs = options.timeoutMs ?? 10000;
+    const safeIntervalMs = intervalMs > 0 ? intervalMs : 1000;
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+        const status = await api.getRequestReply(robotId, requestId, safeIntervalMs);
+        if (status?.success && status?.received) {
+            return status;
+        }
+    }
+
+    return null;
+}
+
 // 发送停机位设置请求(A3)
 export async function sendParkingPositionRequest(robotId, parkingPosition) {
     if (!robotId) {
@@ -276,13 +369,18 @@ export async function sendScheduleRequest(robotId, scheduleId, weekday, hour, mi
         ui.hideLoading();
 
         if (result.success) {
+            ui.showLoading('请求已发送，正在等待平台回复...');
+            const polled = await pollRequestReply(result.robot_id, result.request_id);
+            ui.hideLoading();
+
+            const startReply = polled?.start_reply ?? result.start_reply;
             alert(`定时启动请求发送成功！\n\n` +
                 `机器人: ${result.robot_id}\n` +
                 `定时编号: ${result.schedule_id}\n` +
                 `星期: ${WEEKDAY_NAMES[result.weekday]}\n` +
                 `时间: ${String(result.hour).padStart(2, '0')}:${String(result.minute).padStart(2, '0')}\n` +
                 `运行次数: ${result.run_count}次\n\n` +
-                `请等待平台回复...`);
+                `${formatStartReplyText(startReply)}`);
             return true;
         } else {
             alert('发送失败: ' + result.error);
@@ -318,14 +416,26 @@ export async function sendStartRequest(robotId) {
         ui.hideLoading();
 
         if (result.success) {
-            alert(`启动请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            renderStartReplyResult(result);
+
+            ui.showLoading('请求已发送，正在等待平台回复...');
+            const polled = await pollRequestReply(result.robot_id, result.request_id);
+            ui.hideLoading();
+
+            if (polled?.success) {
+                renderStartReplyResult(polled);
+            }
+
+            alert(`启动请求发送成功！\n\n机器人: ${result.robot_id}\n\n${formatStartReplyText(polled?.start_reply ?? result.start_reply)}`);
             return true;
         } else {
+            renderStartReplyResult(null);
             alert('发送失败: ' + result.error);
             return false;
         }
     } catch (error) {
         ui.hideLoading();
+        renderStartReplyResult(null);
         console.error('发送启动请求失败:', error);
         alert('发送失败: ' + error.message);
         return false;
@@ -354,7 +464,11 @@ export async function sendTimeSyncRequest(robotId) {
         ui.hideLoading();
 
         if (result.success) {
-            alert(`校时请求发送成功！\n\n机器人: ${result.robot_id}\n\n请等待平台回复...`);
+            ui.showLoading('请求已发送，正在等待平台回复...');
+            const polled = await pollRequestReply(result.robot_id, result.request_id);
+            ui.hideLoading();
+
+            alert(`校时请求发送成功！\n\n机器人: ${result.robot_id}\n\n${formatStartReplyText(polled?.start_reply ?? result.start_reply)}`);
             return true;
         } else {
             alert('发送失败: ' + result.error);

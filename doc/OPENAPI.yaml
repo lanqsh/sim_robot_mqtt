@@ -506,7 +506,9 @@ paths:
       summary: 发送定时启动请求
       description: |
         向在线机器人发送指定定时器编号的启动 MQTT 指令，五个字段均为必填。
-        成功响应中回显传入的所有参数。机器人未在线时返回 404。
+        成功响应中回显传入的所有参数，并在短时间内等待本次请求对应的异步回复（0xF0）后返回 `start_reply`。
+        若等待超时未收到回复，`start_reply.available` 为 `false`，其余字段为默认值。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -535,6 +537,8 @@ paths:
       summary: 发送立即启动请求
       description: |
         向在线机器人发送立即启动 MQTT 指令（无需指定定时器编号）。
+        成功响应会在短时间内等待启动请求异步回复（0xF1），并通过 `start_reply` 返回解析结果。
+        若等待超时未收到回复，`start_reply.available` 为 `false`。
         机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
@@ -544,7 +548,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                $ref: '#/components/schemas/StartCommandResponse'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -556,6 +560,8 @@ paths:
       summary: 发送校时请求
       description: |
         向在线机器人发送系统时间同步 MQTT 指令，后端以当前系统时间作为校时数据。
+        成功响应会在短时间内等待校时异步回复（0xF2），并将解析结果放在 `start_reply` 字段中。
+        若等待超时未收到回复，`start_reply.available` 为 `false`。
         机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
@@ -565,7 +571,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                $ref: '#/components/schemas/StartCommandResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/request_reply:
+    get:
+      tags: [Commands]
+      summary: 查询请求回复状态
+      description: |
+        查询指定机器人最近一次请求回复状态（F0/F1/F2）。
+        前端可在发送启动/定时启动/校时请求后，每隔 1 秒轮询此接口，直到 `received=true`。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+        - name: request_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: 发送请求接口返回的请求跟踪ID
+        - name: wait_ms
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: 后端等待回复的超时时间（毫秒），0 表示立即返回；建议前端传 1000 做 1 秒轮询
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestReplyStatusResponse'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -926,6 +968,89 @@ components:
             robot_id:
               type: string
               example: a1b2c3d4e5f67890
+
+    RequestReply:
+      type: object
+      properties:
+        available:
+          type: boolean
+          description: 是否在本次接口等待窗口内收到请求回复（0xF0/0xF1/0xF2）
+          example: true
+        start_flag:
+          type: integer
+          description: 启动运行标志（F2 校时回复固定为 0）
+          example: 1
+        start_time:
+          type: string
+          description: 时间字符串（格式：YYYY-MM-DD HH:mm:ss）；`available=false` 时为空字符串
+          example: "2026-02-25 16:00:00"
+        weekday:
+          type: integer
+          example: 1
+        wind_speed:
+          type: integer
+          example: 2
+        comm_box_count:
+          type: integer
+          example: 4
+        robot_count:
+          type: integer
+          example: 8
+        protection_info:
+          $ref: '#/components/schemas/StartReplyProtectionInfo'
+
+    StartReplyProtectionInfo:
+      type: object
+      properties:
+        wind_protection:
+          type: boolean
+          description: 大风保护（protection_info 的 bit7，掩码 0x80）
+          example: true
+        humidity_protection:
+          type: boolean
+          description: 湿度保护（protection_info 的 bit6，掩码 0x40）
+          example: true
+        bracket_protection:
+          type: boolean
+          description: 支架保护（protection_info 的 bit5，掩码 0x20）
+          example: false
+        ambient_temperature_protection:
+          type: boolean
+          description: 环境温度保护（protection_info 的 bit4，掩码 0x10）
+          example: false
+
+    StartCommandResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            request_id:
+              type: integer
+              format: int64
+              description: 请求跟踪ID，用于轮询查询回复状态
+              example: 12
+            start_reply:
+              $ref: '#/components/schemas/RequestReply'
+
+    RequestReplyStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            request_id:
+              type: integer
+              format: int64
+              example: 12
+            wait_ms:
+              type: integer
+              description: 本次查询使用的等待超时毫秒数
+              example: 1000
+            received:
+              type: boolean
+              description: 是否已收到平台请求回复（F0/F1/F2）
+              example: true
+            start_reply:
+              $ref: '#/components/schemas/RequestReply'
 
     RobotItem:
       type: object
@@ -1547,6 +1672,13 @@ components:
             run_count:
               type: integer
               example: 2
+            request_id:
+              type: integer
+              format: int64
+              description: 请求跟踪ID，用于轮询查询回复状态
+              example: 12
+            start_reply:
+              $ref: '#/components/schemas/RequestReply'
     ReportIntervalsResponse:
       type: object
       required: [success, robot_data_report_interval, motor_params_report_interval, lora_clean_report_interval]

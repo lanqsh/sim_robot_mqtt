@@ -21,6 +21,22 @@
 // 静态成员初始化
 std::string Robot::uplink_template_ = "";
 
+static bool IsWindProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x80) != 0;
+}
+
+static bool IsHumidityProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x40) != 0;
+}
+
+static bool IsBracketProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x20) != 0;
+}
+
+static bool IsAmbientTemperatureProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x10) != 0;
+}
+
 Robot::Robot(const std::string& robot_id, uint16_t robot_number) : robot_id_(robot_id), sequence_(0) {
   // 初始化机器人数据
   data_.alarm_fa = 0;
@@ -85,6 +101,70 @@ Robot::Robot(const std::string& robot_id, uint16_t robot_number) : robot_id_(rob
 Robot::~Robot() {
   // 停止上报线程
   StopReport();
+}
+
+uint64_t Robot::BeginRequestReplyTracking() {
+  std::lock_guard<std::mutex> lock(request_reply_mutex_);
+  ++request_reply_token_;
+  if (request_reply_token_ == 0) {
+    ++request_reply_token_;
+  }
+  data_.request_reply.available = false;
+  return request_reply_token_;
+}
+
+bool Robot::GetRequestReplyStatus(uint64_t request_id,
+                                  RobotData::RequestReply* reply,
+                                  bool* received) const {
+  if (reply == nullptr || received == nullptr) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(request_reply_mutex_);
+  *reply = data_.request_reply;
+
+  if (request_id == 0) {
+    *received = data_.request_reply.available;
+    return true;
+  }
+
+  *received = (request_reply_completed_token_ >= request_id) && data_.request_reply.available;
+  return true;
+}
+
+bool Robot::WaitForRequestReply(uint64_t request_id,
+                                int timeout_ms,
+                                RobotData::RequestReply* reply,
+                                bool* received) const {
+  if (reply == nullptr || received == nullptr) {
+    return false;
+  }
+
+  if (timeout_ms < 0) {
+    timeout_ms = 0;
+  }
+
+  std::unique_lock<std::mutex> lock(request_reply_mutex_);
+  auto has_received = [this, request_id]() {
+    if (request_id == 0) {
+      return data_.request_reply.available;
+    }
+    return (request_reply_completed_token_ >= request_id) && data_.request_reply.available;
+  };
+
+  if (timeout_ms > 0 && !has_received()) {
+    request_reply_cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms), has_received);
+  }
+
+  *reply = data_.request_reply;
+  *received = has_received();
+  return true;
+}
+
+void Robot::MarkRequestReplyReceived() {
+  std::lock_guard<std::mutex> lock(request_reply_mutex_);
+  request_reply_completed_token_ = request_reply_token_;
+  request_reply_cv_.notify_all();
 }
 
 void Robot::SetTopics(const std::string& publish_topic,
@@ -822,6 +902,20 @@ void Robot::HandleMessage(const std::string& data) {
               uint16_t robot_count = (static_cast<uint16_t>(frame.data[12]) << 8) | frame.data[13];     // 机器人数量
               uint8_t protection_info = frame.data[14];     // 后台保护信息
 
+              data_.request_reply.available = true;
+              data_.request_reply.start_flag = start_flag;
+              data_.request_reply.year = year;
+              data_.request_reply.month = month;
+              data_.request_reply.day = day;
+              data_.request_reply.hour = hour;
+              data_.request_reply.minute = minute;
+              data_.request_reply.second = second;
+              data_.request_reply.weekday = weekday;
+              data_.request_reply.wind_speed = wind_speed;
+              data_.request_reply.comm_box_count = comm_box_count;
+              data_.request_reply.robot_count = robot_count;
+              data_.request_reply.protection_info = protection_info;
+
               LOG(INFO) << "    === 定时启动请求回复解析 ===";
               LOG(INFO) << "    启动运行标志: 0x" << std::hex << static_cast<int>(start_flag);
               LOG(INFO) << "    时间信息: 20" << std::dec << static_cast<int>(year)
@@ -835,10 +929,11 @@ void Robot::HandleMessage(const std::string& data) {
               LOG(INFO) << "    通信箱数量: " << comm_box_count;
               LOG(INFO) << "    机器人数量: " << robot_count;
               LOG(INFO) << "    后台保护信息: 0x" << std::hex << static_cast<int>(protection_info);
-              LOG(INFO) << "      - 大风保护: " << ((protection_info & 0x01) ? "开启" : "关闭");
-              LOG(INFO) << "      - 湿度保护: " << ((protection_info & 0x02) ? "开启" : "关闭");
-              LOG(INFO) << "      - 支架保护: " << ((protection_info & 0x04) ? "开启" : "关闭");
-              LOG(INFO) << "      - 环境温度保护: " << ((protection_info & 0x08) ? "开启" : "关闭");
+              LOG(INFO) << "      - 大风保护: " << (IsWindProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 湿度保护: " << (IsHumidityProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 支架保护: " << (IsBracketProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 环境温度保护: " << (IsAmbientTemperatureProtectionEnabled(protection_info) ? "开启" : "关闭");
+              MarkRequestReplyReceived();
             } else {
               LOG(ERROR) << "    定时启动回复数据长度不足";
             }
@@ -861,6 +956,20 @@ void Robot::HandleMessage(const std::string& data) {
               uint16_t robot_count = (static_cast<uint16_t>(frame.data[12]) << 8) | frame.data[13];     // 机器人数量
               uint8_t protection_info = frame.data[14];     // 后台保护信息
 
+              data_.request_reply.available = true;
+              data_.request_reply.start_flag = start_flag;
+              data_.request_reply.year = year;
+              data_.request_reply.month = month;
+              data_.request_reply.day = day;
+              data_.request_reply.hour = hour;
+              data_.request_reply.minute = minute;
+              data_.request_reply.second = second;
+              data_.request_reply.weekday = weekday;
+              data_.request_reply.wind_speed = wind_speed;
+              data_.request_reply.comm_box_count = comm_box_count;
+              data_.request_reply.robot_count = robot_count;
+              data_.request_reply.protection_info = protection_info;
+
               LOG(INFO) << "    === 启动请求回复解析 ===";
               LOG(INFO) << "    启动运行标志: 0x" << std::hex << static_cast<int>(start_flag);
               LOG(INFO) << "    时间信息: 20" << std::dec << static_cast<int>(year)
@@ -874,10 +983,11 @@ void Robot::HandleMessage(const std::string& data) {
               LOG(INFO) << "    通信箱数量: " << comm_box_count;
               LOG(INFO) << "    机器人数量: " << robot_count;
               LOG(INFO) << "    后台保护信息: 0x" << std::hex << static_cast<int>(protection_info);
-              LOG(INFO) << "      - 大风保护: " << ((protection_info & 0x01) ? "开启" : "关闭");
-              LOG(INFO) << "      - 湿度保护: " << ((protection_info & 0x02) ? "开启" : "关闭");
-              LOG(INFO) << "      - 支架保护: " << ((protection_info & 0x04) ? "开启" : "关闭");
-              LOG(INFO) << "      - 环境温度保护: " << ((protection_info & 0x08) ? "开启" : "关闭");
+              LOG(INFO) << "      - 大风保护: " << (IsWindProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 湿度保护: " << (IsHumidityProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 支架保护: " << (IsBracketProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 环境温度保护: " << (IsAmbientTemperatureProtectionEnabled(protection_info) ? "开启" : "关闭");
+              MarkRequestReplyReceived();
             } else {
               LOG(ERROR) << "    启动请求回复数据长度不足";
             }
@@ -899,6 +1009,20 @@ void Robot::HandleMessage(const std::string& data) {
               uint16_t robot_count = (static_cast<uint16_t>(frame.data[11]) << 8) | frame.data[12];    // 机器人数量
               uint8_t protection_info = frame.data[13];     // 后台保护信息
 
+              data_.request_reply.available = true;
+              data_.request_reply.start_flag = 0;
+              data_.request_reply.year = year;
+              data_.request_reply.month = month;
+              data_.request_reply.day = day;
+              data_.request_reply.hour = hour;
+              data_.request_reply.minute = minute;
+              data_.request_reply.second = second;
+              data_.request_reply.weekday = weekday;
+              data_.request_reply.wind_speed = wind_speed;
+              data_.request_reply.comm_box_count = comm_box_count;
+              data_.request_reply.robot_count = robot_count;
+              data_.request_reply.protection_info = protection_info;
+
               LOG(INFO) << "    === 校时请求回复解析 ===";
               LOG(INFO) << "    时间信息: 20" << std::dec << static_cast<int>(year)
                        << "-" << std::setfill('0') << std::setw(2) << static_cast<int>(month)
@@ -911,10 +1035,11 @@ void Robot::HandleMessage(const std::string& data) {
               LOG(INFO) << "    通信箱数量: " << comm_box_count;
               LOG(INFO) << "    机器人数量: " << robot_count;
               LOG(INFO) << "    后台保护信息: 0x" << std::hex << static_cast<int>(protection_info);
-              LOG(INFO) << "      - 大风保护: " << ((protection_info & 0x01) ? "开启" : "关闭");
-              LOG(INFO) << "      - 湿度保护: " << ((protection_info & 0x02) ? "开启" : "关闭");
-              LOG(INFO) << "      - 支架保护: " << ((protection_info & 0x04) ? "开启" : "关闭");
-              LOG(INFO) << "      - 环境温度保护: " << ((protection_info & 0x08) ? "开启" : "关闭");
+              LOG(INFO) << "      - 大风保护: " << (IsWindProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 湿度保护: " << (IsHumidityProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 支架保护: " << (IsBracketProtectionEnabled(protection_info) ? "开启" : "关闭");
+              LOG(INFO) << "      - 环境温度保护: " << (IsAmbientTemperatureProtectionEnabled(protection_info) ? "开启" : "关闭");
+              MarkRequestReplyReceived();
             } else {
               LOG(ERROR) << "    校时请求回复数据长度不足";
             }
