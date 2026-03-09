@@ -59,6 +59,18 @@ export async function fetchRobotData(robotId) {
     return await response.json();
 }
 
+// 获取最近100条后端与平台 MQTT 通信记录
+export async function fetchMqttMessages(params = {}) {
+    const query = new URLSearchParams();
+    if (params.robot_id) query.set('robot_id', params.robot_id);
+    if (params.category_key) query.set('category_key', params.category_key);
+    if (params.command) query.set('command', params.command);
+    if (params.direction_key) query.set('direction_key', params.direction_key);
+
+    const response = await fetch(`${API_BASE}/api/v1/robots/mqtt_messages?${query.toString()}`);
+    return await response.json();
+}
+
 // 批量添加机器人
 export async function batchAddRobots(robots) {
     const response = await fetch(`${API_BASE}/api/v1/robots/batch_add`, {

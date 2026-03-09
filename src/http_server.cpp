@@ -75,6 +75,45 @@ static json BuildStartReplyJson(const RobotData::RequestReply& start_reply) {
   };
 }
 
+static std::string ToLowerCopy(std::string text) {
+  std::transform(text.begin(), text.end(), text.begin(), ::tolower);
+  return text;
+}
+
+static std::string NormalizeCategoryKey(const std::string& key) {
+  std::string lower = ToLowerCopy(key);
+  if (lower.empty() || lower == "all") {
+    return "";
+  }
+  if (lower == "parameter" || lower == "parameters" || lower == "config") {
+    return "param";
+  }
+  if (lower == "data_report") {
+    return "report";
+  }
+  if (lower == "robot_request") {
+    return "request";
+  }
+  if (lower == "remote_upgrade") {
+    return "upgrade";
+  }
+  return lower;
+}
+
+static std::string NormalizeDirectionKey(const std::string& key) {
+  std::string lower = ToLowerCopy(key);
+  if (lower.empty() || lower == "all") {
+    return "";
+  }
+  if (lower == "uplink") {
+    return "up";
+  }
+  if (lower == "downlink") {
+    return "down";
+  }
+  return lower;
+}
+
 // 生成16位十六进制ID
 static std::string GenerateUUID() {
   std::random_device rd;
@@ -741,6 +780,61 @@ void HttpServer::ServerThreadFunc() {
       res.set_content(response.dump(), "application/json");
     } catch (const std::exception& e) {
       LOG(ERROR) << "获取机器人告警失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // API: 获取最近100条后端与平台MQTT通信记录
+  svr.Get("/api/v1/robots/mqtt_messages", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.has_param("robot_id") ? req.get_param_value("robot_id") : "";
+      std::string category = req.has_param("category_key") ? req.get_param_value("category_key") : "";
+      std::string command = req.has_param("command") ? req.get_param_value("command") : "";
+      std::string direction = req.has_param("direction_key") ? req.get_param_value("direction_key") : "";
+
+      category = NormalizeCategoryKey(category);
+      direction = NormalizeDirectionKey(direction);
+
+      auto messages = mqtt_manager_->GetRecentMqttMessages(robot_id, category, command, direction, 100);
+
+      std::string robot_name;
+      if (!robot_id.empty()) {
+        auto all_robots = config_db_->GetAllRobots();
+        for (const auto& robot : all_robots) {
+          if (robot.robot_id == robot_id) {
+            robot_name = robot.robot_name;
+            break;
+          }
+        }
+      }
+
+      json data = json::array();
+      int index = 1;
+      for (const auto& item : messages) {
+        data.push_back({
+            {"index", index++},
+            {"category", item.category},
+            {"command", item.command},
+            {"direction", item.direction},
+            {"data", item.data},
+            {"time", item.timestamp},
+            {"topic", item.topic},
+            {"robot_id", item.robot_id},
+        });
+      }
+
+      json response;
+      response["success"] = true;
+      response["robot_name"] = robot_name;
+      response["eui"] = robot_id;
+      response["messages"] = data;
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "获取MQTT通信记录失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();

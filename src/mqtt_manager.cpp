@@ -4,6 +4,8 @@
 
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <iomanip>
+#include <sstream>
 
 using json = nlohmann::json;
 
@@ -88,6 +90,7 @@ void MqttManager::AddRobot(std::shared_ptr<Robot> robot) {
       return;
     }
     robots_[robot_id] = robot;
+    topic_to_robot_[publish_topic] = robot_id;
     topic_to_robot_[subscribe_topic] = robot_id;
   }
 
@@ -178,6 +181,7 @@ void MqttManager::AddRobot(const std::string& robot_id) {
       return;
     }
     robots_[robot_id] = robot;
+    topic_to_robot_[publish_topic] = robot_id;
     topic_to_robot_[subscribe_topic] = robot_id;
   }
 
@@ -200,6 +204,7 @@ void MqttManager::AddRobot(const std::string& robot_id) {
 
 void MqttManager::RemoveRobot(const std::string& robot_id) {
   std::shared_ptr<Robot> robot;
+  std::string publish_topic;
   std::string subscribe_topic;
 
   {
@@ -211,10 +216,12 @@ void MqttManager::RemoveRobot(const std::string& robot_id) {
     }
 
     robot = it->second;
+    publish_topic = robot->GetPublishTopic();
     subscribe_topic = robot->GetSubscribeTopic();
 
     // 从映射中删除
     robots_.erase(it);
+    topic_to_robot_.erase(publish_topic);
     topic_to_robot_.erase(subscribe_topic);
   }
 
@@ -374,6 +381,180 @@ bool MqttManager::ReconfigureAndReconnect(const std::string& broker,
   return true;
 }
 
+std::string MqttManager::BuildTimestampString() const {
+  auto now = std::chrono::system_clock::now();
+  auto time_t_now = std::chrono::system_clock::to_time_t(now);
+  std::tm local_tm;
+#ifdef _WIN32
+  localtime_s(&local_tm, &time_t_now);
+#else
+  localtime_r(&time_t_now, &local_tm);
+#endif
+
+  std::ostringstream oss;
+  oss << std::put_time(&local_tm, "%Y-%m-%d %H:%M:%S");
+  return oss.str();
+}
+
+std::string MqttManager::ResolveCategoryByIdentifier(uint8_t identifier) const {
+  if (identifier >= 0xA0 && identifier <= 0xA8) {
+    return "param";
+  }
+  if (identifier >= 0xB0 && identifier <= 0xBA) {
+    return "control";
+  }
+  if (identifier >= 0xC0 && identifier <= 0xC6) {
+    return "query";
+  }
+  if (identifier >= 0xE0 && identifier <= 0xE9) {
+    return "report";
+  }
+  if (identifier >= 0xF0 && identifier <= 0xF2) {
+    return "request";
+  }
+  if (identifier == 0xD0 || identifier == 0xD1 || identifier == 0xD2) {
+    return "upgrade";
+  }
+  return "other";
+}
+
+std::string MqttManager::ResolveCommandByIdentifier(uint8_t identifier) const {
+  std::ostringstream oss;
+  oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+      << static_cast<int>(identifier);
+  return oss.str();
+}
+
+static std::string BytesToHexString(const std::vector<uint8_t>& bytes) {
+  std::ostringstream oss;
+  oss << std::uppercase << std::hex << std::setfill('0');
+  for (uint8_t value : bytes) {
+    oss << std::setw(2) << static_cast<int>(value);
+  }
+  return oss.str();
+}
+
+std::string MqttManager::ResolveRobotIdByTopic(const std::string& topic) const {
+  std::lock_guard<std::mutex> lock(robots_mutex_);
+  auto exact = topic_to_robot_.find(topic);
+  if (exact != topic_to_robot_.end()) {
+    return exact->second;
+  }
+
+  for (const auto& entry : topic_to_robot_) {
+    if (!entry.first.empty() && topic.find(entry.first) != std::string::npos) {
+      return entry.second;
+    }
+  }
+  return "";
+}
+
+void MqttManager::RecordMqttMessage(const std::string& direction,
+                                    const std::string& topic,
+                                    const std::string& payload) {
+  MqttCommMessage item;
+  item.timestamp = BuildTimestampString();
+  item.direction = direction;
+  item.topic = topic;
+
+  try {
+    auto parsed = json::parse(payload);
+    if (parsed.contains("devEui") && parsed["devEui"].is_string()) {
+      item.robot_id = parsed["devEui"].get<std::string>();
+    }
+
+    if (parsed.contains("data") && parsed["data"].is_string()) {
+      std::string data_b64 = parsed["data"].get<std::string>();
+      auto raw_bytes = Protocol::Base64ToBytes(data_b64);
+      if (!raw_bytes.empty()) {
+        item.data = BytesToHexString(raw_bytes);
+      } else {
+        item.data = data_b64;
+      }
+
+      Protocol protocol;
+      ProtocolFrame frame;
+      if (protocol.Decode(raw_bytes, frame) && !frame.data.empty()) {
+        uint8_t identifier = frame.data[0];
+        item.category = ResolveCategoryByIdentifier(identifier);
+        item.command = ResolveCommandByIdentifier(identifier);
+      }
+    }
+  } catch (...) {
+  }
+
+  if (item.robot_id.empty()) {
+    item.robot_id = ResolveRobotIdByTopic(topic);
+  }
+
+  if (item.category.empty()) {
+    item.category = "other";
+  }
+  if (item.command.empty()) {
+    item.command = "--";
+  }
+  if (item.data.empty()) {
+    item.data = payload;
+  }
+
+  if (item.robot_id.empty()) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(comm_messages_mutex_);
+  auto& queue = comm_messages_by_robot_[item.robot_id];
+  queue.push_front(item);
+  if (queue.size() > 100) {
+    queue.pop_back();
+  }
+}
+
+std::vector<MqttCommMessage> MqttManager::GetRecentMqttMessages(const std::string& robot_id,
+                                                                const std::string& category,
+                                                                const std::string& command,
+                                                                const std::string& direction,
+                                                                size_t limit) {
+  std::vector<MqttCommMessage> result;
+  result.reserve(limit);
+
+  std::lock_guard<std::mutex> lock(comm_messages_mutex_);
+  auto append_filtered = [&](const std::deque<MqttCommMessage>& source) {
+    for (const auto& item : source) {
+      if (!category.empty() && category != "all" && item.category != category) {
+        continue;
+      }
+      if (!command.empty() && command != "all" && item.command != command) {
+        continue;
+      }
+      if (!direction.empty() && direction != "all" && item.direction != direction) {
+        continue;
+      }
+
+      result.push_back(item);
+      if (result.size() >= limit) {
+        return;
+      }
+    }
+  };
+
+  if (!robot_id.empty()) {
+    auto it = comm_messages_by_robot_.find(robot_id);
+    if (it == comm_messages_by_robot_.end()) {
+      return result;
+    }
+    append_filtered(it->second);
+    return result;
+  }
+
+  for (const auto& entry : comm_messages_by_robot_) {
+    append_filtered(entry.second);
+    if (result.size() >= limit) {
+      break;
+    }
+  }
+  return result;
+}
+
 void MqttManager::Stop() {
   if (!running_.load()) return;
   running_.store(false);  // 停止主循环
@@ -443,6 +624,7 @@ void MqttManager::SenderThreadFunc() {
             auto tok = client_->publish(mqtt_msg);
             // 等待发布完成（短超时），若需要可以调整为更长时间或不等待
             if (tok) tok->wait_for(std::chrono::seconds(5));
+            RecordMqttMessage("up", msg.topic, msg.payload);
             LOG(INFO) << "已从队列发送消息到主题: " << msg.topic;
             sent = true;
             break;
@@ -604,6 +786,7 @@ void MqttManager::message_arrived(mqtt::const_message_ptr msg) {
   std::string payload = msg->to_string();
 
   LOG(INFO) << "收到消息 - 主题: " << topic;
+  RecordMqttMessage("down", topic, payload);
 
   // 将接收到的消息放入接收队列，由接收线程处理
   {

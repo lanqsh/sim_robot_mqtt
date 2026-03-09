@@ -613,6 +613,46 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/v1/robots/mqtt_messages:
+    get:
+      tags: [Commands]
+      summary: 获取指定机器人最近100条MQTT通信记录
+      description: |
+        后端按机器人分别缓存收发报文，每个机器人保留最近100条（上行+下行）。
+        本接口返回 `robot_id` 对应机器人的最近通信记录，支持按命令分类、命令码、方向过滤。
+        `robot_id` 传机器人 EUI/ID。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+        - name: category_key
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [param, control, query, report, request, upgrade, all]
+          description: 命令分类过滤键（英文）
+        - name: command
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 命令码过滤（例如 A0、E4、F1）
+        - name: direction_key
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [up, down, all]
+          description: 方向过滤键（英文）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttMessagesResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/v1/robots/lora_clean_settings:
     post:
       tags: [Commands]
@@ -1051,6 +1091,48 @@ components:
               example: true
             start_reply:
               $ref: '#/components/schemas/RequestReply'
+
+    MqttMessageItem:
+      type: object
+      properties:
+        index:
+          type: integer
+          example: 1
+        category:
+          type: string
+          example: report
+        command:
+          type: string
+          example: E4
+        direction:
+          type: string
+          example: up
+        data:
+          type: string
+          description: MQTT消息原始报文（16进制大写字符串）
+        time:
+          type: string
+          example: "2026-03-09 18:20:11"
+        topic:
+          type: string
+        robot_id:
+          type: string
+
+    MqttMessagesResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessResponse'
+        - type: object
+          properties:
+            robot_name:
+              type: string
+              example: Robot1
+            eui:
+              type: string
+              example: 303930306350729d
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/MqttMessageItem'
 
     RobotItem:
       type: object

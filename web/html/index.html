@@ -500,6 +500,67 @@
         </div>
     </div>
 
+    <!-- MQTT通信记录模态框 -->
+    <div id="mqttMessagesModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:1200px; width:96%;">
+            <div class="modal-header">
+                <h2>通信记录</h2>
+                <span class="close-btn" onclick="closeMqttMessagesModal()">&times;</span>
+            </div>
+            <div style="padding: 16px 20px;">
+                <div style="margin-bottom: 10px; font-size: 28px; font-weight: 600;">
+                    <span id="mqttRobotName">Robot1</span>
+                    <span style="font-size: 12px; margin-left: 8px;">EUI: <span id="mqttRobotEui">--</span></span>
+                    <span style="font-size: 12px; margin-left: 8px; color: #555;">最近100条通信消息</span>
+                </div>
+                <div class="inline-form" style="gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <input type="text" id="mqttRobotIdInput" style="display:none;">
+                    <label>命令分类</label>
+                    <select id="mqttCategoryFilter" style="width: 130px;" onchange="updateMqttCommandOptions()">
+                        <option value="all">全部</option>
+                        <option value="param">参数设置</option>
+                        <option value="control">控制</option>
+                        <option value="query">查询</option>
+                        <option value="report">数据上报</option>
+                        <option value="request">机器人请求</option>
+                        <option value="upgrade">远程升级</option>
+                    </select>
+                    <label>命令</label>
+                    <select id="mqttCommandFilter" style="width: 150px;">
+                        <option value="all">全部</option>
+                    </select>
+                    <label>方向</label>
+                    <select id="mqttDirectionFilter" style="width: 100px;">
+                        <option value="all">全部</option>
+                        <option value="up">上行</option>
+                        <option value="down">下行</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="queryMqttMessages()">查询</button>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="clean-records-table" style="width: 100%; min-width: 860px;">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>命令分类</th>
+                                <th>命令</th>
+                                <th>方向</th>
+                                <th>数据</th>
+                                <th>时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mqttMessagesTableBody">
+                            <tr><td colspan="6" style="text-align:center; color:#666;">请选择筛选条件后点击查询</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeMqttMessagesModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 编辑机器人模态框 -->
     <div id="editRobotModal" class="modal" style="display:none; align-items:center; justify-content:center;">
         <div class="modal-content" style="max-width:460px; width:95%;">

@@ -10,6 +10,33 @@ const paginationManager = new PaginationManager();
 
 // 查询过滤状态
 let searchFilters = {};
+let mqttDefaultRobotId = '';
+let mqttDefaultRobotName = '';
+
+const MQTT_COMMAND_OPTIONS = {
+    all: ['A0', 'A1', 'A2', 'A3', 'A4', 'A6', 'A7', 'A8', 'B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'BA', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D0', 'D1', 'D2', 'E0', 'E1', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'F0', 'F1', 'F2'],
+    param: ['A0', 'A1', 'A2', 'A3', 'A4', 'A6', 'A7', 'A8'],
+    control: ['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'BA'],
+    query: ['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6'],
+    report: ['E0', 'E1', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9'],
+    request: ['F0', 'F1', 'F2'],
+    upgrade: ['D0', 'D1', 'D2']
+};
+
+const MQTT_CATEGORY_LABELS = {
+    param: '参数设置',
+    control: '控制',
+    query: '查询',
+    report: '数据上报',
+    request: '机器人请求',
+    upgrade: '远程升级',
+    other: '其他'
+};
+
+const MQTT_DIRECTION_LABELS = {
+    up: '上行',
+    down: '下行'
+};
 
 // 加载机器人列表
 async function loadRobots() {
@@ -17,6 +44,15 @@ async function loadRobots() {
         const result = await api.fetchRobots(paginationManager.getCurrentPage(), paginationManager.getPageSize(), searchFilters);
 
         paginationManager.updatePagination(result.pagination);
+
+        if (Array.isArray(result.data) && result.data.length > 0) {
+            mqttDefaultRobotId = result.data[0].robot_id || '';
+            mqttDefaultRobotName = result.data[0].robot_name || mqttDefaultRobotId;
+            const mqttRobotInput = document.getElementById('mqttRobotIdInput');
+            if (mqttRobotInput && !mqttRobotInput.value.trim()) {
+                mqttRobotInput.value = mqttDefaultRobotId;
+            }
+        }
 
         if (paginationManager.getTotalCount() === 0) {
             ui.showEmptyState();
@@ -128,6 +164,119 @@ window.toggleStartForm = () => ui.toggleForm('startFormContent', 'startCollapseI
 window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSyncCollapseIcon');
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
+
+window.openMqttMessages = function(robotId, robotName) {
+    mqttDefaultRobotId = robotId || '';
+    mqttDefaultRobotName = robotName || robotId || '';
+
+    const robotInput = document.getElementById('mqttRobotIdInput');
+    if (robotInput) robotInput.value = mqttDefaultRobotId;
+
+    const nameEl = document.getElementById('mqttRobotName');
+    const euiEl = document.getElementById('mqttRobotEui');
+    if (nameEl) nameEl.textContent = mqttDefaultRobotName || mqttDefaultRobotId || 'Robot';
+    if (euiEl) euiEl.textContent = mqttDefaultRobotId || '--';
+
+    const categoryEl = document.getElementById('mqttCategoryFilter');
+    const directionEl = document.getElementById('mqttDirectionFilter');
+    const tableBody = document.getElementById('mqttMessagesTableBody');
+    if (categoryEl) categoryEl.value = 'all';
+    if (directionEl) directionEl.value = 'all';
+    window.updateMqttCommandOptions();
+    const commandEl = document.getElementById('mqttCommandFilter');
+    if (commandEl) commandEl.value = 'all';
+    if (tableBody) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666;">请选择筛选条件后点击查询</td></tr>';
+    }
+
+    const modal = document.getElementById('mqttMessagesModal');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.closeMqttMessagesModal = function() {
+    const modal = document.getElementById('mqttMessagesModal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.updateMqttCommandOptions = function() {
+    const categoryEl = document.getElementById('mqttCategoryFilter');
+    const commandEl = document.getElementById('mqttCommandFilter');
+    if (!categoryEl || !commandEl) return;
+
+    const category = categoryEl.value || 'all';
+    const commands = MQTT_COMMAND_OPTIONS[category] || [];
+
+    commandEl.innerHTML = '';
+    const allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.textContent = '全部';
+    commandEl.appendChild(allOption);
+
+    commands.forEach(cmd => {
+        const option = document.createElement('option');
+        option.value = cmd;
+        option.textContent = cmd;
+        commandEl.appendChild(option);
+    });
+};
+
+window.queryMqttMessages = async function() {
+    const robotIdInput = document.getElementById('mqttRobotIdInput');
+    const categoryEl = document.getElementById('mqttCategoryFilter');
+    const commandEl = document.getElementById('mqttCommandFilter');
+    const directionEl = document.getElementById('mqttDirectionFilter');
+    const tableBody = document.getElementById('mqttMessagesTableBody');
+
+    if (!tableBody) return;
+
+    const robotId = (robotIdInput && robotIdInput.value.trim()) || mqttDefaultRobotId;
+    if (!robotId) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666;">请先输入机器人EUI/ID</td></tr>';
+        return;
+    }
+
+    const categoryKey = categoryEl ? categoryEl.value : 'all';
+    const command = commandEl ? commandEl.value : 'all';
+    const directionKey = directionEl ? directionEl.value : 'all';
+
+    try {
+        const result = await api.fetchMqttMessages({
+            robot_id: robotId,
+            category_key: categoryKey,
+            command,
+            direction_key: directionKey
+        });
+
+        if (!result.success) {
+            tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#c00;">${result.error || '查询失败'}</td></tr>`;
+            return;
+        }
+
+        const nameEl = document.getElementById('mqttRobotName');
+        const euiEl = document.getElementById('mqttRobotEui');
+        if (nameEl) nameEl.textContent = result.robot_name || robotId;
+        if (euiEl) euiEl.textContent = result.eui || robotId;
+
+        const list = Array.isArray(result.messages) ? result.messages : [];
+        if (list.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666;">暂无符合条件的通信记录</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = list.map(item => `
+            <tr>
+                <td>${item.index ?? ''}</td>
+                <td>${MQTT_CATEGORY_LABELS[item.category] || item.category || ''}</td>
+                <td>${item.command ?? ''}</td>
+                <td>${MQTT_DIRECTION_LABELS[item.direction] || item.direction || ''}</td>
+                <td style="max-width: 560px; word-break: break-all;">${item.data ?? ''}</td>
+                <td>${item.time ?? ''}</td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#c00;">查询失败: ${error.message}</td></tr>`;
+    }
+};
 
 // 全局函数：执行查询
 window.searchRobots = function() {
@@ -764,6 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始加载机器人列表
     loadRobots();
+    window.updateMqttCommandOptions();
 
     // 每10秒刷新一次列表
     setInterval(loadRobots, 10000);
@@ -811,6 +961,16 @@ document.addEventListener('DOMContentLoaded', () => {
         paramConfigModal.addEventListener('click', (e) => {
             if (e.target.id === 'paramConfigModal') {
                 window.closeParamConfigModal();
+            }
+        });
+    }
+
+    // 点击 MQTT 通信记录模态框背景关闭
+    const mqttMessagesModal = document.getElementById('mqttMessagesModal');
+    if (mqttMessagesModal) {
+        mqttMessagesModal.addEventListener('click', (e) => {
+            if (e.target.id === 'mqttMessagesModal') {
+                window.closeMqttMessagesModal();
             }
         });
     }
