@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -26,6 +27,16 @@ struct PendingMessage {
 struct ReceivedMessage {
   std::string topic;
   std::string payload;
+};
+
+struct MqttCommMessage {
+  std::string timestamp;
+  std::string robot_id;
+  std::string direction;
+  std::string category;
+  std::string command;
+  std::string topic;
+  std::string data;
 };
 
 class MqttManager : public virtual mqtt::callback,
@@ -75,13 +86,33 @@ class MqttManager : public virtual mqtt::callback,
   // 获取当前管理的机器人数量（供 Robot 内部计算错峰偏移用）
   int GetRobotCount();
 
+  // 获取 MQTT 连接配置
+  std::string GetBroker() const { return broker_; }
+  std::string GetUsername() const { return username_; }
+  bool IsConnected() const { return client_ && client_->is_connected(); }
+
+  // 更新 MQTT 服务配置并重新连接（保存到数据库）
+  bool ReconfigureAndReconnect(const std::string& broker,
+                               const std::string& username,
+                               const std::string& password,
+                               int keepalive = 60);
+
   // MQTT回调
   void connection_lost(const std::string& cause) override;
   void message_arrived(mqtt::const_message_ptr msg) override;
   void delivery_complete(mqtt::delivery_token_ptr token) override;
 
+  // Recent MQTT communication records (max 100)
+  std::vector<MqttCommMessage> GetRecentMqttMessages(const std::string& robot_id,
+                                                     const std::string& category,
+                                                     const std::string& command,
+                                                     const std::string& direction,
+                                                     size_t limit = 100);
+
  private:
   std::string broker_;
+  std::string username_;
+  std::string password_;
   std::string client_id_;
   int qos_;
   std::shared_ptr<ConfigDb> config_db_;
@@ -89,7 +120,7 @@ class MqttManager : public virtual mqtt::callback,
   std::map<std::string, std::shared_ptr<Robot>> robots_;  // robot_id -> Robot
   std::map<std::string, std::string>
       topic_to_robot_;  // subscribe_topic -> robot_id
-  std::mutex robots_mutex_;
+  mutable std::mutex robots_mutex_;
   std::thread sender_thread_;    // 消息发送线程
   std::thread receiver_thread_;  // 消息接收处理线程
   std::atomic<bool> stop_sender_{false};
@@ -111,6 +142,18 @@ class MqttManager : public virtual mqtt::callback,
 
   // 后台接收处理线程函数
   void ReceiverThreadFunc();
+
+  // MQTT communication record cache
+  void RecordMqttMessage(const std::string& direction,
+                         const std::string& topic,
+                         const std::string& payload);
+  std::string BuildTimestampString() const;
+  std::string ResolveCategoryByIdentifier(uint8_t identifier) const;
+  std::string ResolveCommandByIdentifier(uint8_t identifier) const;
+  std::string ResolveRobotIdByTopic(const std::string& topic) const;
+
+  std::map<std::string, std::deque<MqttCommMessage>> comm_messages_by_robot_;
+  mutable std::mutex comm_messages_mutex_;
 };
 
 #endif  // MQTT_MANAGER_H_

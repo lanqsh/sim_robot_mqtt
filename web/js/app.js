@@ -10,6 +10,33 @@ const paginationManager = new PaginationManager();
 
 // 查询过滤状态
 let searchFilters = {};
+let mqttDefaultRobotId = '';
+let mqttDefaultRobotName = '';
+
+const MQTT_COMMAND_OPTIONS = {
+    all: ['A0', 'A1', 'A2', 'A3', 'A4', 'A6', 'A7', 'A8', 'B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'BA', 'C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D0', 'D1', 'D2', 'E0', 'E1', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'F0', 'F1', 'F2'],
+    param: ['A0', 'A1', 'A2', 'A3', 'A4', 'A6', 'A7', 'A8'],
+    control: ['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'BA'],
+    query: ['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6'],
+    report: ['E0', 'E1', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9'],
+    request: ['F0', 'F1', 'F2'],
+    upgrade: ['D0', 'D1', 'D2']
+};
+
+const MQTT_CATEGORY_LABELS = {
+    param: '参数设置',
+    control: '控制',
+    query: '查询',
+    report: '数据上报',
+    request: '机器人请求',
+    upgrade: '远程升级',
+    other: '其他'
+};
+
+const MQTT_DIRECTION_LABELS = {
+    up: '上行',
+    down: '下行'
+};
 
 // 加载机器人列表
 async function loadRobots() {
@@ -17,6 +44,15 @@ async function loadRobots() {
         const result = await api.fetchRobots(paginationManager.getCurrentPage(), paginationManager.getPageSize(), searchFilters);
 
         paginationManager.updatePagination(result.pagination);
+
+        if (Array.isArray(result.data) && result.data.length > 0) {
+            mqttDefaultRobotId = result.data[0].robot_id || '';
+            mqttDefaultRobotName = result.data[0].robot_name || mqttDefaultRobotId;
+            const mqttRobotInput = document.getElementById('mqttRobotIdInput');
+            if (mqttRobotInput && !mqttRobotInput.value.trim()) {
+                mqttRobotInput.value = mqttDefaultRobotId;
+            }
+        }
 
         if (paginationManager.getTotalCount() === 0) {
             ui.showEmptyState();
@@ -129,6 +165,119 @@ window.toggleTimeSyncForm = () => ui.toggleForm('timeSyncFormContent', 'timeSync
 window.toggleAddRobotForm = () => ui.toggleForm('addRobotContent', 'addRobotCollapseIcon');
 window.toggleBatchForm = () => ui.toggleForm('batchFormContent', 'batchCollapseIcon');
 
+window.openMqttMessages = function(robotId, robotName) {
+    mqttDefaultRobotId = robotId || '';
+    mqttDefaultRobotName = robotName || robotId || '';
+
+    const robotInput = document.getElementById('mqttRobotIdInput');
+    if (robotInput) robotInput.value = mqttDefaultRobotId;
+
+    const nameEl = document.getElementById('mqttRobotName');
+    const euiEl = document.getElementById('mqttRobotEui');
+    if (nameEl) nameEl.textContent = mqttDefaultRobotName || mqttDefaultRobotId || 'Robot';
+    if (euiEl) euiEl.textContent = mqttDefaultRobotId || '--';
+
+    const categoryEl = document.getElementById('mqttCategoryFilter');
+    const directionEl = document.getElementById('mqttDirectionFilter');
+    const tableBody = document.getElementById('mqttMessagesTableBody');
+    if (categoryEl) categoryEl.value = 'all';
+    if (directionEl) directionEl.value = 'all';
+    window.updateMqttCommandOptions();
+    const commandEl = document.getElementById('mqttCommandFilter');
+    if (commandEl) commandEl.value = 'all';
+    if (tableBody) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666;">请选择筛选条件后点击查询</td></tr>';
+    }
+
+    const modal = document.getElementById('mqttMessagesModal');
+    if (modal) modal.style.display = 'flex';
+};
+
+window.closeMqttMessagesModal = function() {
+    const modal = document.getElementById('mqttMessagesModal');
+    if (modal) modal.style.display = 'none';
+};
+
+window.updateMqttCommandOptions = function() {
+    const categoryEl = document.getElementById('mqttCategoryFilter');
+    const commandEl = document.getElementById('mqttCommandFilter');
+    if (!categoryEl || !commandEl) return;
+
+    const category = categoryEl.value || 'all';
+    const commands = MQTT_COMMAND_OPTIONS[category] || [];
+
+    commandEl.innerHTML = '';
+    const allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.textContent = '全部';
+    commandEl.appendChild(allOption);
+
+    commands.forEach(cmd => {
+        const option = document.createElement('option');
+        option.value = cmd;
+        option.textContent = cmd;
+        commandEl.appendChild(option);
+    });
+};
+
+window.queryMqttMessages = async function() {
+    const robotIdInput = document.getElementById('mqttRobotIdInput');
+    const categoryEl = document.getElementById('mqttCategoryFilter');
+    const commandEl = document.getElementById('mqttCommandFilter');
+    const directionEl = document.getElementById('mqttDirectionFilter');
+    const tableBody = document.getElementById('mqttMessagesTableBody');
+
+    if (!tableBody) return;
+
+    const robotId = (robotIdInput && robotIdInput.value.trim()) || mqttDefaultRobotId;
+    if (!robotId) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666;">请先输入机器人EUI/ID</td></tr>';
+        return;
+    }
+
+    const categoryKey = categoryEl ? categoryEl.value : 'all';
+    const command = commandEl ? commandEl.value : 'all';
+    const directionKey = directionEl ? directionEl.value : 'all';
+
+    try {
+        const result = await api.fetchMqttMessages({
+            robot_id: robotId,
+            category_key: categoryKey,
+            command,
+            direction_key: directionKey
+        });
+
+        if (!result.success) {
+            tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#c00;">${result.error || '查询失败'}</td></tr>`;
+            return;
+        }
+
+        const nameEl = document.getElementById('mqttRobotName');
+        const euiEl = document.getElementById('mqttRobotEui');
+        if (nameEl) nameEl.textContent = result.robot_name || robotId;
+        if (euiEl) euiEl.textContent = result.eui || robotId;
+
+        const list = Array.isArray(result.messages) ? result.messages : [];
+        if (list.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666;">暂无符合条件的通信记录</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = list.map(item => `
+            <tr>
+                <td>${item.index ?? ''}</td>
+                <td>${MQTT_CATEGORY_LABELS[item.category] || item.category || ''}</td>
+                <td>${item.command ?? ''}</td>
+                <td>${MQTT_DIRECTION_LABELS[item.direction] || item.direction || ''}</td>
+                <td style="max-width: 560px; word-break: break-all;">${item.data ?? ''}</td>
+                <td>${item.time ?? ''}</td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#c00;">查询失败: ${error.message}</td></tr>`;
+    }
+};
+
 // 全局函数：执行查询
 window.searchRobots = function() {
     const nameVal = document.getElementById('searchRobotName').value.trim();
@@ -163,6 +312,109 @@ window.toggleReportIntervalsForm = async function() {
     const wasHidden = content.style.display === 'none' || content.style.display === '';
     ui.toggleForm('reportIntervalsContent', 'reportIntervalsCollapseIcon');
     if (wasHidden) await window.loadReportIntervals();
+};
+
+// MQTT 配置区域开关
+window.toggleMqttConfigForm = async function() {
+    const content = document.getElementById('mqttConfigContent');
+    const wasHidden = content.style.display === 'none' || content.style.display === '';
+    ui.toggleForm('mqttConfigContent', 'mqttConfigCollapseIcon');
+    if (wasHidden) await window.loadMqttConfig();
+};
+
+// 读取当前 MQTT 配置
+window.loadMqttConfig = async function() {
+    try {
+        const result = await api.getMqttConfig();
+        if (result.success) {
+            document.getElementById('mqttBroker').value   = result.broker   || '';
+            document.getElementById('mqttUsername').value = result.username  || '';
+            document.getElementById('mqttPassword').value = '';
+            _updateMqttStatusBadge(result.connected);
+        }
+    } catch (e) {
+        console.error('获取 MQTT 配置失败:', e);
+    }
+};
+
+// 保存 MQTT 配置并重连
+window.saveMqttConfig = async function() {
+    const broker   = document.getElementById('mqttBroker').value.trim();
+    const username = document.getElementById('mqttUsername').value.trim();
+    const password = document.getElementById('mqttPassword').value;
+    if (!broker) { alert('服务地址不能为空'); return; }
+    try {
+        const result = await api.setMqttConfig(broker, username, password);
+        _updateMqttStatusBadge(result.connected);
+        if (result.success) {
+            document.getElementById('mqttPassword').value = '';
+            alert('✓ MQTT 配置已保存并重新连接成功');
+        } else {
+            alert('配置已保存，但 MQTT 重连失败: ' + (result.message || ''));
+        }
+    } catch (e) { alert('保存失败: ' + e.message); }
+};
+
+function _updateMqttStatusBadge(connected) {
+    const badge = document.getElementById('mqttStatusBadge');
+    if (!badge) return;
+    if (connected) {
+        badge.textContent = '✔ 已连接';
+        badge.style.background = '#d4edda';
+        badge.style.color = '#276032';
+    } else {
+        badge.textContent = '✖ 未连接';
+        badge.style.background = '#fce8e8';
+        badge.style.color = '#a93226';
+    }
+}
+
+// 机器人版本信息 / 固件下载
+window.toggleFirmwareForm = async function() {
+    const content = document.getElementById('firmwareContent');
+    const wasHidden = content.style.display === 'none' || content.style.display === '';
+    ui.toggleForm('firmwareContent', 'firmwareCollapseIcon');
+    if (wasHidden) await window.loadFirmwareList();
+};
+
+window.loadFirmwareList = async function() {
+    const versionInput = document.getElementById('firmwareVersionInput');
+    const listEl       = document.getElementById('firmwareFileList');
+
+    listEl.innerHTML = '<div style="color:#999;font-size:14px;padding:8px 0;">加载中...</div>';
+    try {
+        const result = await api.listFirmwareFiles();
+        if (versionInput) versionInput.value = result.version || '';
+        if (!result.files || result.files.length === 0) {
+            listEl.innerHTML = '<div style="color:#999;font-size:14px;padding:8px 0;">暂无升级包，请将 .bin 文件放入服务器 ./firmware/ 目录</div>';
+            return;
+        }
+        listEl.innerHTML = result.files.map(f => `
+            <div style="display:flex; align-items:center; gap:16px; padding:6px 0; border-bottom:1px solid #eee; font-size:14px;">
+                <span style="font-weight:600; white-space:nowrap;">文件：</span>
+                <span style="flex:1; word-break:break-all;">${f.filename}</span>
+                <button class="btn btn-secondary btn-sm" data-fname="${f.filename}" onclick="window.downloadFirmwareFile(this.dataset.fname)">&#11015; 下载</button>
+            </div>
+        `).join('');
+    } catch (e) {
+        if (document.getElementById('firmwareVersionInput'))
+            document.getElementById('firmwareVersionInput').value = '';
+        listEl.innerHTML = `<div style="color:#c00;font-size:14px;padding:8px 0;">加载失败: ${e.message}</div>`;
+    }
+};
+
+window.saveRobotVersion = async function() {
+    const input = document.getElementById('firmwareVersionInput');
+    const version = input ? input.value.trim() : '';
+    try {
+        const result = await api.setRobotVersion(version);
+        if (result.success) alert('✓ 版本号已保存: ' + (result.version || '(空)'));
+        else alert('保存失败: ' + (result.error || ''));
+    } catch (e) { alert('保存失败: ' + e.message); }
+};
+
+window.downloadFirmwareFile = function(filename) {
+    api.downloadFirmwareFile(filename);
 };
 
 // 全局函数：读取定时上报间隔配置
@@ -448,6 +700,198 @@ window.saveEditRobot = async function() {
     }
 };
 
+// ── 参数配置弹窗 ─────────────────────────────────────────────────────────
+
+let _paramConfigRobotId = null;
+
+// 打开参数配置弹窗
+window.openParamConfig = function(robotId) {
+    _paramConfigRobotId = robotId;
+    document.getElementById('paramConfigRobotId').textContent = robotId;
+    document.getElementById('paramConfigModal').style.display = 'flex';
+};
+
+// 关闭参数配置弹窗
+window.closeParamConfigModal = function() {
+    document.getElementById('paramConfigModal').style.display = 'none';
+    _paramConfigRobotId = null;
+};
+
+// 折叠/展开参数配置项
+window.toggleParamSection = function(sectionId, iconId) {
+    const section = document.getElementById(sectionId);
+    const icon    = document.getElementById(iconId);
+    if (!section) return;
+    const isHidden = section.style.display === 'none' || section.style.display === '';
+    section.style.display = isHidden ? 'block' : 'none';
+    if (icon) icon.textContent = isHidden ? '▼' : '▶';
+};
+
+// 参数配置 - 发送电机参数
+window.pcSendMotorParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const id = v => { const el = document.getElementById(v); return el ? parseInt(el.value) : NaN; };
+    const params = {
+        walk_motor_speed:                    id('pc_walkMotorSpeed'),
+        brush_motor_speed:                   id('pc_brushMotorSpeed'),
+        windproof_motor_speed:               id('pc_windproofMotorSpeed'),
+        walk_motor_max_current_ma:           id('pc_walkMotorMaxCurrent'),
+        brush_motor_max_current_ma:          id('pc_brushMotorMaxCurrent'),
+        windproof_motor_max_current_ma:      id('pc_windproofMotorMaxCurrent'),
+        walk_motor_warning_current_ma:       id('pc_walkMotorWarningCurrent'),
+        brush_motor_warning_current_ma:      id('pc_brushMotorWarningCurrent'),
+        windproof_motor_warning_current_ma:  id('pc_windproofMotorWarningCurrent'),
+        walk_motor_mileage_m:                id('pc_walkMotorMileage'),
+        brush_motor_timeout_s:               id('pc_brushMotorTimeout'),
+        windproof_motor_timeout_s:           id('pc_windproofMotorTimeout'),
+        reverse_time_s:                      id('pc_reverseTime'),
+        protection_angle:                    id('pc_protectionAngle')
+    };
+    if (Object.values(params).some(isNaN)) { alert('请填写所有电机参数字段'); return; }
+    try {
+        ui.showLoading('正在发送电机参数...');
+        const result = await api.sendMotorParamsRequest(_paramConfigRobotId, params);
+        ui.hideLoading();
+        if (result.success) alert('电机参数设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送电池参数
+window.pcSendBatteryParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const id = v => { const el = document.getElementById(v); return el ? parseInt(el.value) : NaN; };
+    const params = {
+        protection_current_ma:     id('pc_protectionCurrent'),
+        high_temp_threshold:       id('pc_highTempThreshold'),
+        low_temp_threshold:        id('pc_lowTempThreshold'),
+        protection_temp:           id('pc_protectionTemp'),
+        recovery_temp:             id('pc_recoveryTemp'),
+        protection_voltage:        id('pc_protectionVoltage'),
+        recovery_voltage:          id('pc_recoveryVoltage'),
+        protection_battery_level:  id('pc_protectionBatteryLevel'),
+        limit_run_battery_level:   id('pc_limitRunBatteryLevel'),
+        recovery_battery_level:    id('pc_recoveryBatteryLevel')
+    };
+    if (Object.values(params).some(isNaN)) { alert('请填写所有电池参数字段'); return; }
+    try {
+        ui.showLoading('正在发送电池参数...');
+        const result = await api.sendBatteryParamsRequest(_paramConfigRobotId, params);
+        ui.hideLoading();
+        if (result.success) alert('电池参数设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送定时设置（7个任务）
+window.pcSendScheduleParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const tasks = [];
+    for (let i = 1; i <= 7; i++) {
+        const wday = parseInt(document.getElementById(`pc_wday${i}`).value);
+        const hour = parseInt(document.getElementById(`pc_hour${i}`).value);
+        const min  = parseInt(document.getElementById(`pc_min${i}`).value);
+        const cnt  = parseInt(document.getElementById(`pc_cnt${i}`).value);
+        if ([wday, hour, min, cnt].some(isNaN)) { alert(`请填写任务${i}的所有字段`); return; }
+        tasks.push({ weekday: wday, hour, minute: min, run_count: cnt });
+    }
+    try {
+        ui.showLoading('正在发送定时设置...');
+        const result = await api.sendScheduleParamsRequest(_paramConfigRobotId, { tasks });
+        ui.hideLoading();
+        if (result.success) alert('定时设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送停机位设置
+window.pcSendParkingPosition = async function() {
+    if (!_paramConfigRobotId) return;
+    const pos = parseInt(document.getElementById('pc_parkingPosition').value);
+    if (isNaN(pos) || pos < 0 || pos > 255) { alert('请输入有效的停机位（0-255）'); return; }
+    try {
+        ui.showLoading('正在发送停机位设置...');
+        const result = await api.sendParkingPositionRequest(_paramConfigRobotId, { parking_position: pos });
+        ui.hideLoading();
+        if (result.success) alert('停机位设置已发送！');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送Lora参数
+window.pcSendLoraParams = async function() {
+    if (!_paramConfigRobotId) return;
+    const power     = parseInt(document.getElementById('pc_loraPower').value);
+    const frequency = parseInt(document.getElementById('pc_loraFrequency').value);
+    const rate      = parseInt(document.getElementById('pc_loraRate').value);
+    if ([power, frequency, rate].some(isNaN)) { alert('请填写所有Lora参数（功率、频率、速率）'); return; }
+    try {
+        ui.showLoading('正在发送Lora参数...');
+        const result = await api.sendLoraParamsRequest(_paramConfigRobotId, { power, frequency, rate });
+        ui.hideLoading();
+        if (result.success) alert('Lora参数已发送！机器人将推送E0上报。');
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 发送白天防误扫设置
+window.pcSendDaytimeScanProtect = async function() {
+    if (!_paramConfigRobotId) return;
+    const onRadio = document.getElementById('pc_daytimeScanOn');
+    const enabled = onRadio && onRadio.checked;
+    try {
+        ui.showLoading('正在发送白天防误扫设置...');
+        const result = await api.sendDaytimeScanProtectRequest(_paramConfigRobotId, enabled);
+        ui.hideLoading();
+        if (result.success) alert(`白天防误扫已设置为：${enabled ? '开启' : '关闭'}，机器人将推送E0上报。`);
+        else alert('发送失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
+};
+
+// 参数配置 - 设置机器人运行数据（E4字段，仅写数据库）
+window.pcSendRobotE4Data = async function() {
+    if (!_paramConfigRobotId) return;
+    const numVal = (id) => {
+        const el = document.getElementById(id);
+        if (!el || el.value === '') return undefined;
+        const n = parseInt(el.value);
+        return isNaN(n) ? undefined : n;
+    };
+    const params = {};
+    const mapping = {
+        main_motor_current:  'pc_e4_mainMotorCurrent',
+        slave_motor_current: 'pc_e4_slaveMotorCurrent',
+        battery_voltage:     'pc_e4_batteryVoltage',
+        battery_current:     'pc_e4_batteryCurrent',
+        battery_status:      'pc_e4_batteryStatus',
+        battery_level:       'pc_e4_batteryLevel',
+        battery_temperature: 'pc_e4_batteryTemp',
+        position:            'pc_e4_position',
+        working_duration:    'pc_e4_workingDuration',
+        solar_voltage:       'pc_e4_solarVoltage',
+        solar_current:       'pc_e4_solarCurrent',
+        total_run_count:     'pc_e4_totalRunCount',
+        current_lap_count:   'pc_e4_currentLapCount',
+        board_temperature:   'pc_e4_boardTemp',
+        alarm_fa:            'pc_e4_alarmFa',
+        alarm_fb:            'pc_e4_alarmFb',
+        alarm_fc:            'pc_e4_alarmFc',
+        alarm_fd:            'pc_e4_alarmFd'
+    };
+    for (const [key, elemId] of Object.entries(mapping)) {
+        const v = numVal(elemId);
+        if (v !== undefined) params[key] = v;
+    }
+    if (Object.keys(params).length === 0) { alert('请至少填写一个字段'); return; }
+    try {
+        ui.showLoading('正在保存运行数据...');
+        const result = await api.sendRobotE4DataRequest(_paramConfigRobotId, params);
+        ui.hideLoading();
+        if (result.success) alert('机器人运行数据已保存到数据库！');
+        else alert('保存失败: ' + result.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 添加机器人表单提交
@@ -469,6 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始加载机器人列表
     loadRobots();
+    window.updateMqttCommandOptions();
 
     // 每10秒刷新一次列表
     setInterval(loadRobots, 10000);
@@ -506,6 +951,26 @@ document.addEventListener('DOMContentLoaded', () => {
         editRobotModal.addEventListener('click', (e) => {
             if (e.target.id === 'editRobotModal') {
                 window.closeEditModal();
+            }
+        });
+    }
+
+    // 点击参数配置模态框背景关闭
+    const paramConfigModal = document.getElementById('paramConfigModal');
+    if (paramConfigModal) {
+        paramConfigModal.addEventListener('click', (e) => {
+            if (e.target.id === 'paramConfigModal') {
+                window.closeParamConfigModal();
+            }
+        });
+    }
+
+    // 点击 MQTT 通信记录模态框背景关闭
+    const mqttMessagesModal = document.getElementById('mqttMessagesModal');
+    if (mqttMessagesModal) {
+        mqttMessagesModal.addEventListener('click', (e) => {
+            if (e.target.id === 'mqttMessagesModal') {
+                window.closeMqttMessagesModal();
             }
         });
     }

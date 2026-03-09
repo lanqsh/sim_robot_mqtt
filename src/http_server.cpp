@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <random>
@@ -20,6 +21,98 @@
 #include "httplib.h"
 
 using json = nlohmann::json;
+
+static std::string FormatStartReplyTimeString(const RobotData::RequestReply& reply) {
+  if (!reply.available) {
+    return "";
+  }
+
+  std::ostringstream oss;
+  oss << "20" << std::setfill('0') << std::setw(2) << static_cast<int>(reply.year)
+      << "-" << std::setw(2) << static_cast<int>(reply.month)
+      << "-" << std::setw(2) << static_cast<int>(reply.day)
+      << " " << std::setw(2) << static_cast<int>(reply.hour)
+      << ":" << std::setw(2) << static_cast<int>(reply.minute)
+      << ":" << std::setw(2) << static_cast<int>(reply.second);
+  return oss.str();
+}
+
+static bool IsWindProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x80) != 0;
+}
+
+static bool IsHumidityProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x40) != 0;
+}
+
+static bool IsBracketProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x20) != 0;
+}
+
+static bool IsAmbientTemperatureProtectionEnabled(uint8_t protection_info) {
+  return (protection_info & 0x10) != 0;
+}
+
+static json BuildProtectionInfoJson(uint8_t protection_info) {
+  return {
+      {"wind_protection", IsWindProtectionEnabled(protection_info)},
+      {"humidity_protection", IsHumidityProtectionEnabled(protection_info)},
+      {"bracket_protection", IsBracketProtectionEnabled(protection_info)},
+      {"ambient_temperature_protection", IsAmbientTemperatureProtectionEnabled(protection_info)},
+  };
+}
+
+static json BuildStartReplyJson(const RobotData::RequestReply& start_reply) {
+  return {
+      {"available", start_reply.available},
+      {"start_flag", start_reply.start_flag},
+      {"start_time", FormatStartReplyTimeString(start_reply)},
+      {"weekday", start_reply.weekday},
+      {"wind_speed", start_reply.wind_speed},
+      {"comm_box_count", start_reply.comm_box_count},
+      {"robot_count", start_reply.robot_count},
+      {"protection_info", BuildProtectionInfoJson(start_reply.protection_info)},
+  };
+}
+
+static std::string ToLowerCopy(std::string text) {
+  std::transform(text.begin(), text.end(), text.begin(), ::tolower);
+  return text;
+}
+
+static std::string NormalizeCategoryKey(const std::string& key) {
+  std::string lower = ToLowerCopy(key);
+  if (lower.empty() || lower == "all") {
+    return "";
+  }
+  if (lower == "parameter" || lower == "parameters" || lower == "config") {
+    return "param";
+  }
+  if (lower == "data_report") {
+    return "report";
+  }
+  if (lower == "robot_request") {
+    return "request";
+  }
+  if (lower == "remote_upgrade") {
+    return "upgrade";
+  }
+  return lower;
+}
+
+static std::string NormalizeDirectionKey(const std::string& key) {
+  std::string lower = ToLowerCopy(key);
+  if (lower.empty() || lower == "all") {
+    return "";
+  }
+  if (lower == "uplink") {
+    return "up";
+  }
+  if (lower == "downlink") {
+    return "down";
+  }
+  return lower;
+}
 
 // 生成16位十六进制ID
 static std::string GenerateUUID() {
@@ -695,6 +788,61 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
+  // API: 获取最近100条后端与平台MQTT通信记录
+  svr.Get("/api/v1/robots/mqtt_messages", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.has_param("robot_id") ? req.get_param_value("robot_id") : "";
+      std::string category = req.has_param("category_key") ? req.get_param_value("category_key") : "";
+      std::string command = req.has_param("command") ? req.get_param_value("command") : "";
+      std::string direction = req.has_param("direction_key") ? req.get_param_value("direction_key") : "";
+
+      category = NormalizeCategoryKey(category);
+      direction = NormalizeDirectionKey(direction);
+
+      auto messages = mqtt_manager_->GetRecentMqttMessages(robot_id, category, command, direction, 100);
+
+      std::string robot_name;
+      if (!robot_id.empty()) {
+        auto all_robots = config_db_->GetAllRobots();
+        for (const auto& robot : all_robots) {
+          if (robot.robot_id == robot_id) {
+            robot_name = robot.robot_name;
+            break;
+          }
+        }
+      }
+
+      json data = json::array();
+      int index = 1;
+      for (const auto& item : messages) {
+        data.push_back({
+            {"index", index++},
+            {"category", item.category},
+            {"command", item.command},
+            {"direction", item.direction},
+            {"data", item.data},
+            {"time", item.timestamp},
+            {"topic", item.topic},
+            {"robot_id", item.robot_id},
+        });
+      }
+
+      json response;
+      response["success"] = true;
+      response["robot_name"] = robot_name;
+      response["eui"] = robot_id;
+      response["messages"] = data;
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "获取MQTT通信记录失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
   // API: 设置机器人告警
   svr.Post("/api/v1/robots/set_alarms", [this](const httplib::Request& req, httplib::Response& res) {
     try {
@@ -805,6 +953,26 @@ void HttpServer::ServerThreadFunc() {
           static_cast<uint8_t>(body["reverse_time_s"].get<int>()),
           static_cast<uint8_t>(body["protection_angle"].get<int>()));
 
+      // 同步到内存 data_ 并持久化到数据库
+      {
+        auto& mp = robot->GetData().motor_params;
+        mp.walk_motor_speed                   = static_cast<uint8_t>(body["walk_motor_speed"].get<int>());
+        mp.brush_motor_speed                  = static_cast<uint8_t>(body["brush_motor_speed"].get<int>());
+        mp.windproof_motor_speed              = static_cast<uint8_t>(body["windproof_motor_speed"].get<int>());
+        mp.walk_motor_max_current_ma          = static_cast<uint16_t>(body["walk_motor_max_current_ma"].get<int>());
+        mp.brush_motor_max_current_ma         = static_cast<uint16_t>(body["brush_motor_max_current_ma"].get<int>());
+        mp.windproof_motor_max_current_ma     = static_cast<uint16_t>(body["windproof_motor_max_current_ma"].get<int>());
+        mp.walk_motor_warning_current_ma      = static_cast<uint16_t>(body["walk_motor_warning_current_ma"].get<int>());
+        mp.brush_motor_warning_current_ma     = static_cast<uint16_t>(body["brush_motor_warning_current_ma"].get<int>());
+        mp.windproof_motor_warning_current_ma = static_cast<uint16_t>(body["windproof_motor_warning_current_ma"].get<int>());
+        mp.walk_motor_mileage_m               = static_cast<uint16_t>(body["walk_motor_mileage_m"].get<int>());
+        mp.brush_motor_timeout_s              = static_cast<uint16_t>(body["brush_motor_timeout_s"].get<int>());
+        mp.windproof_motor_timeout_s          = static_cast<uint16_t>(body["windproof_motor_timeout_s"].get<int>());
+        mp.reverse_time_s                     = static_cast<uint8_t>(body["reverse_time_s"].get<int>());
+        mp.protection_angle                   = static_cast<uint8_t>(body["protection_angle"].get<int>());
+        config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      }
+
       json response;
       response["success"] = true;
       response["message"] = "电机参数设置请求已发送";
@@ -865,6 +1033,22 @@ void HttpServer::ServerThreadFunc() {
           static_cast<uint8_t>(body["protection_battery_level"].get<int>()),
           static_cast<uint8_t>(body["limit_run_battery_level"].get<int>()),
           static_cast<uint8_t>(body["recovery_battery_level"].get<int>()));
+
+      // 同步到内存 data_ 并持久化到数据库
+      {
+        auto& tv = robot->GetData().temp_voltage_protection;
+        tv.protection_current_ma    = static_cast<uint16_t>(body["protection_current_ma"].get<int>());
+        tv.high_temp_threshold      = static_cast<uint8_t>(body["high_temp_threshold"].get<int>());
+        tv.low_temp_threshold       = static_cast<uint8_t>(body["low_temp_threshold"].get<int>());
+        tv.protection_temp          = static_cast<uint8_t>(body["protection_temp"].get<int>());
+        tv.recovery_temp            = static_cast<uint8_t>(body["recovery_temp"].get<int>());
+        tv.protection_voltage       = static_cast<uint8_t>(body["protection_voltage"].get<int>());
+        tv.recovery_voltage         = static_cast<uint8_t>(body["recovery_voltage"].get<int>());
+        tv.protection_battery_level = static_cast<uint8_t>(body["protection_battery_level"].get<int>());
+        tv.limit_run_battery_level  = static_cast<uint8_t>(body["limit_run_battery_level"].get<int>());
+        tv.recovery_battery_level   = static_cast<uint8_t>(body["recovery_battery_level"].get<int>());
+        config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      }
 
       json response;
       response["success"] = true;
@@ -941,6 +1125,10 @@ void HttpServer::ServerThreadFunc() {
 
       robot->SendScheduleParamsRequest(tasks);
 
+      // 同步到内存 data_ 并持久化到数据库
+      robot->GetData().schedule_tasks = tasks;
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+
       json response;
       response["success"] = true;
       response["message"] = "定时设置请求已发送";
@@ -984,6 +1172,10 @@ void HttpServer::ServerThreadFunc() {
       uint8_t parking_position = static_cast<uint8_t>(body["parking_position"].get<int>());
       robot->SendParkingPositionRequest(parking_position);
 
+      // 同步到内存 data_ 并持久化到数据库
+      robot->GetData().parking_position = parking_position;
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+
       json response;
       response["success"] = true;
       response["message"] = "停机位设置请求已发送";
@@ -993,6 +1185,154 @@ void HttpServer::ServerThreadFunc() {
       LOG(INFO) << "API: 发送停机位设置请求 - 机器人: " << robot_id;
     } catch (const std::exception& e) {
       LOG(ERROR) << "发送停机位设置请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/lora_params - 设置Lora参数（功率/频率/速率）
+  svr.Post("/api/v1/robots/lora_params", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("power") || !body.contains("frequency") || !body.contains("rate")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: power, frequency, rate";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->GetData().lora_params.power     = body["power"].get<int>();
+      robot->GetData().lora_params.frequency = body["frequency"].get<int>();
+      robot->GetData().lora_params.rate      = body["rate"].get<int>();
+      robot->SendLoraAndCleanSettingsReport();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+
+      json response;
+      response["success"] = true;
+      response["message"] = "Lora参数设置已发送";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置Lora参数 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "设置Lora参数失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/daytime_scan_protect - 设置白天防误扫开关
+  svr.Post("/api/v1/robots/daytime_scan_protect", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("enabled")) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必需参数: enabled";
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      robot->GetData().daytime_scan_protect = body["enabled"].get<bool>();
+      robot->SendLoraAndCleanSettingsReport();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+
+      json response;
+      response["success"] = true;
+      response["message"] = "白天防误扫设置已发送";
+      response["robot_id"] = robot_id;
+      response["enabled"] = robot->GetData().daytime_scan_protect;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置白天防误扫 - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "设置白天防误扫失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/data - 设置机器人运行数据（E4上报字段），仅更新UI模拟数据，不触发MQTT
+  svr.Post("/api/v1/robots/data", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      json body = json::parse(req.body);
+
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      auto& d = robot->GetData();
+      if (body.contains("main_motor_current"))  d.main_motor_current  = body["main_motor_current"].get<int>();
+      if (body.contains("slave_motor_current")) d.slave_motor_current = body["slave_motor_current"].get<int>();
+      if (body.contains("battery_voltage"))     d.battery_voltage     = body["battery_voltage"].get<int>();
+      if (body.contains("battery_current"))     d.battery_current     = body["battery_current"].get<int>();
+      if (body.contains("battery_status"))      d.battery_status      = body["battery_status"].get<int>();
+      if (body.contains("battery_level"))       d.battery_level       = body["battery_level"].get<int>();
+      if (body.contains("battery_temperature")) d.battery_temperature = body["battery_temperature"].get<int>();
+      if (body.contains("position"))            d.position            = body["position"].get<int>();
+      if (body.contains("working_duration"))    d.working_duration    = body["working_duration"].get<int>();
+      if (body.contains("solar_voltage"))       d.solar_voltage       = body["solar_voltage"].get<int>();
+      if (body.contains("solar_current"))       d.solar_current       = body["solar_current"].get<int>();
+      if (body.contains("total_run_count"))     d.total_run_count     = body["total_run_count"].get<int>();
+      if (body.contains("current_lap_count"))   d.current_lap_count   = body["current_lap_count"].get<int>();
+      if (body.contains("board_temperature"))   d.board_temperature   = body["board_temperature"].get<int>();
+      if (body.contains("alarm_fa"))            d.alarm_fa            = body["alarm_fa"].get<int>();
+      if (body.contains("alarm_fb"))            d.alarm_fb            = body["alarm_fb"].get<int>();
+      if (body.contains("alarm_fc"))            d.alarm_fc            = body["alarm_fc"].get<int>();
+      if (body.contains("alarm_fd"))            d.alarm_fd            = body["alarm_fd"].get<int>();
+
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+
+      json response;
+      response["success"] = true;
+      response["message"] = "机器人运行数据已更新并持久化";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置机器人运行数据(E4) - 机器人: " << robot_id;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "设置机器人运行数据失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();
@@ -1029,8 +1369,11 @@ void HttpServer::ServerThreadFunc() {
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (robot) {
+        uint64_t request_id = robot->BeginRequestReplyTracking();
+
         // 发送定时启动请求
         robot->SendScheduleStartRequest(schedule_id, weekday, hour, minute, run_count);
+        const auto& start_reply = robot->GetData().request_reply;
 
         json response;
         response["success"] = true;
@@ -1041,6 +1384,8 @@ void HttpServer::ServerThreadFunc() {
         response["hour"] = hour;
         response["minute"] = minute;
         response["run_count"] = run_count;
+        response["request_id"] = request_id;
+        response["start_reply"] = BuildStartReplyJson(start_reply);
 
         res.set_content(response.dump(), "application/json");
         LOG(INFO) << "API: 发送定时启动请求 - 机器人: " << robot_id;
@@ -1070,13 +1415,18 @@ void HttpServer::ServerThreadFunc() {
       auto robot = mqtt_manager_->GetRobot(robot_id);
 
       if (robot) {
+        uint64_t request_id = robot->BeginRequestReplyTracking();
+
         // 发送启动请求
         robot->SendStartRequest();
+        const auto& start_reply = robot->GetData().request_reply;
 
         json response;
         response["success"] = true;
         response["message"] = "启动请求已发送";
         response["robot_id"] = robot_id;
+        response["request_id"] = request_id;
+        response["start_reply"] = BuildStartReplyJson(start_reply);
 
         res.set_content(response.dump(), "application/json");
         LOG(INFO) << "API: 发送启动请求 - 机器人: " << robot_id;
@@ -1116,19 +1466,85 @@ void HttpServer::ServerThreadFunc() {
         return;
       }
 
+      uint64_t request_id = robot->BeginRequestReplyTracking();
+
       // 发送校时请求
       robot->SendTimeSyncRequest();
+      const auto& start_reply = robot->GetData().request_reply;
 
       json response;
       response["success"] = true;
       response["message"] = "校时请求已发送";
       response["robot_id"] = robot->GetId();
+      response["request_id"] = request_id;
+      response["start_reply"] = BuildStartReplyJson(start_reply);
       res.set_content(response.dump(), "application/json");
 
       LOG(INFO) << "校时请求已发送 - 机器人: " << robot->GetId();
 
     } catch (const std::exception& e) {
       LOG(ERROR) << "发送校时请求失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/request_reply - 查询请求回复状态（F0/F1/F2）
+  svr.Get("/api/v1/robots/request_reply", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+
+    try {
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+
+      if (!robot) {
+        json error;
+        error["success"] = false;
+        error["error"] = "机器人不存在或未运行";
+        res.status = 404;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      uint64_t request_id = 0;
+      if (req.has_param("request_id")) {
+        request_id = std::stoull(req.get_param_value("request_id"));
+      }
+
+      int wait_ms = 0;
+      if (req.has_param("wait_ms")) {
+        wait_ms = std::stoi(req.get_param_value("wait_ms"));
+      }
+      if (wait_ms < 0) {
+        wait_ms = 0;
+      }
+      if (wait_ms > 10000) {
+        wait_ms = 10000;
+      }
+
+      RobotData::RequestReply reply;
+      bool received = false;
+      if (!robot->WaitForRequestReply(request_id, wait_ms, &reply, &received)) {
+        json error;
+        error["success"] = false;
+        error["error"] = "查询请求回复状态失败";
+        res.status = 500;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      json response;
+      response["success"] = true;
+      response["robot_id"] = robot_id;
+      response["request_id"] = request_id;
+      response["wait_ms"] = wait_ms;
+      response["received"] = received;
+      response["start_reply"] = BuildStartReplyJson(reply);
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "查询请求回复状态失败: " << e.what();
       json error;
       error["success"] = false;
       error["error"] = e.what();
@@ -1370,6 +1786,145 @@ void HttpServer::ServerThreadFunc() {
       res.status = 500;
       res.set_content(error.dump(), "application/json");
     }
+  });
+
+  // ─── MQTT 服务配置 ─────────────────────────────────────────────────────────
+
+  // GET /api/v1/system/mqtt_config - 获取 MQTT 服务地址、用户名及连接状态
+  svr.Get("/api/v1/system/mqtt_config", [this](const httplib::Request&, httplib::Response& res) {
+    try {
+      json response;
+      response["success"]   = true;
+      response["broker"]    = mqtt_manager_->GetBroker();
+      response["username"]  = mqtt_manager_->GetUsername();
+      response["connected"] = mqtt_manager_->IsConnected();
+      res.set_content(response.dump(), "application/json");
+    } catch (const std::exception& e) {
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/system/mqtt_config - 更新 MQTT 服务配置并重新连接
+  svr.Post("/api/v1/system/mqtt_config", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      json body = json::parse(req.body);
+      if (!body.contains("broker") || body["broker"].get<std::string>().empty()) {
+        json error;
+        error["success"] = false;
+        error["error"] = "缺少必填参数: broker"
+; res.status = 400;
+        res.set_content(error.dump(), "application/json");
+        return;
+      }
+
+      std::string broker   = body["broker"].get<std::string>();
+      std::string username = body.value("username", "");
+      std::string password = body.value("password", "");
+
+      bool ok = mqtt_manager_->ReconfigureAndReconnect(broker, username, password);
+
+      json response;
+      response["success"]   = ok;
+      response["message"]   = ok ? "MQTT 服务配置已更新并重新连接" : "MQTT 重连失败，配置已保存";
+      response["broker"]    = mqtt_manager_->GetBroker();
+      response["username"]  = mqtt_manager_->GetUsername();
+      response["connected"] = mqtt_manager_->IsConnected();
+      if (!ok) res.status = 500;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 更新 MQTT 配置 - broker: " << broker
+                << ", user: " << username << ", 连接: " << (ok ? "ok" : "fail");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "MQTT 配置更新失败: " << e.what();
+      json error;
+      error["success"] = false;
+      error["error"] = e.what();
+      res.status = 500;
+      res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/system/firmware - 列出固件目录中的升级包文件
+  svr.Get("/api/v1/system/firmware", [this](const httplib::Request&, httplib::Response& res) {
+    namespace fs = std::filesystem;
+    std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+    json result;
+    result["success"] = true;
+    result["version"] = config_db_->GetValue("robot_version", "");
+    json files_arr = json::array();
+    try {
+      if (!fs::exists(firmware_dir)) {
+        fs::create_directories(firmware_dir);
+        LOG(INFO) << "固件目录不存在，已自动创建: " << firmware_dir;
+      }
+      if (fs::is_directory(firmware_dir)) {
+        for (const auto& entry : fs::directory_iterator(firmware_dir)) {
+          if (!entry.is_regular_file()) continue;
+          if (entry.path().extension().string() != ".bin") continue;
+          json item;
+          item["filename"] = entry.path().filename().string();
+          item["size"]     = static_cast<uint64_t>(entry.file_size());
+          files_arr.push_back(item);
+        }
+      }
+    } catch (const std::exception& e) {
+      LOG(WARNING) << "扫描固件目录失败: " << e.what();
+    }
+    result["files"] = files_arr;
+    res.set_content(result.dump(), "application/json");
+  });
+
+  // POST /api/v1/system/robot_version - 设置机器人版本号
+  svr.Post("/api/v1/system/robot_version", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      auto body = json::parse(req.body);
+      std::string version = body.value("version", "");
+      config_db_->SetValue("robot_version", version);
+      json response;
+      response["success"] = true;
+      response["version"] = version;
+      response["message"] = "机器人版本号已保存";
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置机器人版本号: " << version;
+    } catch (const std::exception& e) {
+      res.status = 400;
+      res.set_content(json{{"success", false}, {"error", e.what()}}.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/system/firmware/download?filename=xxx - 下载固件文件
+  svr.Get("/api/v1/system/firmware/download", [this](const httplib::Request& req, httplib::Response& res) {
+    if (!req.has_param("filename")) {
+      res.status = 400;
+      res.set_content(json{{"success", false}, {"error", "缺少 filename 参数"}}.dump(), "application/json");
+      return;
+    }
+    std::string filename = req.get_param_value("filename");
+    if (filename.find("..") != std::string::npos ||
+        filename.find('/') != std::string::npos  ||
+        filename.find('\\') != std::string::npos) {
+      res.status = 400;
+      res.set_content(json{{"success", false}, {"error", "非法文件名"}}.dump(), "application/json");
+      return;
+    }
+    std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+    std::string filepath = firmware_dir + "/" + filename;
+    std::ifstream ifs(filepath, std::ios::binary | std::ios::ate);
+    if (!ifs.is_open()) {
+      res.status = 404;
+      res.set_content(json{{"success", false}, {"error", "文件不存在: " + filename}}.dump(), "application/json");
+      return;
+    }
+    auto sz = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    std::string content(static_cast<size_t>(sz), '\0');
+    ifs.read(content.data(), sz);
+    res.set_header("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+    res.set_content(content, "application/octet-stream");
+    LOG(INFO) << "API: 固件文件下载 - " << filename << " (" << sz << " bytes)";
   });
 
   LOG(INFO) << "HTTP服务器线程启动，监听端口: " << port_;

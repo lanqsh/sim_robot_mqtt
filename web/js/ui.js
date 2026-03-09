@@ -69,11 +69,17 @@ export function renderRobots(robots) {
                 <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
                     查看数据
                 </button>
+                <button class="btn btn-sm btn-success" onclick="window.openParamConfig('${robot.robot_id}')">
+                    参数配置
+                </button>
                 <button class="btn btn-sm btn-warning" onclick="window.openTriggerModal('${robot.robot_id}')">
                     手动触发
                 </button>
                 <button class="btn btn-sm btn-info" onclick="window.openAlarmSettings('${robot.robot_id}', ${robot.serial_number})">
                     告警设置
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="window.openMqttMessages('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
+                    通信记录
                 </button>
                 <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
                     删除

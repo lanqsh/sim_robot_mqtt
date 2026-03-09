@@ -242,6 +242,7 @@
                     <div class="form-spacer"></div>
                     <button class="btn btn-success" onclick="sendStartRequest()">发送请求</button>
                 </div>
+                <div id="startReplyResult" style="margin-top:10px; padding:10px; border:1px solid #e5e7eb; border-radius:6px; display:none; font-size:13px; line-height:1.6; white-space:pre-wrap;"></div>
             </div>
         </div>
 
@@ -282,6 +283,54 @@
                     <button class="btn btn-success" onclick="saveReportIntervals()">&#10003; 保存并生效</button>
                 </div>
                 <p style="margin: 8px 16px 0; font-size: 13px; color: #666;">说明：修改后将实时应用到所有已运行机器人，同时写入数据库（新和机器人采用新间隔）。最小值 10 秒。</p>
+            </div>
+        </div>
+
+        <!-- MQTT 服务配置 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleMqttConfigForm()">
+                <h2>MQTT 服务配置</h2>
+                <span class="collapse-icon" id="mqttConfigCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="mqttConfigContent" style="display: none;">
+                <div class="schedule-inline-form start-inline-form" style="align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <label style="font-weight:500; white-space:nowrap;">服务地址 (Broker)：</label>
+                    <input type="text" id="mqttBroker" placeholder="tcp://host:1883" style="width: 260px;">
+
+                    <label style="font-weight:500; white-space:nowrap;">用户名：</label>
+                    <input type="text" id="mqttUsername" placeholder="可留空" style="width: 160px;">
+
+                    <label style="font-weight:500; white-space:nowrap;">密码：</label>
+                    <input type="password" id="mqttPassword" placeholder="可留空" style="width: 160px;" autocomplete="new-password">
+
+                    <div class="form-spacer"></div>
+                    <button class="btn btn-secondary" onclick="loadMqttConfig()">&#8635; 读取当前</button>
+                    <button class="btn btn-success" onclick="saveMqttConfig()">&#10003; 保存并重连</button>
+                </div>
+                <div style="margin: 10px 16px 0; display: flex; align-items: center; gap: 10px;">
+                    <span style="font-weight:500; font-size:13px;">连接状态：</span>
+                    <span id="mqttStatusBadge" style="display:inline-block; padding:2px 10px; border-radius:12px; font-size:13px; background:#e0e0e0; color:#555;">未知</span>
+                </div>
+                <p style="margin: 6px 16px 8px; font-size: 13px; color: #666;">说明：保存后将断开旧连接并以新地址重新连接，已管理的机器人主题会自动重订阅。密码不会回显到页面。</p>
+            </div>
+        </div>
+
+        <!-- 机器人版本信息 -->
+        <div class="schedule-request-section">
+            <div class="collapsible-header" onclick="toggleFirmwareForm()">
+                <h2>机器人版本信息</h2>
+                <span class="collapse-icon" id="firmwareCollapseIcon">▼</span>
+            </div>
+            <div class="schedule-controls start-controls" id="firmwareContent" style="display: none;">
+                <div style="margin: 12px 16px 4px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <span style="font-weight: 600; font-size: 14px; white-space: nowrap;">版本：</span>
+                    <input type="text" id="firmwareVersionInput" placeholder="输入版本号" style="width: 140px; font-size: 14px;">
+                    <button class="btn btn-success" onclick="saveRobotVersion()">&#10003; 保存</button>
+                    <button class="btn btn-secondary" onclick="loadFirmwareList()">&#8635; 刷新</button>
+                </div>
+                <div id="firmwareFileList" style="margin: 8px 16px 10px;">
+                    <div style="color:#999; font-size:14px; padding: 8px 0;">将升级包（.bin）放入服务器 ./firmware/ 目录后刷新</div>
+                </div>
             </div>
         </div>
 
@@ -451,6 +500,67 @@
         </div>
     </div>
 
+    <!-- MQTT通信记录模态框 -->
+    <div id="mqttMessagesModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:1200px; width:96%;">
+            <div class="modal-header">
+                <h2>通信记录</h2>
+                <span class="close-btn" onclick="closeMqttMessagesModal()">&times;</span>
+            </div>
+            <div style="padding: 16px 20px;">
+                <div style="margin-bottom: 10px; font-size: 28px; font-weight: 600;">
+                    <span id="mqttRobotName">Robot1</span>
+                    <span style="font-size: 12px; margin-left: 8px;">EUI: <span id="mqttRobotEui">--</span></span>
+                    <span style="font-size: 12px; margin-left: 8px; color: #555;">最近100条通信消息</span>
+                </div>
+                <div class="inline-form" style="gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <input type="text" id="mqttRobotIdInput" style="display:none;">
+                    <label>命令分类</label>
+                    <select id="mqttCategoryFilter" style="width: 130px;" onchange="updateMqttCommandOptions()">
+                        <option value="all">全部</option>
+                        <option value="param">参数设置</option>
+                        <option value="control">控制</option>
+                        <option value="query">查询</option>
+                        <option value="report">数据上报</option>
+                        <option value="request">机器人请求</option>
+                        <option value="upgrade">远程升级</option>
+                    </select>
+                    <label>命令</label>
+                    <select id="mqttCommandFilter" style="width: 150px;">
+                        <option value="all">全部</option>
+                    </select>
+                    <label>方向</label>
+                    <select id="mqttDirectionFilter" style="width: 100px;">
+                        <option value="all">全部</option>
+                        <option value="up">上行</option>
+                        <option value="down">下行</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="queryMqttMessages()">查询</button>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="clean-records-table" style="width: 100%; min-width: 860px;">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>命令分类</th>
+                                <th>命令</th>
+                                <th>方向</th>
+                                <th>数据</th>
+                                <th>时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mqttMessagesTableBody">
+                            <tr><td colspan="6" style="text-align:center; color:#666;">请选择筛选条件后点击查询</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeMqttMessagesModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 编辑机器人模态框 -->
     <div id="editRobotModal" class="modal" style="display:none; align-items:center; justify-content:center;">
         <div class="modal-content" style="max-width:460px; width:95%;">
@@ -478,6 +588,212 @@
             <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end; gap:10px;">
                 <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
                 <button class="btn btn-success" onclick="saveEditRobot()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 参数配置模态框 -->
+    <div id="paramConfigModal" class="modal" style="display:none; align-items:flex-start; justify-content:center; padding-top:40px;">
+        <div class="modal-content" style="max-width:760px; width:95%; max-height:85vh; overflow-y:auto;">
+            <div class="modal-header" style="position:sticky;top:0;background:#fff;z-index:10;">
+                <h2>参数配置 &mdash; <span id="paramConfigRobotId" style="font-size:0.85em;color:#555;"></span></h2>
+                <span class="close-btn" onclick="closeParamConfigModal()">&times;</span>
+            </div>
+            <div style="padding:16px 20px;">
+
+                <!-- ① 电机参数设置 -->
+                <div class="collapsible-header" onclick="toggleParamSection('motorSection','motorSectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">① 电机参数设置</span>
+                    <span id="motorSectionIcon">▶</span>
+                </div>
+                <div id="motorSection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                        <input type="number" id="pc_walkMotorSpeed" placeholder="行走电机速率" style="width:145px;">
+                        <input type="number" id="pc_brushMotorSpeed" placeholder="毛刷电机速率" style="width:145px;">
+                        <input type="number" id="pc_windproofMotorSpeed" placeholder="防风电机速率" style="width:145px;">
+                        <input type="number" id="pc_walkMotorMaxCurrent" placeholder="行走电机上限电流(mA)" style="width:170px;">
+                        <input type="number" id="pc_brushMotorMaxCurrent" placeholder="毛刷电机上限电流(mA)" style="width:170px;">
+                        <input type="number" id="pc_windproofMotorMaxCurrent" placeholder="防风电机上限电流(mA)" style="width:170px;">
+                        <input type="number" id="pc_walkMotorWarningCurrent" placeholder="行走电机预警电流(mA)" style="width:170px;">
+                        <input type="number" id="pc_brushMotorWarningCurrent" placeholder="毛刷电机预警电流(mA)" style="width:170px;">
+                        <input type="number" id="pc_windproofMotorWarningCurrent" placeholder="防风电机预警电流(mA)" style="width:170px;">
+                        <input type="number" id="pc_walkMotorMileage" placeholder="行走里程(m)" style="width:130px;">
+                        <input type="number" id="pc_brushMotorTimeout" placeholder="毛刷超时(s)" style="width:130px;">
+                        <input type="number" id="pc_windproofMotorTimeout" placeholder="防风超时(s)" style="width:130px;">
+                        <input type="number" id="pc_reverseTime" placeholder="反转时间(s)" style="width:130px;">
+                        <input type="number" id="pc_protectionAngle" placeholder="保护角度" style="width:120px;">
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendMotorParams()">发送</button>
+                    </div>
+                </div>
+
+                <!-- ② 电池参数设置 -->
+                <div class="collapsible-header" onclick="toggleParamSection('batterySection','batterySectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">② 电池参数设置</span>
+                    <span id="batterySectionIcon">▶</span>
+                </div>
+                <div id="batterySection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                        <input type="number" id="pc_protectionCurrent" placeholder="保护电流(mA)" style="width:145px;">
+                        <input type="number" id="pc_highTempThreshold" placeholder="高温阈值" style="width:120px;">
+                        <input type="number" id="pc_lowTempThreshold" placeholder="低温阈值" style="width:120px;">
+                        <input type="number" id="pc_protectionTemp" placeholder="保护温度" style="width:120px;">
+                        <input type="number" id="pc_recoveryTemp" placeholder="恢复温度" style="width:120px;">
+                        <input type="number" id="pc_protectionVoltage" placeholder="保护电压" style="width:120px;">
+                        <input type="number" id="pc_recoveryVoltage" placeholder="恢复电压" style="width:120px;">
+                        <input type="number" id="pc_protectionBatteryLevel" placeholder="保护电量" style="width:120px;">
+                        <input type="number" id="pc_limitRunBatteryLevel" placeholder="限制运行电量" style="width:145px;">
+                        <input type="number" id="pc_recoveryBatteryLevel" placeholder="恢复电量" style="width:120px;">
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendBatteryParams()">发送</button>
+                    </div>
+                </div>
+
+                <!-- ③ 定时设置 -->
+                <div class="collapsible-header" onclick="toggleParamSection('scheduleSection','scheduleSectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">③ 定时设置</span>
+                    <span id="scheduleSectionIcon">▶</span>
+                </div>
+                <div id="scheduleSection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:grid;grid-template-columns:70px 1fr 1fr 1fr 1fr;gap:6px 10px;align-items:center;">
+                        <div style="font-weight:600;font-size:13px;">任务</div>
+                        <div style="font-weight:600;font-size:13px;">星期(0-6)</div>
+                        <div style="font-weight:600;font-size:13px;">时</div>
+                        <div style="font-weight:600;font-size:13px;">分</div>
+                        <div style="font-weight:600;font-size:13px;">运行次数</div>
+                        <div style="font-size:13px;color:#555;">任务1</div>
+                        <input type="number" id="pc_wday1" min="0" max="6" placeholder="0-6" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_hour1" min="0" max="23" placeholder="0-23" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_min1" min="0" max="59" placeholder="0-59" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_cnt1" min="0" max="255" placeholder="0-255" style="width:100%;min-width:60px;">
+                        <div style="font-size:13px;color:#555;">任务2</div>
+                        <input type="number" id="pc_wday2" min="0" max="6" placeholder="0-6" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_hour2" min="0" max="23" placeholder="0-23" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_min2" min="0" max="59" placeholder="0-59" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_cnt2" min="0" max="255" placeholder="0-255" style="width:100%;min-width:60px;">
+                        <div style="font-size:13px;color:#555;">任务3</div>
+                        <input type="number" id="pc_wday3" min="0" max="6" placeholder="0-6" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_hour3" min="0" max="23" placeholder="0-23" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_min3" min="0" max="59" placeholder="0-59" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_cnt3" min="0" max="255" placeholder="0-255" style="width:100%;min-width:60px;">
+                        <div style="font-size:13px;color:#555;">任务4</div>
+                        <input type="number" id="pc_wday4" min="0" max="6" placeholder="0-6" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_hour4" min="0" max="23" placeholder="0-23" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_min4" min="0" max="59" placeholder="0-59" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_cnt4" min="0" max="255" placeholder="0-255" style="width:100%;min-width:60px;">
+                        <div style="font-size:13px;color:#555;">任务5</div>
+                        <input type="number" id="pc_wday5" min="0" max="6" placeholder="0-6" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_hour5" min="0" max="23" placeholder="0-23" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_min5" min="0" max="59" placeholder="0-59" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_cnt5" min="0" max="255" placeholder="0-255" style="width:100%;min-width:60px;">
+                        <div style="font-size:13px;color:#555;">任务6</div>
+                        <input type="number" id="pc_wday6" min="0" max="6" placeholder="0-6" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_hour6" min="0" max="23" placeholder="0-23" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_min6" min="0" max="59" placeholder="0-59" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_cnt6" min="0" max="255" placeholder="0-255" style="width:100%;min-width:60px;">
+                        <div style="font-size:13px;color:#555;">任务7</div>
+                        <input type="number" id="pc_wday7" min="0" max="6" placeholder="0-6" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_hour7" min="0" max="23" placeholder="0-23" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_min7" min="0" max="59" placeholder="0-59" style="width:100%;min-width:60px;">
+                        <input type="number" id="pc_cnt7" min="0" max="255" placeholder="0-255" style="width:100%;min-width:60px;">
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendScheduleParams()">发送</button>
+                    </div>
+                </div>
+
+                <!-- ④ 停机位设置 -->
+                <div class="collapsible-header" onclick="toggleParamSection('parkingSection','parkingSectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">④ 停机位设置</span>
+                    <span id="parkingSectionIcon">▶</span>
+                </div>
+                <div id="parkingSection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="number" id="pc_parkingPosition" placeholder="停机位 (0-255)" min="0" max="255" style="width:180px;">
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendParkingPosition()">发送</button>
+                    </div>
+                </div>
+
+                <!-- ⑤ Lora参数设置 -->
+                <div class="collapsible-header" onclick="toggleParamSection('loraSection','loraSectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">⑤ Lora参数设置</span>
+                    <span id="loraSectionIcon">▶</span>
+                </div>
+                <div id="loraSection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                        <input type="number" id="pc_loraPower" placeholder="功率 Power" min="0" max="255" style="width:150px;">
+                        <input type="number" id="pc_loraFrequency" placeholder="频率 Frequency" min="0" max="255" style="width:160px;">
+                        <input type="number" id="pc_loraRate" placeholder="速率 Rate" min="0" max="255" style="width:150px;">
+                    </div>
+                    <p style="font-size:12px;color:#888;margin:6px 0 0;">说明：发送后机器人将推送 E0 Lora参数&amp;清扫设置上报包。</p>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendLoraParams()">发送</button>
+                    </div>
+                </div>
+
+                <!-- ⑥ 白天防误扫功能设置 -->
+                <div class="collapsible-header" onclick="toggleParamSection('daytimeSection','daytimeSectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">⑥ 白天防误扫功能设置</span>
+                    <span id="daytimeSectionIcon">▶</span>
+                </div>
+                <div id="daytimeSection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:16px;">
+                        <label style="font-size:14px;">白天防误扫：</label>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                            <input type="radio" name="pc_daytimeScan" id="pc_daytimeScanOn" value="true">
+                            <span>开启</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                            <input type="radio" name="pc_daytimeScan" id="pc_daytimeScanOff" value="false" checked>
+                            <span>关闭</span>
+                        </label>
+                    </div>
+                    <p style="font-size:12px;color:#888;margin:6px 0 0;">说明：发送后机器人将推送 E0 Lora参数&amp;清扫设置上报包。</p>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendDaytimeScanProtect()">发送</button>
+                    </div>
+                </div>
+
+                <!-- ⑦ 机器人运行数据设置（E4上报字段模拟，不触发MQTT） -->
+                <div class="collapsible-header" onclick="toggleParamSection('e4DataSection','e4DataSectionIcon')" style="cursor:pointer;background:#f5f5f5;padding:10px 14px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:600;">⑦ 机器人运行数据设置</span>
+                    <span id="e4DataSectionIcon">▶</span>
+                </div>
+                <div id="e4DataSection" style="display:none;padding:14px 10px 10px;border:1px solid #e0e0e0;border-radius:0 0 6px 6px;margin-bottom:12px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                        <input type="number" id="pc_e4_mainMotorCurrent"  placeholder="主电机电流(100mA)" style="width:170px;">
+                        <input type="number" id="pc_e4_slaveMotorCurrent" placeholder="从电机电流(100mA)" style="width:170px;">
+                        <input type="number" id="pc_e4_batteryVoltage"    placeholder="电池电压(100mV)" style="width:160px;">
+                        <input type="number" id="pc_e4_batteryCurrent"    placeholder="电池电流(100mA)" style="width:160px;">
+                        <input type="number" id="pc_e4_batteryStatus"     placeholder="电池状态" style="width:120px;">
+                        <input type="number" id="pc_e4_batteryLevel"      placeholder="电池电量(%)" style="width:130px;">
+                        <input type="number" id="pc_e4_batteryTemp"       placeholder="电池温度" style="width:120px;">
+                        <input type="number" id="pc_e4_position"          placeholder="位置" style="width:100px;">
+                        <input type="number" id="pc_e4_workingDuration"   placeholder="工作时长(min)" style="width:145px;">
+                        <input type="number" id="pc_e4_solarVoltage"      placeholder="光伏电压(100mV)" style="width:160px;">
+                        <input type="number" id="pc_e4_solarCurrent"      placeholder="光伏电流(100mA)" style="width:160px;">
+                        <input type="number" id="pc_e4_totalRunCount"     placeholder="累计运行次数" style="width:140px;">
+                        <input type="number" id="pc_e4_currentLapCount"   placeholder="当前圈数" style="width:120px;">
+                        <input type="number" id="pc_e4_boardTemp"         placeholder="主板温度" style="width:120px;">
+                        <input type="number" id="pc_e4_alarmFa"           placeholder="告警FA" style="width:100px;">
+                        <input type="number" id="pc_e4_alarmFb"           placeholder="告警FB" style="width:100px;">
+                        <input type="number" id="pc_e4_alarmFc"           placeholder="告警FC" style="width:100px;">
+                        <input type="number" id="pc_e4_alarmFd"           placeholder="告警FD" style="width:100px;">
+                    </div>
+                    <p style="font-size:12px;color:#888;margin:6px 0 0;">说明：直接写入数据库快照，不发送 MQTT 指令。空字段保持原值不变。</p>
+                    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                        <button class="btn btn-success" onclick="pcSendRobotE4Data()">保存</button>
+                    </div>
+                </div>
+
+
+            </div>
+            <div class="modal-footer" style="padding:12px 20px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeParamConfigModal()">关闭</button>
             </div>
         </div>
     </div>

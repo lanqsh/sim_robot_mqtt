@@ -8,6 +8,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 #include "protocol.h"
 #include <chrono>
@@ -188,6 +189,22 @@ enum class AlarmFD : uint32_t {
 
 // 机器人数据结构
 struct RobotData {
+  struct RequestReply {
+    bool available = false;          // 是否已收到请求回复（F0/F1/F2）
+    uint8_t start_flag = 0;          // 启动运行标志
+    uint8_t year = 0;                // 年(两位)
+    uint8_t month = 0;               // 月
+    uint8_t day = 0;                 // 日
+    uint8_t hour = 0;                // 时
+    uint8_t minute = 0;              // 分
+    uint8_t second = 0;              // 秒
+    uint8_t weekday = 0;             // 星期
+    uint8_t wind_speed = 0;          // 当前风速
+    uint16_t comm_box_count = 0;     // 通信箱数量
+    uint16_t robot_count = 0;        // 机器人数量
+    uint8_t protection_info = 0;     // 后台保护信息
+  };
+
   // 告警信息
   uint32_t alarm_fa = 0;  // FA告警 (4字节)
   uint16_t alarm_fb = 0;  // FB告警 (2字节)
@@ -276,6 +293,9 @@ struct RobotData {
 
   // E8: 启动请求回复接收后确认
   uint8_t startup_confirm_id = 0;        // 定时器编号
+
+  // F0/F1/F2: 请求回复公共数据
+  RequestReply request_reply{};
 };
 
 // 前向声明
@@ -333,6 +353,16 @@ class Robot {
   // 获取和设置机器人数据
   RobotData& GetData() { return data_; }
   const RobotData& GetData() const { return data_; }
+
+  // 请求回复跟踪（用于前端轮询）
+  uint64_t BeginRequestReplyTracking();
+  bool GetRequestReplyStatus(uint64_t request_id,
+                             RobotData::RequestReply* reply,
+                             bool* received) const;
+  bool WaitForRequestReply(uint64_t request_id,
+                           int timeout_ms,
+                           RobotData::RequestReply* reply,
+                           bool* received) const;
 
   // HTTP API支持
   bool IsRunning() const { return !stop_report_; }
@@ -425,6 +455,13 @@ class Robot {
   // 读取上行数据模板
   static std::string LoadUplinkTemplate();
   static std::string uplink_template_;  // 静态模板缓存
+
+  // 请求回复跟踪状态（F0/F1/F2）
+  void MarkRequestReplyReceived();
+  mutable std::mutex request_reply_mutex_;
+  mutable std::condition_variable request_reply_cv_;
+  uint64_t request_reply_token_{0};
+  uint64_t request_reply_completed_token_{0};
 };
 
 #endif  // ROBOT_H_

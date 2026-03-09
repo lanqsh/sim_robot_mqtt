@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Sim Robot MQTT HTTP API
-  version: 1.4.0
+  version: 2.0.0
   description: |
     基于 `src/http_server.cpp` 整理的接口文档。
     说明：
@@ -25,23 +25,48 @@ paths:
   /api/v1/robots/get:
     get:
       tags: [Robots]
-      summary: 获取机器人列表（分页）
+      summary: 获取机器人列表（分页 + 过滤）
+      description: |
+        返回机器人列表，支持分页和按条件过滤。
+        过滤参数 `robot_name`、`robot_id`、`enabled` **三选一**，同时传入时只有第一个生效（顺序：robot_name > robot_id > enabled）。
+        不传过滤参数时返回全部机器人。
+        每条记录包含实时 `software_version`（未连接时为空串）和 `fault_status`（告警汇总）。
+        `statistics` 字段统计过滤后的全量数据，而非仅当前页。
       parameters:
         - name: page
           in: query
-          description: 页码，最小 1
+          description: 页码，最小 1，默认 1
           schema:
             type: integer
             minimum: 1
             default: 1
         - name: pageSize
           in: query
-          description: 每页数量，最小 1，最大 1000
+          description: 每页数量，最小 1，最大 1000，默认 20
           schema:
             type: integer
             minimum: 1
             maximum: 1000
             default: 20
+        - name: robot_name
+          in: query
+          description: 按机器人名称模糊过滤（不区分大小写），与 robot_id/enabled 三选一
+          schema:
+            type: string
+          example: 清扫
+        - name: robot_id
+          in: query
+          description: 按机器人 ID 模糊过滤（不区分大小写），与 robot_name/enabled 三选一
+          schema:
+            type: string
+          example: a1b2
+        - name: enabled
+          in: query
+          description: 按启用状态精确过滤，`true` 或 `1` 表示启用，`false` 或 `0` 表示禁用，与 robot_name/robot_id 三选一
+          schema:
+            type: string
+            enum: [true, false, "1", "0"]
+          example: "true"
       responses:
         '200':
           description: 成功
@@ -49,6 +74,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RobotListResponse'
+              example:
+                data:
+                  - robot_id: a1b2c3d4e5f67890
+                    robot_name: 清扫机器人-01
+                    serial_number: 101
+                    enabled: true
+                    software_version: "1.2.3"
+                    fault_status: false
+                pagination:
+                  page: 1
+                  pageSize: 20
+                  total: 1
+                  totalPages: 1
+                statistics:
+                  total: 1
+                  enabled: 1
+                  disabled: 0
+                  normal: 1
+                  fault: 0
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -56,6 +100,12 @@ paths:
     post:
       tags: [Robots]
       summary: 添加机器人
+      description: |
+        `robot_name`、`robot_id`、`serial_number` 三选一，至少填写一项，均不填时返回 400。
+        `serial_number <= 0` 或不填时后端自动分配当前最大序号 +1。
+        `robot_id` 不填时后端自动生成 16 位十六进制 UUID；填写时若与已有记录冲突返回 400。
+        序号已存在时同样返回 400。
+        `enabled` 默认为 `true`，启用的机器人会立即注册到 MQTT 管理器。
       requestBody:
         required: true
         content:
@@ -78,6 +128,10 @@ paths:
     post:
       tags: [Robots]
       summary: 批量添加机器人
+      description: |
+        每条记录的 `robot_id` 由后端自动生成 UUID，无需填写。
+        `serial_number` 在批量数据内部不得重复，且不得与数据库已有序号冲突，违反时返回 400 并终止整批操作。
+        全部校验通过后一次性写入数据库，启用的机器人同步注册到 MQTT 管理器。
       requestBody:
         required: true
         content:
@@ -100,6 +154,9 @@ paths:
     post:
       tags: [Robots]
       summary: 批量删除机器人
+      description: |
+        传入 `robot_ids` 数组，后端先从 MQTT 管理器逐一注销，再从数据库批量删除。
+        响应 `count` 为实际操作的机器人数量。
       requestBody:
         required: true
         content:
@@ -122,6 +179,9 @@ paths:
     post:
       tags: [Robots]
       summary: 删除机器人
+      description: |
+        从 MQTT 管理器注销后再从数据库删除。
+        `robot_id` 为 query 参数，不传时返回 400。
       parameters:
         - name: robot_id
           in: query
@@ -139,10 +199,46 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/v1/robots/update:
+    post:
+      tags: [Robots]
+      summary: 编辑机器人信息
+      description: |
+        通过 query 参数 `robot_id` 指定要编辑的目标机器人，请求体中可修改 robot_id、robot_name、enabled。
+        若 robot_id 要改变，后端会检查新 ID 是否已存在。
+      parameters:
+        - name: robot_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 当前机器人 ID（用于定位记录）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRobotRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/v1/robots/data:
     get:
       tags: [Robots]
       summary: 获取机器人详细数据
+      description: |
+        优先从 MQTT 管理器（在线机器人）读取实时数据。
+        若机器人不在线（如已禁用），则从数据库读取最后一次持久化的数据快照和告警，`status` 固定为 `stopped`，`last_data.running` 为 `false`。
+        机器人在数据库中完全不存在时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -156,11 +252,40 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Commands]
+      summary: 设置机器人运行数据（E4上报字段）
+      description: |
+        直接将 E4 上报数据字段写入机器人内存及数据库快照，**不触发 MQTT 指令**。
+        所有字段均为可选，只传需要修改的字段；空字段保持数据库中的原值不变。
+        机器人未在线时返回 404。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotE4DataRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/get_alarms:
     get:
       tags: [Alarms]
       summary: 获取机器人告警
+      description: |
+        从 MQTT 管理器的在线机器人对象读取内存中的告警值（alarm_fa/fb/fc/fd）。
+        机器人未在线（禁用或 MQTT 未连接）时返回 404。如需查看禁用机器人的告警，使用 `/api/v1/robots/data` 中的 `fault_status` 字段。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -178,6 +303,9 @@ paths:
     post:
       tags: [Alarms]
       summary: 设置机器人告警
+      description: |
+        修改在线机器人内存中的告警值并同步写入数据库。四个字段均可选，只传需要修改的字段。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -202,6 +330,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送电机参数设置请求
+      description: |
+        向在线机器人发送电机参数设置 MQTT 指令，所有 14 个字段均为必填。
+        成功仅表示指令已下发，不代表机器人已应用。机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -228,6 +359,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送电池参数设置请求
+      description: |
+        向在线机器人发送电池（温压）保护参数设置 MQTT 指令，所有 10 个字段均为必填。
+        成功仅表示指令已下发，不代表机器人已应用。机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -254,6 +388,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送定时设置请求
+      description: |
+        向在线机器人发送 7 路定时任务设置 MQTT 指令。`tasks` 数组**必须恰好包含 7 个元素**，对应 7 个定时器编号（索引 0～6），不足或超出均返回 400。
+        成功仅表示指令已下发。机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -280,6 +417,9 @@ paths:
     post:
       tags: [Commands]
       summary: 发送停机位设置请求
+      description: |
+        向在线机器人发送停机位设置 MQTT 指令。`parking_position` 为 1 字节无符号整数（0～255）。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -302,10 +442,73 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/v1/robots/lora_params:
+    post:
+      tags: [Commands]
+      summary: 设置Lora参数
+      description: |
+        设置指定机器人的 Lora 通信参数（功率、频率、速率），并触发机器人推送 E0（Lora参数&清扫设置）上报包。
+        三个字段均为必填，取值范围 0～255。机器人未在线时返回 404。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoraParamsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/daytime_scan_protect:
+    post:
+      tags: [Commands]
+      summary: 设置白天防误扫功能开关
+      description: |
+        开启或关闭指定机器人的白天防误扫功能，并触发机器人推送 E0（Lora参数&清扫设置）上报包。
+        `enabled` 为布尔值（true=开启，false=关闭）。机器人未在线时返回 404。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DaytimeScanProtectRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaytimeScanProtectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/v1/robots/schedule_start:
     post:
       tags: [Commands]
       summary: 发送定时启动请求
+      description: |
+        向在线机器人发送指定定时器编号的启动 MQTT 指令，五个字段均为必填。
+        成功响应中回显传入的所有参数，并在短时间内等待本次请求对应的异步回复（0xF0）后返回 `start_reply`。
+        若等待超时未收到回复，`start_reply.available` 为 `false`，其余字段为默认值。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
@@ -331,7 +534,12 @@ paths:
   /api/v1/robots/start:
     post:
       tags: [Commands]
-      summary: 发送启动请求
+      summary: 发送立即启动请求
+      description: |
+        向在线机器人发送立即启动 MQTT 指令（无需指定定时器编号）。
+        成功响应会在短时间内等待启动请求异步回复（0xF1），并通过 `start_reply` 返回解析结果。
+        若等待超时未收到回复，`start_reply.available` 为 `false`。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -340,7 +548,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                $ref: '#/components/schemas/StartCommandResponse'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -350,6 +558,11 @@ paths:
     post:
       tags: [Commands]
       summary: 发送校时请求
+      description: |
+        向在线机器人发送系统时间同步 MQTT 指令，后端以当前系统时间作为校时数据。
+        成功响应会在短时间内等待校时异步回复（0xF2），并将解析结果放在 `start_reply` 字段中。
+        若等待超时未收到回复，`start_reply.available` 为 `false`。
+        机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -358,16 +571,95 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                $ref: '#/components/schemas/StartCommandResponse'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/request_reply:
+    get:
+      tags: [Commands]
+      summary: 查询请求回复状态
+      description: |
+        查询指定机器人最近一次请求回复状态（F0/F1/F2）。
+        前端可在发送启动/定时启动/校时请求后，每隔 1 秒轮询此接口，直到 `received=true`。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+        - name: request_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: 发送请求接口返回的请求跟踪ID
+        - name: wait_ms
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: 后端等待回复的超时时间（毫秒），0 表示立即返回；建议前端传 1000 做 1 秒轮询
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestReplyStatusResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/mqtt_messages:
+    get:
+      tags: [Commands]
+      summary: 获取指定机器人最近100条MQTT通信记录
+      description: |
+        后端按机器人分别缓存收发报文，每个机器人保留最近100条（上行+下行）。
+        本接口返回 `robot_id` 对应机器人的最近通信记录，支持按命令分类、命令码、方向过滤。
+        `robot_id` 传机器人 EUI/ID。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+        - name: category_key
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [param, control, query, report, request, upgrade, all]
+          description: 命令分类过滤键（英文）
+        - name: command
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 命令码过滤（例如 A0、E4、F1）
+        - name: direction_key
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [up, down, all]
+          description: 方向过滤键（英文）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttMessagesResponse'
         '500':
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/lora_clean_settings:
     post:
       tags: [Commands]
-      summary: 发送 LoRa 参数与清扫设置上报
+      summary: 触发 LoRa 参数与清扫设置上报（E0）
+      description: |
+        触发在线机器人立即发送一次 E0 上报帧（LoRa 参数和清扫设置）。
+        无请求体，机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -385,7 +677,10 @@ paths:
   /api/v1/robots/robot_data:
     post:
       tags: [Commands]
-      summary: 发送机器人数据上报
+      summary: 触发机器人数据上报（E4）
+      description: |
+        触发在线机器人立即发送一次 E4 上报帧（机器人全量数据）。
+        无请求体，机器人未在线时返回 404。
       parameters:
         - $ref: '#/components/parameters/RobotIdQuery'
       responses:
@@ -495,6 +790,156 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/v1/system/mqtt_config:
+    get:
+      tags: [System]
+      summary: 获取 MQTT 服务配置
+      description: 读取数据库中的 MQTT Broker 地址和用户名，以及当前连接状态。密码不会返回。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttConfigResponse'
+              example:
+                success: true
+                broker: "tcp://192.168.1.100:1883"
+                username: admin
+                connected: true
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [System]
+      summary: 更新 MQTT 服务配置并重新连接
+      description: |
+        将 broker/username/password 保存到数据库，断开旧连接后以新地址重新连接 Broker。
+        所有已管理的机器人主题会自动重订阅。密码可留空（不传或传空串表示匿名连接）。
+        重连失败时返回 HTTP 500，但配置已写入数据库。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetMqttConfigRequest'
+            example:
+              broker: "tcp://192.168.1.100:1883"
+              username: admin
+              password: secret
+      responses:
+        '200':
+          description: 成功（重连成功）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttConfigResponse'
+              example:
+                success: true
+                message: MQTT 重连成功
+                broker: "tcp://192.168.1.100:1883"
+                username: admin
+                connected: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          description: 配置已保存但 MQTT 重连失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MqttConfigResponse'
+              example:
+                success: false
+                message: MQTT 重连失败
+                broker: "tcp://192.168.1.100:1883"
+                username: admin
+                connected: false
+
+  /api/v1/system/firmware:
+    get:
+      tags: [System]
+      summary: 列出可用固件升级包
+      description: |
+        扫描服务器 `./firmware/` 目录（可通过数据库 `firmware_dir` 键自定义），
+        **只列出 `.bin` 文件**，目录不存在时自动创建。
+        同时返回当前机器人版本号（数据库键 `robot_version`，可通过 `POST /api/v1/system/robot_version` 设置）。
+      responses:
+        '200':
+          description: 成功（目录为空时 files 为空数组）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmwareListResponse'
+              example:
+                success: true
+                version: "1.0"
+                files:
+                  - filename: 20250226132000.bin
+                    size: 524288
+
+  /api/v1/system/robot_version:
+    post:
+      tags: [System]
+      summary: 设置机器人版本号
+      description: 将版本号写入数据库键 `robot_version`，展示于「机器人版本信息」面板。可传空字符串清除版本号。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: string
+                  description: 版本号，可为空字符串
+                  example: "1.0"
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  version:
+                    type: string
+                    example: "1.0"
+                  message:
+                    type: string
+                    example: 机器人版本号已保存
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/system/firmware/download:
+    get:
+      tags: [System]
+      summary: 下载固件升级包
+      description: |
+        以二进制流形式返回 `./firmware/` 目录中的指定文件，触发浏览器下载。
+        **安全限制**：`filename` 不可包含 `..`、`/`、`\`，防止路径穿越攻击。
+      parameters:
+        - name: filename
+          in: query
+          required: true
+          description: 文件名（仅文件名，不含路径）
+          schema:
+            type: string
+          example: firmware_v1.2.3.bin
+      responses:
+        '200':
+          description: 文件内容（二进制流）
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     RobotIdPath:
@@ -563,6 +1008,131 @@ components:
             robot_id:
               type: string
               example: a1b2c3d4e5f67890
+
+    RequestReply:
+      type: object
+      properties:
+        available:
+          type: boolean
+          description: 是否在本次接口等待窗口内收到请求回复（0xF0/0xF1/0xF2）
+          example: true
+        start_flag:
+          type: integer
+          description: 启动运行标志（F2 校时回复固定为 0）
+          example: 1
+        start_time:
+          type: string
+          description: 时间字符串（格式：YYYY-MM-DD HH:mm:ss）；`available=false` 时为空字符串
+          example: "2026-02-25 16:00:00"
+        weekday:
+          type: integer
+          example: 1
+        wind_speed:
+          type: integer
+          example: 2
+        comm_box_count:
+          type: integer
+          example: 4
+        robot_count:
+          type: integer
+          example: 8
+        protection_info:
+          $ref: '#/components/schemas/StartReplyProtectionInfo'
+
+    StartReplyProtectionInfo:
+      type: object
+      properties:
+        wind_protection:
+          type: boolean
+          description: 大风保护（protection_info 的 bit7，掩码 0x80）
+          example: true
+        humidity_protection:
+          type: boolean
+          description: 湿度保护（protection_info 的 bit6，掩码 0x40）
+          example: true
+        bracket_protection:
+          type: boolean
+          description: 支架保护（protection_info 的 bit5，掩码 0x20）
+          example: false
+        ambient_temperature_protection:
+          type: boolean
+          description: 环境温度保护（protection_info 的 bit4，掩码 0x10）
+          example: false
+
+    StartCommandResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            request_id:
+              type: integer
+              format: int64
+              description: 请求跟踪ID，用于轮询查询回复状态
+              example: 12
+            start_reply:
+              $ref: '#/components/schemas/RequestReply'
+
+    RequestReplyStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            request_id:
+              type: integer
+              format: int64
+              example: 12
+            wait_ms:
+              type: integer
+              description: 本次查询使用的等待超时毫秒数
+              example: 1000
+            received:
+              type: boolean
+              description: 是否已收到平台请求回复（F0/F1/F2）
+              example: true
+            start_reply:
+              $ref: '#/components/schemas/RequestReply'
+
+    MqttMessageItem:
+      type: object
+      properties:
+        index:
+          type: integer
+          example: 1
+        category:
+          type: string
+          example: report
+        command:
+          type: string
+          example: E4
+        direction:
+          type: string
+          example: up
+        data:
+          type: string
+          description: MQTT消息原始报文（16进制大写字符串）
+        time:
+          type: string
+          example: "2026-03-09 18:20:11"
+        topic:
+          type: string
+        robot_id:
+          type: string
+
+    MqttMessagesResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessResponse'
+        - type: object
+          properties:
+            robot_name:
+              type: string
+              example: Robot1
+            eui:
+              type: string
+              example: 303930306350729d
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/MqttMessageItem'
 
     RobotItem:
       type: object
@@ -671,6 +1241,9 @@ components:
         - $ref: '#/components/schemas/BasicSuccessResponse'
         - type: object
           properties:
+            message:
+              type: string
+              example: 机器人添加成功
             robot_id:
               type: string
               example: 8f9e7d6c5b4a3210
@@ -716,6 +1289,41 @@ components:
             count:
               type: integer
               example: 3
+
+    UpdateRobotRequest:
+      type: object
+      description: 字段均可选，不填则保持原内容。
+      properties:
+        robot_id:
+          type: string
+          description: 新机器人 ID，不填则保持原 ID
+          example: a1b2c3d4e5f60002
+        robot_name:
+          type: string
+          description: 新机器人名称
+          example: 清扫机器人-02
+        enabled:
+          type: boolean
+          description: 启用状态
+          example: true
+
+    UpdateRobotResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessResponse'
+        - type: object
+          properties:
+            message:
+              type: string
+              example: 机器人信息已更新
+            robot_id:
+              type: string
+              example: a1b2c3d4e5f60002
+            robot_name:
+              type: string
+              example: 清扫机器人-02
+            enabled:
+              type: boolean
+              example: true
 
     RobotDataResponse:
       type: object
@@ -978,6 +1586,124 @@ components:
               type: integer
               example: 1
 
+    LoraParamsRequest:
+      type: object
+      required: [power, frequency, rate]
+      properties:
+        power:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Lora功率
+          example: 20
+        frequency:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Lora频率
+          example: 10
+        rate:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: Lora速率
+          example: 5
+
+    DaytimeScanProtectRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: 是否开启白天防误扫
+          example: true
+
+    DaytimeScanProtectResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+
+    RobotE4DataRequest:
+      type: object
+      description: 机器人运行数据（E4上报字段），所有字段均为可选，只传需修改的字段。
+      properties:
+        main_motor_current:
+          type: integer
+          description: 主电机电流（单位：100mA）
+          example: 15
+        slave_motor_current:
+          type: integer
+          description: 从电机电流（单位：100mA）
+          example: 12
+        battery_voltage:
+          type: integer
+          description: 电池电压（单位：100mV）
+          example: 246
+        battery_current:
+          type: integer
+          description: 电池电流（单位：100mA）
+          example: 30
+        battery_status:
+          type: integer
+          description: 电池状态标志位
+          example: 1
+        battery_level:
+          type: integer
+          description: 电池电量（%）
+          example: 80
+        battery_temperature:
+          type: integer
+          description: 电池温度（°C）
+          example: 25
+        position:
+          type: integer
+          description: 位置编号
+          example: 3
+        working_duration:
+          type: integer
+          description: 工作时长（分钟）
+          example: 120
+        solar_voltage:
+          type: integer
+          description: 光伏板输出电压（单位：100mV）
+          example: 175
+        solar_current:
+          type: integer
+          description: 光伏板输出电流（单位：100mA）
+          example: 50
+        total_run_count:
+          type: integer
+          description: 累计运行次数
+          example: 200
+        current_lap_count:
+          type: integer
+          description: 当前运行圈数
+          example: 5
+        board_temperature:
+          type: integer
+          description: 主板温度（°C）
+          example: 32
+        alarm_fa:
+          type: integer
+          description: 告警FA（4字节标志，按位表示）
+          example: 0
+        alarm_fb:
+          type: integer
+          description: 告警FB（2字节标志，按位表示）
+          example: 0
+        alarm_fc:
+          type: integer
+          description: 告警FC（4字节标志，按位表示）
+          example: 0
+        alarm_fd:
+          type: integer
+          description: 告警FD（2字节标志，按位表示）
+          example: 0
+
     ScheduleStartRequest:
       type: object
       required: [schedule_id, weekday, hour, minute, run_count]
@@ -1028,6 +1754,13 @@ components:
             run_count:
               type: integer
               example: 2
+            request_id:
+              type: integer
+              format: int64
+              description: 请求跟踪ID，用于轮询查询回复状态
+              example: 12
+            start_reply:
+              $ref: '#/components/schemas/RequestReply'
     ReportIntervalsResponse:
       type: object
       required: [success, robot_data_report_interval, motor_params_report_interval, lora_clean_report_interval]
@@ -1057,7 +1790,7 @@ components:
 
     SetReportIntervalsRequest:
       type: object
-      required: [robot_data_report_interval, motor_params_report_interval, lora_clean_report_interval]
+      description: 三个字段均可选，不填则保持数据库当前值（默认：robot_data=600s，其余=3600s），每类最小值 10 秒。
       properties:
         robot_data_report_interval:
           type: integer
@@ -1074,6 +1807,75 @@ components:
           description: Lora参数&清扫设置上报间隔（秒），最小 10
           minimum: 10
           example: 3600
+
+    MqttConfigResponse:
+      type: object
+      required: [success, broker, username, connected]
+      properties:
+        success:
+          type: boolean
+          example: true
+        broker:
+          type: string
+          description: MQTT Broker 地址
+          example: "tcp://192.168.1.100:1883"
+        username:
+          type: string
+          description: MQTT 用户名（密码不会回显）
+          example: admin
+        connected:
+          type: boolean
+          description: 当前是否已连接到 Broker
+          example: true
+        message:
+          type: string
+          description: 操作说明（仅 POST 返回）
+          example: MQTT 重连成功
+
+    SetMqttConfigRequest:
+      type: object
+      required: [broker]
+      properties:
+        broker:
+          type: string
+          description: MQTT Broker 地址，格式如 tcp://host:1883，不得为空
+          example: "tcp://192.168.1.100:1883"
+        username:
+          type: string
+          description: 用户名，可留空（不传或传空串表示匿名连接）
+          example: admin
+        password:
+          type: string
+          description: 密码，可留空
+          example: secret
+
+    FirmwareListResponse:
+      type: object
+      required: [success, version, files]
+      properties:
+        success:
+          type: boolean
+          example: true
+        version:
+          type: string
+          description: 当前机器人软件版本号（同 /api/v1/system/version 返回的 version 字段）
+          example: "1.0"
+        files:
+          type: array
+          description: 目录下所有 .bin 固件文件列表
+          items:
+            type: object
+            required: [filename, size]
+            properties:
+              filename:
+                type: string
+                description: 文件名
+                example: 20250226132000.bin
+              size:
+                type: integer
+                format: int64
+                description: 文件大小（字节）
+                example: 524288
 
     SystemVersionResponse:
       type: object
