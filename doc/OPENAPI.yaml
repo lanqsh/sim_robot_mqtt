@@ -619,10 +619,30 @@ paths:
       summary: 获取指定机器人最近100条MQTT通信记录
       description: |
         后端按机器人分别缓存收发报文，每个机器人保留最近100条（上行+下行）。
-        本接口返回 `robot_id` 对应机器人的最近通信记录，支持按命令分类、命令码、方向过滤。
-        `robot_id` 传机器人 EUI/ID。
+        传 `robot_id` 时返回该机器人的最近通信记录；不传 `robot_id` 时返回跨机器人聚合结果。
+
+        前端可传查询字段（query）如下：
+        - `robot_id`：机器人 EUI/ID（可选）
+        - `category_key`：命令分类键（可选）
+        - `command`：命令码（可选）
+        - `direction_key`：方向键（可选）
+
+        字段取值约束：
+        - `category_key`：`all` / `param` / `control` / `query` / `report` / `request` / `upgrade`
+        - `direction_key`：`all` / `up` / `down`
+        - `command`：`all` / `A0` / `A1` / `A2` / `A3` / `A4` / `A6` / `A7` / `A8` /
+          `B0` / `B1` / `B2` / `B3` / `B4` / `B5` / `B6` / `BA` /
+          `C0` / `C1` / `C2` / `C3` / `C4` / `C5` / `C6` /
+          `D0` / `D1` / `D2` /
+          `E0` / `E1` / `E4` / `E5` / `E6` / `E7` / `E8` / `E9` /
+          `F0` / `F1` / `F2`
       parameters:
-        - $ref: '#/components/parameters/RobotIdQuery'
+        - name: robot_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 机器人 EUI/ID；不传时返回跨机器人聚合结果
         - name: category_key
           in: query
           required: false
@@ -635,7 +655,8 @@ paths:
           required: false
           schema:
             type: string
-          description: 命令码过滤（例如 A0、E4、F1）
+            enum: [all, A0, A1, A2, A3, A4, A6, A7, A8, B0, B1, B2, B3, B4, B5, B6, BA, C0, C1, C2, C3, C4, C5, C6, D0, D1, D2, E0, E1, E4, E5, E6, E7, E8, E9, F0, F1, F2]
+          description: 命令码过滤键（英文，支持 all）
         - name: direction_key
           in: query
           required: false
@@ -1110,6 +1131,7 @@ components:
         data:
           type: string
           description: MQTT消息原始报文（16进制大写字符串）
+          example: "68410002000FF001190A010D1E19010200020002809A16"
         time:
           type: string
           example: "2026-03-09 18:20:11"
