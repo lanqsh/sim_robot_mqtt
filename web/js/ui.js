@@ -254,6 +254,9 @@ export function renderRobotData(data) {
     if (data.robot_name) {
         html += `<div class="data-item"><span class="data-label">机器人名称:</span><span class="data-value">${data.robot_name}</span></div>`;
     }
+    if (data.bracket_count !== undefined) {
+        html += `<div class="data-item"><span class="data-label">支架数量:</span><span class="data-value">${data.bracket_count}</span></div>`;
+    }
     html += `<div class="data-item"><span class="data-label">运行状态:</span><span class="data-value">${data.status === 'running' ? '运行中' : '已停止'}</span></div>`;
 
     if (data.software_version !== undefined) {

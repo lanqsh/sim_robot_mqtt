@@ -688,6 +688,7 @@ void HttpServer::ServerThreadFunc() {
           if (r.robot_id == robot_id) {
             robot_data["serial_number"] = r.serial_number;
             robot_data["robot_name"] = r.robot_name;
+            robot_data["bracket_count"] = r.bracket_count;
             break;
           }
         }
@@ -707,6 +708,7 @@ void HttpServer::ServerThreadFunc() {
           robot_data["robot_id"] = robot_id;
           robot_data["serial_number"] = found_info->serial_number;
           robot_data["robot_name"] = found_info->robot_name;
+          robot_data["bracket_count"] = found_info->bracket_count;
           robot_data["status"] = "stopped";
 
           // 读取数据库快照，构造与 GetLastData() 兼容的 last_data 结构

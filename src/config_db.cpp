@@ -453,7 +453,7 @@ std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
   std::vector<RobotInfo> robots;
   if (!initialized_) return robots;
 
-  const char* sql = "SELECT robot_id, robot_name, serial_number, enabled FROM robots ORDER BY serial_number ASC";
+  const char* sql = "SELECT robot_id, robot_name, serial_number, enabled, bracket_count FROM robots ORDER BY serial_number ASC";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -467,6 +467,7 @@ std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
     info.robot_name = name ? name : "";
     info.serial_number = sqlite3_column_int(stmt, 2);
     info.enabled = sqlite3_column_int(stmt, 3) != 0;
+    info.bracket_count = sqlite3_column_int(stmt, 4);
     robots.push_back(info);
   }
 

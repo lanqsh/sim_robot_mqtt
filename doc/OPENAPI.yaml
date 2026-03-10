@@ -1367,6 +1367,10 @@ components:
           type: string
           description: 数据库中存在该机器人时返回
           example: 清扫机器人-01
+        bracket_count:
+          type: integer
+          description: 支架数量，数据库中存在该机器人时返回
+          example: 4
         status:
           type: string
           enum: [running, stopped]
