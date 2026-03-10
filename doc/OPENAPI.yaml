@@ -1257,6 +1257,11 @@ components:
           description: 启用状态，默认为 `true`
           default: true
           example: true
+        bracket_count:
+          type: integer
+          description: 支架数量，默认为 0
+          default: 0
+          example: 4
 
     CreateRobotResponse:
       allOf:
