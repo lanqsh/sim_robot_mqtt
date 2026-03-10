@@ -23,10 +23,11 @@ export async function updateRobot(oldRobotId, data) {
 }
 
 // 添加单个机器人
-export async function addRobot(robotName, serialNumber, robotId, enabled = true) {
+export async function addRobot(robotName, serialNumber, robotId, enabled = true, bracketCount = 0) {
     const body = {
         robot_name: robotName || '',
-        enabled: enabled
+        enabled: enabled,
+        bracket_count: (bracketCount && bracketCount >= 0) ? parseInt(bracketCount) : 0
     };
 
     // 如果提供了序号且大于0，才发送序号

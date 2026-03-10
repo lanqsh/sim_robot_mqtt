@@ -902,8 +902,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const serialNumber = parseInt(document.getElementById('serialNumber').value);
         const robotId = document.getElementById('robotIdInput').value.trim();
         const enabled = document.getElementById('robotEnabled').value === 'true';
+        const bracketCount = parseInt(document.getElementById('bracketCount').value) || 0;
 
-        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId, enabled);
+        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId, enabled, bracketCount);
         if (success) {
             document.getElementById('addRobotForm').reset();
             // 重置后确保 enabled 恢复默认值 "true"

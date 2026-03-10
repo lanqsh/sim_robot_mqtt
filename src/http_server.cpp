@@ -363,6 +363,7 @@ void HttpServer::ServerThreadFunc() {
       std::string robot_name = body.value("robot_name", "");
       int serial_number = body.value("serial_number", 0);
       bool enabled = body.value("enabled", true);
+      int bracket_count = body.value("bracket_count", 0);
 
       // 检查三选一：robot_name / robot_id / serial_number 至少填一个
       bool has_robot_id  = body.contains("robot_id") && !body["robot_id"].get<std::string>().empty();
@@ -414,7 +415,7 @@ void HttpServer::ServerThreadFunc() {
       }
 
       // 添加到数据库
-      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, enabled);
+      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, enabled, bracket_count);
       if (success) {
         // 添加到MQTT管理器
         mqtt_manager_->AddRobot(robot_id);

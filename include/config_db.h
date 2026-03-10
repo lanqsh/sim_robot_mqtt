@@ -37,8 +37,9 @@ class ConfigDb {
     std::string robot_name;
     int serial_number;
     bool enabled;
+    int bracket_count;
   };
-  bool AddRobot(const std::string& robot_id, const std::string& robot_name, int serial_number = 0, bool enabled = true);
+  bool AddRobot(const std::string& robot_id, const std::string& robot_name, int serial_number = 0, bool enabled = true, int bracket_count = 0);
   bool RemoveRobot(const std::string& robot_id);
   bool UpdateRobotStatus(const std::string& robot_id, bool enabled);  // 更新机器人启用状态
   bool UpdateRobotInfo(const std::string& old_robot_id,              // 编辑机器人基本信息
