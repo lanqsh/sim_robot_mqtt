@@ -821,7 +821,7 @@ paths:
                           properties:
                             weekday:
                               type: integer
-                              description: 星期几（1=周一 … 7=周日）
+                              description: 星期几（0=周日，1=周一 … 6=周六）
                             hour:
                               type: integer
                             minute:
@@ -829,6 +829,10 @@ paths:
                             run_count:
                               type: integer
                               description: 运行次数
+                            time:
+                              type: string
+                              description: 组装好的清扫时间字符串，格式 "周三 08:30"
+                              example: "周三 08:30"
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

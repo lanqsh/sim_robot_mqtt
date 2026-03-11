@@ -822,11 +822,16 @@ void HttpServer::ServerThreadFunc() {
       data["parking_position"]     = d.parking_position;
       data["daytime_scan_protect"] = d.daytime_scan_protect;
       data["enabled"]              = d.enabled;
+      static const char* kWeekdayNames[] = {"日","一","二","三","四","五","六"};
       json tasks = json::array();
       for (size_t i = 0; i < d.schedule_tasks.size() && i < 7; ++i) {
         const auto& t = d.schedule_tasks[i];
+        char time_buf[16];
+        const char* wd = (t.weekday >= 0 && t.weekday <= 6) ? kWeekdayNames[t.weekday] : "?";
+        snprintf(time_buf, sizeof(time_buf), "周%s %02d:%02d", wd, t.hour, t.minute);
         tasks.push_back({{"weekday", t.weekday}, {"hour", t.hour},
-                         {"minute", t.minute},   {"run_count", t.run_count}});
+                         {"minute", t.minute},   {"run_count", t.run_count},
+                         {"time", std::string(time_buf)}});
       }
       data["schedule_tasks"] = tasks;
       json response;

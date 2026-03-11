@@ -933,7 +933,7 @@ function _renderSnapshotHtml(e0, e1, e4, e6, e7, e8) {
 
     // E0
     const tasks = (e0.schedule_tasks || []).map((t, i) =>
-        `定时${i+1}: 周${_WEEKDAY_NAMES[t.weekday] ?? t.weekday} ${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')} ×${t.run_count}次`
+        `定时${i+1}: ${t.time ?? `周${_WEEKDAY_NAMES[t.weekday] ?? t.weekday} ${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}`} ×${t.run_count}次`
     ).join('<br>');
     const e0Rows = [
         _row('LoRa 功率', e0.lora_power),
