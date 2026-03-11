@@ -1021,6 +1021,8 @@ function _renderSnapshotHtml(e0, e1, e4, e6, e7, e8) {
             <div style="font-weight:700;font-size:14px;color:#27ae60;margin-bottom:6px;padding:4px 8px;background:#27ae6018;border-radius:4px;">E8 — 启动请求回复确认</div>
             <table style="width:100%;border-collapse:collapse;font-size:13px;">
                 ${_row('定时器编号 (1-7)', `<input id="snap_e8_id" type="number" min="0" max="255" value="${e8.startup_confirm_id}" style="width:80px;">`)}
+                ${_row('未启动原因', e8.not_started_reason ?? '-')}
+                ${_row('故障信息', `0x${(e8.e8_alarm_fa >>> 0).toString(16).toUpperCase().padStart(8, '0')}`)}
             </table>
         </div>`;
 
