@@ -1049,6 +1049,7 @@ void HttpServer::ServerThreadFunc() {
       const auto& d = robot->GetData();
       json data;
       data["startup_confirm_id"] = d.startup_confirm_id;
+      data["not_started_reason"] = d.not_started_reason;
       data["e8_alarm_fa"]        = d.e8_alarm_fa;
       json response;
       response["success"]  = true;

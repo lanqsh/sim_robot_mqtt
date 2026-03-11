@@ -1217,6 +1217,9 @@ paths:
                       startup_confirm_id:
                         type: integer
                         description: 启动确认定时器编号（0-255）
+                      not_started_reason:
+                        type: integer
+                        description: 未启动原因码
                       e8_alarm_fa:
                         type: integer
                         format: int64
