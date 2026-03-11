@@ -1156,10 +1156,10 @@ paths:
                       not_started_reason:
                         type: integer
                         description: 未启动原因码
-                      alarm_fa:
+                      e7_alarm_fa:
                         type: integer
                         format: int64
-                        description: 告警字段 FA（32位）
+                        description: E7故障信息（32位）
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

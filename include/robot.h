@@ -290,6 +290,7 @@ struct RobotData {
 
   // E7: 未启动原因
   uint8_t not_started_reason = 0;        // 未启动原因
+  uint32_t e7_alarm_fa = 0;              // E7故障信息
 
   // E8: 启动请求回复接收后确认
   uint8_t startup_confirm_id = 0;        // 定时器编号
