@@ -1068,7 +1068,23 @@ paths:
                     properties:
                       scheduled_not_run_id:
                         type: integer
-                        description: 定时器编号
+                        description: 定时器编号（1~7）
+                      weekday:
+                        type: integer
+                        nullable: true
+                        description: 对应定时任务的星期（0=周日…6=周六）；定时器编号无效时为 null
+                      hour:
+                        type: integer
+                        nullable: true
+                        description: 对应定时任务的时
+                      minute:
+                        type: integer
+                        nullable: true
+                        description: 对应定时任务的分
+                      run_count:
+                        type: integer
+                        nullable: true
+                        description: 对应定时任务的运行次数
                       scheduled_not_run_reason:
                         type: integer
                         description: 未运行原因码

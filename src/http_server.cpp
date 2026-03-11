@@ -944,6 +944,20 @@ void HttpServer::ServerThreadFunc() {
       data["scheduled_not_run_id"]     = d.scheduled_not_run_id;
       data["scheduled_not_run_reason"] = d.scheduled_not_run_reason;
       data["alarm_fa"]                 = d.alarm_fa;
+      // 关联对应定时任务的时间字段（id 为 1~7，对应 schedule_tasks 下标 0~6）
+      int task_idx = static_cast<int>(d.scheduled_not_run_id) - 1;
+      if (task_idx >= 0 && task_idx < static_cast<int>(d.schedule_tasks.size())) {
+        const auto& t = d.schedule_tasks[task_idx];
+        data["weekday"]   = t.weekday;
+        data["hour"]      = t.hour;
+        data["minute"]    = t.minute;
+        data["run_count"] = t.run_count;
+      } else {
+        data["weekday"]   = nullptr;
+        data["hour"]      = nullptr;
+        data["minute"]    = nullptr;
+        data["run_count"] = nullptr;
+      }
       json response;
       response["success"]  = true;
       response["robot_id"] = robot_id;
