@@ -848,6 +848,191 @@ window.pcSendDaytimeScanProtect = async function() {
     } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
 };
 
+// ── 上报数据快照 (E0/E1/E4/E6/E7/E8) ────────────────────────────────────
+
+let _snapshotRobotId = null;
+
+// 打开上报数据快照模态框（并发请求六个接口）
+window.openReportSnapshot = async function(robotId) {
+    _snapshotRobotId = robotId;
+    const modal = document.getElementById('reportSnapshotModal');
+    const titleEl = document.getElementById('snapshotModalRobotId');
+    const bodyEl = document.getElementById('reportSnapshotBody');
+    if (!modal || !bodyEl) return;
+    if (titleEl) titleEl.textContent = robotId;
+    bodyEl.innerHTML = '<div class="loading">加载中...</div>';
+    modal.style.display = 'flex';
+    try {
+        const [r0, r1, r4, r6, r7, r8] = await Promise.all([
+            api.fetchReportE0(robotId),
+            api.fetchReportE1(robotId),
+            api.fetchReportE4(robotId),
+            api.fetchReportE6(robotId),
+            api.fetchReportE7(robotId),
+            api.fetchReportE8(robotId),
+        ]);
+        if (!r0.success || !r1.success || !r4.success || !r6.success || !r7.success || !r8.success) {
+            const err = [r0, r1, r4, r6, r7, r8].find(r => !r.success);
+            bodyEl.innerHTML = `<p style="color:#c00;">获取失败: ${err?.error || '未知错误'}</p>`;
+            return;
+        }
+        bodyEl.innerHTML = _renderSnapshotHtml(r0.data, r1.data, r4.data, r6.data, r7.data, r8.data);
+    } catch (e) {
+        bodyEl.innerHTML = `<p style="color:#c00;">获取失败: ${e.message}</p>`;
+    }
+};
+
+// 关闭上报数据快照模态框
+window.closeReportSnapshotModal = function() {
+    const modal = document.getElementById('reportSnapshotModal');
+    if (modal) modal.style.display = 'none';
+    _snapshotRobotId = null;
+};
+
+// 保存 E6/E7/E8 参数（分别调用各自接口）
+window.saveSnapshotParams = async function() {
+    if (!_snapshotRobotId) return;
+    const g = id => { const el = document.getElementById(id); return el ? parseInt(el.value) : NaN; };
+    const e6Id     = g('snap_e6_id');
+    const e6Reason = g('snap_e6_reason');
+    const e7Reason = g('snap_e7_reason');
+    const e8Id     = g('snap_e8_id');
+    try {
+        ui.showLoading('正在保存...');
+        const [r6, r7, r8] = await Promise.all([
+            api.setReportE6(_snapshotRobotId, { scheduled_not_run_id: e6Id, scheduled_not_run_reason: e6Reason }),
+            api.setReportE7(_snapshotRobotId, { not_started_reason: e7Reason }),
+            api.setReportE8(_snapshotRobotId, { startup_confirm_id: e8Id }),
+        ]);
+        ui.hideLoading();
+        if (r6.success && r7.success && r8.success) {
+            alert('参数已保存，可通过"手动触发"发送对应上报。');
+            window.openReportSnapshot(_snapshotRobotId);
+        } else {
+            const err = [r6, r7, r8].find(r => !r.success);
+            alert('保存失败: ' + (err?.error || '未知错误'));
+        }
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+const _WEEKDAY_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+
+function _row(label, value) {
+    return `<tr><td style="color:#666;white-space:nowrap;padding:4px 10px 4px 0;">${label}</td><td style="padding:4px 0;font-weight:500;">${value}</td></tr>`;
+}
+
+function _section(title, color, rows) {
+    return `
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:${color};margin-bottom:6px;padding:4px 8px;background:${color}18;border-radius:4px;">${title}</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">${rows}</table>
+        </div>`;
+}
+
+function _renderSnapshotHtml(e0, e1, e4, e6, e7, e8) {
+
+    // E0
+    const tasks = (e0.schedule_tasks || []).map((t, i) =>
+        `定时${i+1}: 周${_WEEKDAY_NAMES[t.weekday] ?? t.weekday} ${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')} ×${t.run_count}次`
+    ).join('<br>');
+    const e0Rows = [
+        _row('LoRa 功率', e0.lora_power),
+        _row('LoRa 频率', e0.lora_frequency),
+        _row('LoRa 速率', e0.lora_rate),
+        _row('机器人编号', e0.robot_number || '-'),
+        _row('软件版本', e0.software_version || '-'),
+        _row('停机位', e0.parking_position),
+        _row('白天防误扫', e0.daytime_scan_protect ? '开启' : '关闭'),
+        _row('定时任务', tasks || '-'),
+    ].join('');
+
+    // E1
+    const e1Rows = [
+        _row('行走电机速率', e1.walk_motor_speed),
+        _row('毛刷电机速率', e1.brush_motor_speed),
+        _row('防风电机速率', e1.windproof_motor_speed),
+        _row('行走上限电流 (mA)', e1.walk_motor_max_current_ma),
+        _row('毛刷上限电流 (mA)', e1.brush_motor_max_current_ma),
+        _row('防风上限电流 (mA)', e1.windproof_motor_max_current_ma),
+        _row('行走预警电流 (mA)', e1.walk_motor_warning_current_ma),
+        _row('毛刷预警电流 (mA)', e1.brush_motor_warning_current_ma),
+        _row('防风预警电流 (mA)', e1.windproof_motor_warning_current_ma),
+        _row('行走里程 (m)', e1.walk_motor_mileage_m),
+        _row('毛刷运行超时 (s)', e1.brush_motor_timeout_s),
+        _row('防风运行超时 (s)', e1.windproof_motor_timeout_s),
+        _row('反转时间 (s)', e1.reverse_time_s),
+        _row('保护角度', e1.protection_angle),
+        _row('保护电流 (mA)', e1.protection_current_ma),
+        _row('高温阈值', e1.high_temp_threshold),
+        _row('低温阈值', e1.low_temp_threshold),
+        _row('保护温度', e1.protection_temp),
+        _row('恢复温度', e1.recovery_temp),
+        _row('保护电压', e1.protection_voltage),
+        _row('恢复电压', e1.recovery_voltage),
+        _row('保护电量', e1.protection_battery_level),
+        _row('限制运行电量', e1.limit_run_battery_level),
+        _row('恢复电量', e1.recovery_battery_level),
+        _row('主板保护温度', e1.board_protection_temp),
+        _row('主板恢复温度', e1.board_recovery_temp),
+    ].join('');
+
+    // E4
+    const ts = `${String(e4.timestamp_hour).padStart(2,'0')}:${String(e4.timestamp_minute).padStart(2,'0')}:${String(e4.timestamp_second).padStart(2,'0')}`;
+    const e4Rows = [
+        _row('FA 告警', `0x${(e4.alarm_fa >>> 0).toString(16).toUpperCase().padStart(8,'0')}`),
+        _row('FB 告警', `0x${(e4.alarm_fb >>> 0).toString(16).toUpperCase().padStart(4,'0')}`),
+        _row('FC 告警', `0x${(e4.alarm_fc >>> 0).toString(16).toUpperCase().padStart(8,'0')}`),
+        _row('FD 告警', `0x${(e4.alarm_fd >>> 0).toString(16).toUpperCase().padStart(4,'0')}`),
+        _row('主电机电流 (×100mA)', e4.main_motor_current),
+        _row('从电机电流 (×100mA)', e4.slave_motor_current),
+        _row('电池电压 (×100mV)', e4.battery_voltage),
+        _row('电池电流 (×100mA)', e4.battery_current),
+        _row('电池状态', e4.battery_status),
+        _row('电池电量 (%)', e4.battery_level),
+        _row('电池温度', e4.battery_temperature),
+        _row('位置信息', e4.position_info || '-'),
+        _row('工作时长 (s)', e4.working_duration),
+        _row('累计运行次数', e4.total_run_count),
+        _row('当前运行圈数', e4.current_lap_count),
+        _row('光伏电压 (×100mV)', e4.solar_voltage),
+        _row('光伏电流 (×100mA)', e4.solar_current),
+        _row('主板温度', e4.board_temperature),
+        _row('当前时间戳', ts),
+    ].join('');
+
+    // E6/E7/E8 可编辑区
+    const e678Html = `
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#8e44ad;margin-bottom:6px;padding:4px 8px;background:#8e44ad18;border-radius:4px;">E6 — 定时请求/未运行原因</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${_row('定时器编号 (1-7)', `<input id="snap_e6_id" type="number" min="1" max="7" value="${e6.scheduled_not_run_id}" style="width:80px;">`)}
+                ${_row('未运行原因 (0x..)', `<input id="snap_e6_reason" type="number" min="0" max="255" value="${e6.scheduled_not_run_reason}" style="width:80px;">`)}
+                ${_row('FA 告警', `0x${(e6.alarm_fa >>> 0).toString(16).toUpperCase().padStart(8,'0')}`)}
+            </table>
+        </div>
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#c0392b;margin-bottom:6px;padding:4px 8px;background:#c0392b18;border-radius:4px;">E7 — 未启动原因</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${_row('未启动原因 (0x..)', `<input id="snap_e7_reason" type="number" min="0" max="255" value="${e7.not_started_reason}" style="width:80px;">`)}
+                ${_row('FA 告警', `0x${(e7.alarm_fa >>> 0).toString(16).toUpperCase().padStart(8,'0')}`)}
+            </table>
+        </div>
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#27ae60;margin-bottom:6px;padding:4px 8px;background:#27ae6018;border-radius:4px;">E8 — 启动请求回复确认</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${_row('定时器编号 (1-7)', `<input id="snap_e8_id" type="number" min="0" max="255" value="${e8.startup_confirm_id}" style="width:80px;">`)}
+            </table>
+        </div>`;
+
+    const left = _section('E0 — LoRa参数 &amp; 清扫设置', '#2980b9', e0Rows)
+               + _section('E4 — 机器人实时状态', '#e67e22', e4Rows);
+    const right = _section('E1 — 电机 &amp; 温度电压保护参数', '#16a085', e1Rows)
+                + e678Html;
+
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">${left}${right}</div>`;
+}
+
+
 // 参数配置 - 设置机器人运行数据（E4字段，仅写数据库）
 window.pcSendRobotE4Data = async function() {
     if (!_paramConfigRobotId) return;

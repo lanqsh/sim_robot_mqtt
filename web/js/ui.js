@@ -75,6 +75,9 @@ export function renderRobots(robots) {
                 <button class="btn btn-sm btn-warning" onclick="window.openTriggerModal('${robot.robot_id}')">
                     手动触发
                 </button>
+                <button class="btn btn-sm btn-secondary" onclick="window.openReportSnapshot('${robot.robot_id}')">
+                    上报数据
+                </button>
                 <button class="btn btn-sm btn-info" onclick="window.openAlarmSettings('${robot.robot_id}', ${robot.serial_number})">
                     告警设置
                 </button>

@@ -800,6 +800,23 @@
         </div>
     </div>
 
+    <!-- 上报数据快照模态框 (E0/E1/E4/E6/E7/E8) -->
+    <div id="reportSnapshotModal" class="modal" style="display:none; align-items:flex-start; justify-content:center; padding-top:30px;">
+        <div class="modal-content" style="max-width:1100px; width:96%; max-height:88vh; overflow-y:auto;">
+            <div class="modal-header" style="position:sticky;top:0;background:#fff;z-index:10;">
+                <h2>上报数据快照 &mdash; <span id="snapshotModalRobotId" style="font-size:0.85em;color:#555;"></span></h2>
+                <span class="close-btn" onclick="closeReportSnapshotModal()">&times;</span>
+            </div>
+            <div id="reportSnapshotBody" style="padding:16px 20px;">
+                <div class="loading">加载中...</div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end; gap:10px; position:sticky; bottom:0; background:#fff; z-index:10;">
+                <button class="btn btn-secondary" onclick="closeReportSnapshotModal()">关闭</button>
+                <button class="btn btn-success" onclick="saveSnapshotParams()">保存 E6/E7/E8 参数</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="../js/app.js"></script>
 </body>
 </html>
