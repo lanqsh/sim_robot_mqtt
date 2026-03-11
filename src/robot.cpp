@@ -2437,9 +2437,9 @@ std::string Robot::SerializeDataSnapshot() const {
   d["scheduled_not_run_id"]     = data_.scheduled_not_run_id;
   d["scheduled_not_run_reason"] = data_.scheduled_not_run_reason;
   d["not_started_reason"]       = data_.not_started_reason;
-  d["e7_alarm_fa"]               = data_.e7_alarm_fa;
+  d["e7_alarm"]                  = data_.e7_alarm;
   d["startup_confirm_id"]        = data_.startup_confirm_id;
-  d["e8_alarm_fa"]               = data_.e8_alarm_fa;
+  d["e8_alarm"]                  = data_.e8_alarm;
 
   return d.dump();
 }
@@ -2595,9 +2595,9 @@ bool Robot::LoadDataSnapshot(const std::string& data_json) {
     data_.scheduled_not_run_id     = d.value("scheduled_not_run_id",     data_.scheduled_not_run_id);
     data_.scheduled_not_run_reason = d.value("scheduled_not_run_reason", data_.scheduled_not_run_reason);
     data_.not_started_reason       = d.value("not_started_reason",       data_.not_started_reason);
-    data_.e7_alarm_fa               = d.value("e7_alarm_fa",               data_.e7_alarm_fa);
+    data_.e7_alarm                  = d.value("e7_alarm",                  data_.e7_alarm);
     data_.startup_confirm_id        = d.value("startup_confirm_id",        data_.startup_confirm_id);
-    data_.e8_alarm_fa               = d.value("e8_alarm_fa",               data_.e8_alarm_fa);
+    data_.e8_alarm                  = d.value("e8_alarm",                  data_.e8_alarm);
 
     return true;
   } catch (const std::exception& e) {
