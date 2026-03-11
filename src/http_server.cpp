@@ -827,8 +827,7 @@ void HttpServer::ServerThreadFunc() {
         const auto& t = d.schedule_tasks[i];
         char time_buf[8];
         snprintf(time_buf, sizeof(time_buf), "%02d:%02d", t.hour, t.minute);
-        tasks.push_back({{"weekday", t.weekday}, {"hour", t.hour},
-                         {"minute", t.minute},   {"run_count", t.run_count},
+        tasks.push_back({{"weekday", t.weekday}, {"run_count", t.run_count},
                          {"time", std::string(time_buf)}});
       }
       data["schedule_tasks"] = tasks;
@@ -1004,7 +1003,7 @@ void HttpServer::ServerThreadFunc() {
       const auto& d = robot->GetData();
       json data;
       data["not_started_reason"] = d.not_started_reason;
-      data["e7_alarm_fa"]        = d.e7_alarm_fa;
+      data["e7_alarm"]           = d.e7_alarm;
       json response;
       response["success"]  = true;
       response["robot_id"] = robot_id;
@@ -1050,7 +1049,7 @@ void HttpServer::ServerThreadFunc() {
       json data;
       data["startup_confirm_id"] = d.startup_confirm_id;
       data["not_started_reason"] = d.not_started_reason;
-      data["e8_alarm_fa"]        = d.e8_alarm_fa;
+      data["e8_alarm"]           = d.e8_alarm;
       json response;
       response["success"]  = true;
       response["robot_id"] = robot_id;

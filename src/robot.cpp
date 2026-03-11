@@ -2146,7 +2146,7 @@ void Robot::SendNotStartedReport() {
 
   // 故障信息 (4字节大端, 取 alarm_fa)
   uint32_t fa = data_.alarm_fa;
-  data_.e7_alarm_fa = fa;  // 快照当前故障信息
+  data_.e7_alarm = fa;  // 快照当前故障信息
   data_field.push_back(static_cast<uint8_t>(fa >> 24));
   data_field.push_back(static_cast<uint8_t>(fa >> 16));
   data_field.push_back(static_cast<uint8_t>(fa >> 8));
@@ -2195,7 +2195,7 @@ void Robot::SendStartupConfirmReport() {
 
   // 定时器编号 (1字节)
   data_field.push_back(data_.startup_confirm_id);
-  data_.e8_alarm_fa = data_.alarm_fa;  // 快照当前故障信息
+  data_.e8_alarm = data_.alarm_fa;  // 快照当前故障信息
 
   LOG(INFO) << "  定时器编号:" << static_cast<int>(data_.startup_confirm_id);
   LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
