@@ -831,8 +831,8 @@ paths:
                               description: 运行次数
                             time:
                               type: string
-                              description: 组装好的清扫时间字符串，格式 "周三 08:30"
-                              example: "周三 08:30"
+                              description: 清扫时间字符串，格式 "HH:MM"
+                              example: "08:30"
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
