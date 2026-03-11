@@ -19,6 +19,8 @@ tags:
     description: 告警读写
   - name: Commands
     description: 控制/上报触发
+  - name: ReportData
+    description: 上报数据读写（E0/E1/E4/E6/E7/E8）
   - name: System
     description: 系统全局配置
 paths:
@@ -756,6 +758,469 @@ paths:
                         example: E0
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/report/e0:
+    get:
+      tags: [ReportData]
+      summary: 读取机器人 E0 数据（LoRa参数 & 清扫设置）
+      description: |
+        返回机器人最近一次 E0 上报帧解析后的缓存数据，包括 LoRa 通信参数、
+        机器人编号、软件版本、停车位置、白天防护及7个定时任务配置。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  robot_id:
+                    type: string
+                    example: a1b2c3d4e5f67890
+                  data:
+                    type: object
+                    properties:
+                      lora_power:
+                        type: integer
+                        description: LoRa 发射功率
+                      lora_frequency:
+                        type: integer
+                        description: LoRa 频率
+                      lora_rate:
+                        type: integer
+                        description: LoRa 速率
+                      robot_number:
+                        type: integer
+                        description: 机器人编号
+                      software_version:
+                        type: string
+                        description: 软件版本号
+                      parking_position:
+                        type: integer
+                        description: 停车位置
+                      daytime_scan_protect:
+                        type: integer
+                        description: 白天防护标志
+                      schedule_tasks:
+                        type: array
+                        maxItems: 7
+                        items:
+                          type: object
+                          properties:
+                            weekday:
+                              type: integer
+                              description: 星期几（1=周一 … 7=周日）
+                            hour:
+                              type: integer
+                            minute:
+                              type: integer
+                            run_count:
+                              type: integer
+                              description: 运行次数
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/report/e1:
+    get:
+      tags: [ReportData]
+      summary: 读取机器人 E1 数据（电机参数 & 温度电压保护）
+      description: |
+        返回机器人最近一次 E1 上报帧解析后的缓存数据，包括行走/刷子/防风
+        三路电机的速度、最大电流、警告电流、里程/超时参数，以及温度电压保护各阈值。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  robot_id:
+                    type: string
+                    example: a1b2c3d4e5f67890
+                  data:
+                    type: object
+                    properties:
+                      walk_motor_speed:
+                        type: integer
+                        description: 行走电机速度
+                      brush_motor_speed:
+                        type: integer
+                        description: 刷子电机速度
+                      windproof_motor_speed:
+                        type: integer
+                        description: 防风电机速度
+                      walk_motor_max_current_ma:
+                        type: integer
+                        description: 行走电机最大电流（mA）
+                      brush_motor_max_current_ma:
+                        type: integer
+                        description: 刷子电机最大电流（mA）
+                      windproof_motor_max_current_ma:
+                        type: integer
+                        description: 防风电机最大电流（mA）
+                      walk_motor_warning_current_ma:
+                        type: integer
+                        description: 行走电机警告电流（mA）
+                      brush_motor_warning_current_ma:
+                        type: integer
+                        description: 刷子电机警告电流（mA）
+                      windproof_motor_warning_current_ma:
+                        type: integer
+                        description: 防风电机警告电流（mA）
+                      walk_motor_mileage_m:
+                        type: integer
+                        description: 行走电机里程（m）
+                      brush_motor_timeout_s:
+                        type: integer
+                        description: 刷子电机超时（s）
+                      windproof_motor_timeout_s:
+                        type: integer
+                        description: 防风电机超时（s）
+                      reverse_time_s:
+                        type: integer
+                        description: 反转时间（s）
+                      protection_angle:
+                        type: integer
+                        description: 保护角度
+                      protection_current_ma:
+                        type: integer
+                        description: 保护电流（mA）
+                      high_temp_threshold:
+                        type: integer
+                        description: 高温阈值（°C）
+                      low_temp_threshold:
+                        type: integer
+                        description: 低温阈值（°C）
+                      protection_temp:
+                        type: integer
+                        description: 保护温度（°C）
+                      recovery_temp:
+                        type: integer
+                        description: 恢复温度（°C）
+                      protection_voltage:
+                        type: integer
+                        description: 保护电压（mV）
+                      recovery_voltage:
+                        type: integer
+                        description: 恢复电压（mV）
+                      protection_battery_level:
+                        type: integer
+                        description: 保护电量（%）
+                      limit_run_battery_level:
+                        type: integer
+                        description: 限速运行电量（%）
+                      recovery_battery_level:
+                        type: integer
+                        description: 恢复运行电量（%）
+                      board_protection_temp:
+                        type: integer
+                        description: 主板保护温度（°C）
+                      board_recovery_temp:
+                        type: integer
+                        description: 主板恢复温度（°C）
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/report/e4:
+    get:
+      tags: [ReportData]
+      summary: 读取机器人 E4 数据（实时状态）
+      description: |
+        返回机器人最近一次 E4 上报帧解析后的缓存数据，包括告警码、
+        电机电流、电池信息、位置、工作时长、运行次数、太阳能及主板温度。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  robot_id:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      alarm_fa:
+                        type: integer
+                        format: int64
+                        description: 告警字段 FA（32位）
+                      alarm_fb:
+                        type: integer
+                        format: int64
+                        description: 告警字段 FB（32位）
+                      alarm_fc:
+                        type: integer
+                        format: int64
+                        description: 告警字段 FC（32位）
+                      alarm_fd:
+                        type: integer
+                        format: int64
+                        description: 告警字段 FD（32位）
+                      main_motor_current:
+                        type: integer
+                        description: 主电机电流（mA）
+                      slave_motor_current:
+                        type: integer
+                        description: 从电机电流（mA）
+                      battery_voltage:
+                        type: integer
+                        description: 电池电压（mV）
+                      battery_current:
+                        type: integer
+                        description: 电池电流（mA）
+                      battery_status:
+                        type: integer
+                        description: 电池状态码
+                      battery_level:
+                        type: integer
+                        description: 电量百分比（%）
+                      battery_temperature:
+                        type: integer
+                        description: 电池温度（°C）
+                      position_info:
+                        type: integer
+                        description: 位置信息
+                      working_duration:
+                        type: integer
+                        description: 工作时长（s）
+                      total_run_count:
+                        type: integer
+                        description: 累计运行次数
+                      current_lap_count:
+                        type: integer
+                        description: 当前圈计数
+                      solar_voltage:
+                        type: integer
+                        description: 太阳能电压（mV）
+                      solar_current:
+                        type: integer
+                        description: 太阳能电流（mA）
+                      board_temperature:
+                        type: integer
+                        description: 主板温度（°C）
+                      timestamp_hour:
+                        type: integer
+                        description: 时间戳-时
+                      timestamp_minute:
+                        type: integer
+                        description: 时间戳-分
+                      timestamp_second:
+                        type: integer
+                        description: 时间戳-秒
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/report/e6:
+    get:
+      tags: [ReportData]
+      summary: 读取机器人 E6 数据（定时未运行原因）
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  robot_id:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      scheduled_not_run_id:
+                        type: integer
+                        description: 定时器编号
+                      scheduled_not_run_reason:
+                        type: integer
+                        description: 未运行原因码
+                      alarm_fa:
+                        type: integer
+                        format: int64
+                        description: 告警字段 FA（32位）
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [ReportData]
+      summary: 设置机器人 E6 参数（定时未运行原因）
+      description: |
+        可选字段 — 只传需要修改的字段，未传字段保持原值。
+        修改后写入数据库快照，下次触发 E6 上报时将使用新值。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduled_not_run_id:
+                  type: integer
+                  description: 定时器编号（0-255）
+                  example: 1
+                scheduled_not_run_reason:
+                  type: integer
+                  description: 未运行原因码（0-255）
+                  example: 2
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/report/e7:
+    get:
+      tags: [ReportData]
+      summary: 读取机器人 E7 数据（未启动原因）
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  robot_id:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      not_started_reason:
+                        type: integer
+                        description: 未启动原因码
+                      alarm_fa:
+                        type: integer
+                        format: int64
+                        description: 告警字段 FA（32位）
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [ReportData]
+      summary: 设置机器人 E7 参数（未启动原因）
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                not_started_reason:
+                  type: integer
+                  description: 未启动原因码（0-255）
+                  example: 3
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/report/e8:
+    get:
+      tags: [ReportData]
+      summary: 读取机器人 E8 数据（启动请求回复确认）
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  robot_id:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      startup_confirm_id:
+                        type: integer
+                        description: 启动确认定时器编号（0-255）
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [ReportData]
+      summary: 设置机器人 E8 参数（启动请求回复确认编号）
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                startup_confirm_id:
+                  type: integer
+                  description: 定时器编号（0-255）
+                  example: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
