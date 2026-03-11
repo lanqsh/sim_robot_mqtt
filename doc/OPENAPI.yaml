@@ -810,6 +810,9 @@ paths:
                       daytime_scan_protect:
                         type: integer
                         description: 白天防护标志
+                      enabled:
+                        type: boolean
+                        description: 设备启用/停用（E0 上报的设备本身状态，非管理平台的启停）
                       schedule_tasks:
                         type: array
                         maxItems: 7

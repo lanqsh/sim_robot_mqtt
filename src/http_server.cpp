@@ -821,6 +821,7 @@ void HttpServer::ServerThreadFunc() {
       data["software_version"]     = d.software_version;
       data["parking_position"]     = d.parking_position;
       data["daytime_scan_protect"] = d.daytime_scan_protect;
+      data["enabled"]              = d.enabled;
       json tasks = json::array();
       for (size_t i = 0; i < d.schedule_tasks.size() && i < 7; ++i) {
         const auto& t = d.schedule_tasks[i];
