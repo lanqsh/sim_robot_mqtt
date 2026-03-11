@@ -1217,6 +1217,10 @@ paths:
                       startup_confirm_id:
                         type: integer
                         description: 启动确认定时器编号（0-255）
+                      e8_alarm_fa:
+                        type: integer
+                        format: int64
+                        description: E8故障信息（32位，发送E8帧时的 alarm_fa 快照）
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

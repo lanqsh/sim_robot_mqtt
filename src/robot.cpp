@@ -2195,6 +2195,7 @@ void Robot::SendStartupConfirmReport() {
 
   // 定时器编号 (1字节)
   data_field.push_back(data_.startup_confirm_id);
+  data_.e8_alarm_fa = data_.alarm_fa;  // 快照当前故障信息
 
   LOG(INFO) << "  定时器编号:" << static_cast<int>(data_.startup_confirm_id);
   LOG(INFO) << "  数据域长度: " << data_field.size() << " 字节";
@@ -2438,6 +2439,7 @@ std::string Robot::SerializeDataSnapshot() const {
   d["not_started_reason"]       = data_.not_started_reason;
   d["e7_alarm_fa"]               = data_.e7_alarm_fa;
   d["startup_confirm_id"]        = data_.startup_confirm_id;
+  d["e8_alarm_fa"]               = data_.e8_alarm_fa;
 
   return d.dump();
 }
@@ -2595,6 +2597,7 @@ bool Robot::LoadDataSnapshot(const std::string& data_json) {
     data_.not_started_reason       = d.value("not_started_reason",       data_.not_started_reason);
     data_.e7_alarm_fa               = d.value("e7_alarm_fa",               data_.e7_alarm_fa);
     data_.startup_confirm_id        = d.value("startup_confirm_id",        data_.startup_confirm_id);
+    data_.e8_alarm_fa               = d.value("e8_alarm_fa",               data_.e8_alarm_fa);
 
     return true;
   } catch (const std::exception& e) {

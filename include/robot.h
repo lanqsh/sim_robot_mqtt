@@ -294,6 +294,7 @@ struct RobotData {
 
   // E8: 启动请求回复接收后确认
   uint8_t startup_confirm_id = 0;        // 定时器编号
+  uint32_t e8_alarm_fa = 0;              // E8故障信息
 
   // F0/F1/F2: 请求回复公共数据
   RequestReply request_reply{};
