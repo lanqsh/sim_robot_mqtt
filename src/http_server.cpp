@@ -363,6 +363,7 @@ void HttpServer::ServerThreadFunc() {
       std::string robot_name = body.value("robot_name", "");
       int serial_number = body.value("serial_number", 0);
       bool enabled = body.value("enabled", true);
+      int bracket_count = body.value("bracket_count", 0);
 
       // 检查三选一：robot_name / robot_id / serial_number 至少填一个
       bool has_robot_id  = body.contains("robot_id") && !body["robot_id"].get<std::string>().empty();
@@ -414,7 +415,7 @@ void HttpServer::ServerThreadFunc() {
       }
 
       // 添加到数据库
-      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, enabled);
+      bool success = config_db_->AddRobot(robot_id, robot_name, serial_number, enabled, bracket_count);
       if (success) {
         // 添加到MQTT管理器
         mqtt_manager_->AddRobot(robot_id);
@@ -687,6 +688,7 @@ void HttpServer::ServerThreadFunc() {
           if (r.robot_id == robot_id) {
             robot_data["serial_number"] = r.serial_number;
             robot_data["robot_name"] = r.robot_name;
+            robot_data["bracket_count"] = r.bracket_count;
             break;
           }
         }
@@ -706,6 +708,7 @@ void HttpServer::ServerThreadFunc() {
           robot_data["robot_id"] = robot_id;
           robot_data["serial_number"] = found_info->serial_number;
           robot_data["robot_name"] = found_info->robot_name;
+          robot_data["bracket_count"] = found_info->bracket_count;
           robot_data["status"] = "stopped";
 
           // 读取数据库快照，构造与 GetLastData() 兼容的 last_data 结构
@@ -785,6 +788,466 @@ void HttpServer::ServerThreadFunc() {
       error["error"] = e.what();
       res.status = 500;
       res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // ── 上报数据分类接口（每个标识符独立） ──────────────────────────────────
+
+  // 辅助宏：查找机器人，未找到则返回404
+  auto findRobotOr404 = [this](const std::string& robot_id, httplib::Response& res) -> std::shared_ptr<Robot> {
+    auto robot = mqtt_manager_->GetRobot(robot_id);
+    if (!robot) {
+      json error;
+      error["success"] = false;
+      error["error"] = "机器人不存在或未运行";
+      res.status = 404;
+      res.set_content(error.dump(), "application/json");
+    }
+    return robot;
+  };
+
+  // GET /api/v1/robots/report/e0 - LoRa参数 & 清扫设置
+  svr.Get("/api/v1/robots/report/e0", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      const auto& d = robot->GetData();
+      json data;
+      data["lora_power"]           = d.lora_params.power;
+      data["lora_frequency"]       = d.lora_params.frequency;
+      data["lora_rate"]            = d.lora_params.rate;
+      data["robot_number"]         = d.robot_number;
+      data["software_version"]     = d.software_version;
+      data["parking_position"]     = d.parking_position;
+      data["daytime_scan_protect"] = d.daytime_scan_protect;
+      data["enabled"]              = d.enabled;
+      json tasks = json::array();
+      for (size_t i = 0; i < d.schedule_tasks.size() && i < 7; ++i) {
+        const auto& t = d.schedule_tasks[i];
+        char time_buf[8];
+        snprintf(time_buf, sizeof(time_buf), "%02d:%02d", t.hour, t.minute);
+        // weekday 为位掩码：bit0=周一(1), bit1=周二(2), ..., bit6=周日(7)
+        json weekday_arr = json::array();
+        for (int bit = 0; bit < 7; ++bit) {
+          if (t.weekday & (1 << bit)) weekday_arr.push_back(bit + 1);
+        }
+        tasks.push_back({{"weekday", weekday_arr}, {"run_count", t.run_count},
+                         {"time", std::string(time_buf)}});
+      }
+      data["schedule_tasks"] = tasks;
+      json response;
+      response["success"]  = true;
+      response["robot_id"] = robot_id;
+      response["data"]     = data;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 获取E0数据 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/report/e0 - 设置LoRa参数 & 清扫设置
+  svr.Post("/api/v1/robots/report/e0", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      json body = json::parse(req.body);
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      auto& d = robot->GetData();
+      if (body.contains("lora_power"))           d.lora_params.power     = body["lora_power"].get<int>();
+      if (body.contains("lora_frequency"))       d.lora_params.frequency = body["lora_frequency"].get<int>();
+      if (body.contains("lora_rate"))            d.lora_params.rate      = body["lora_rate"].get<int>();
+      if (body.contains("robot_number"))         d.robot_number          = body["robot_number"].get<std::string>();
+      if (body.contains("software_version"))     d.software_version      = body["software_version"].get<std::string>();
+      if (body.contains("parking_position"))     d.parking_position      = body["parking_position"].get<int>();
+      if (body.contains("daytime_scan_protect")) d.daytime_scan_protect  = body["daytime_scan_protect"].get<bool>();
+      if (body.contains("enabled"))              d.enabled               = body["enabled"].get<bool>();
+      if (body.contains("schedule_tasks") && body["schedule_tasks"].is_array()) {
+        const auto& tasks_json = body["schedule_tasks"];
+        size_t count = std::min(tasks_json.size(), size_t(7));
+        if (d.schedule_tasks.size() < 7) d.schedule_tasks.resize(7);
+        for (size_t i = 0; i < count; ++i) {
+          const auto& item = tasks_json[i];
+          auto& task = d.schedule_tasks[i];
+          // weekday 数组 → 位掩码整数：1=周一(bit0), ..., 7=周日(bit6)
+          if (item.contains("weekday") && item["weekday"].is_array()) {
+            int mask = 0;
+            for (const auto& day : item["weekday"]) {
+              int v = day.get<int>();
+              if (v >= 1 && v <= 7) mask |= (1 << (v - 1));
+            }
+            task.weekday = mask;
+          }
+          if (item.contains("run_count")) task.run_count = item["run_count"].get<int>();
+          // time "HH:MM" → hour + minute
+          if (item.contains("time") && item["time"].is_string()) {
+            std::string t = item["time"].get<std::string>();
+            if (t.size() >= 5 && t[2] == ':') {
+              task.hour   = std::stoi(t.substr(0, 2));
+              task.minute = std::stoi(t.substr(3, 2));
+            }
+          }
+        }
+      }
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      json response;
+      response["success"]  = true;
+      response["message"]  = "E0参数已更新";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置E0参数 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/report/e1 - 电机参数 & 温度电压保护参数
+  svr.Get("/api/v1/robots/report/e1", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      const auto& d = robot->GetData();
+      const auto& mp = d.motor_params;
+      const auto& tvp = d.temp_voltage_protection;
+      json data;
+      data["walk_motor_speed"]                   = mp.walk_motor_speed;
+      data["brush_motor_speed"]                  = mp.brush_motor_speed;
+      data["windproof_motor_speed"]              = mp.windproof_motor_speed;
+      data["walk_motor_max_current_ma"]          = mp.walk_motor_max_current_ma;
+      data["brush_motor_max_current_ma"]         = mp.brush_motor_max_current_ma;
+      data["windproof_motor_max_current_ma"]     = mp.windproof_motor_max_current_ma;
+      data["walk_motor_warning_current_ma"]      = mp.walk_motor_warning_current_ma;
+      data["brush_motor_warning_current_ma"]     = mp.brush_motor_warning_current_ma;
+      data["windproof_motor_warning_current_ma"] = mp.windproof_motor_warning_current_ma;
+      data["walk_motor_mileage_m"]               = mp.walk_motor_mileage_m;
+      data["brush_motor_timeout_s"]              = mp.brush_motor_timeout_s;
+      data["windproof_motor_timeout_s"]          = mp.windproof_motor_timeout_s;
+      data["reverse_time_s"]                     = mp.reverse_time_s;
+      data["protection_angle"]                   = mp.protection_angle;
+      data["protection_current_ma"]     = tvp.protection_current_ma;
+      data["high_temp_threshold"]       = tvp.high_temp_threshold;
+      data["low_temp_threshold"]        = tvp.low_temp_threshold;
+      data["protection_temp"]           = tvp.protection_temp;
+      data["recovery_temp"]             = tvp.recovery_temp;
+      data["protection_voltage"]        = tvp.protection_voltage;
+      data["recovery_voltage"]          = tvp.recovery_voltage;
+      data["protection_battery_level"]  = tvp.protection_battery_level;
+      data["limit_run_battery_level"]   = tvp.limit_run_battery_level;
+      data["recovery_battery_level"]    = tvp.recovery_battery_level;
+      data["board_protection_temp"]     = tvp.board_protection_temp;
+      data["board_recovery_temp"]       = tvp.board_recovery_temp;
+      json response;
+      response["success"]  = true;
+      response["robot_id"] = robot_id;
+      response["data"]     = data;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 获取E1数据 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/report/e1 - 设置电机参数 & 温度电压保护参数
+  svr.Post("/api/v1/robots/report/e1", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      json body = json::parse(req.body);
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      auto& d   = robot->GetData();
+      auto& mp  = d.motor_params;
+      auto& tvp = d.temp_voltage_protection;
+      if (body.contains("walk_motor_speed"))                   mp.walk_motor_speed                   = body["walk_motor_speed"].get<int>();
+      if (body.contains("brush_motor_speed"))                  mp.brush_motor_speed                  = body["brush_motor_speed"].get<int>();
+      if (body.contains("windproof_motor_speed"))              mp.windproof_motor_speed              = body["windproof_motor_speed"].get<int>();
+      if (body.contains("walk_motor_max_current_ma"))          mp.walk_motor_max_current_ma          = body["walk_motor_max_current_ma"].get<int>();
+      if (body.contains("brush_motor_max_current_ma"))         mp.brush_motor_max_current_ma         = body["brush_motor_max_current_ma"].get<int>();
+      if (body.contains("windproof_motor_max_current_ma"))     mp.windproof_motor_max_current_ma     = body["windproof_motor_max_current_ma"].get<int>();
+      if (body.contains("walk_motor_warning_current_ma"))      mp.walk_motor_warning_current_ma      = body["walk_motor_warning_current_ma"].get<int>();
+      if (body.contains("brush_motor_warning_current_ma"))     mp.brush_motor_warning_current_ma     = body["brush_motor_warning_current_ma"].get<int>();
+      if (body.contains("windproof_motor_warning_current_ma")) mp.windproof_motor_warning_current_ma = body["windproof_motor_warning_current_ma"].get<int>();
+      if (body.contains("walk_motor_mileage_m"))               mp.walk_motor_mileage_m               = body["walk_motor_mileage_m"].get<int>();
+      if (body.contains("brush_motor_timeout_s"))              mp.brush_motor_timeout_s              = body["brush_motor_timeout_s"].get<int>();
+      if (body.contains("windproof_motor_timeout_s"))          mp.windproof_motor_timeout_s          = body["windproof_motor_timeout_s"].get<int>();
+      if (body.contains("reverse_time_s"))                     mp.reverse_time_s                     = body["reverse_time_s"].get<int>();
+      if (body.contains("protection_angle"))                   mp.protection_angle                   = body["protection_angle"].get<int>();
+      if (body.contains("protection_current_ma"))    tvp.protection_current_ma    = body["protection_current_ma"].get<int>();
+      if (body.contains("high_temp_threshold"))      tvp.high_temp_threshold      = body["high_temp_threshold"].get<int>();
+      if (body.contains("low_temp_threshold"))       tvp.low_temp_threshold       = body["low_temp_threshold"].get<int>();
+      if (body.contains("protection_temp"))          tvp.protection_temp          = body["protection_temp"].get<int>();
+      if (body.contains("recovery_temp"))            tvp.recovery_temp            = body["recovery_temp"].get<int>();
+      if (body.contains("protection_voltage"))       tvp.protection_voltage       = body["protection_voltage"].get<int>();
+      if (body.contains("recovery_voltage"))         tvp.recovery_voltage         = body["recovery_voltage"].get<int>();
+      if (body.contains("protection_battery_level")) tvp.protection_battery_level = body["protection_battery_level"].get<int>();
+      if (body.contains("limit_run_battery_level"))  tvp.limit_run_battery_level  = body["limit_run_battery_level"].get<int>();
+      if (body.contains("recovery_battery_level"))   tvp.recovery_battery_level   = body["recovery_battery_level"].get<int>();
+      if (body.contains("board_protection_temp"))    tvp.board_protection_temp    = body["board_protection_temp"].get<int>();
+      if (body.contains("board_recovery_temp"))      tvp.board_recovery_temp      = body["board_recovery_temp"].get<int>();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      json response;
+      response["success"]  = true;
+      response["message"]  = "E1参数已更新";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置E1参数 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/report/e4 - 机器人实时状态数据
+  svr.Get("/api/v1/robots/report/e4", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      const auto& d = robot->GetData();
+      json data;
+      data["alarm_fa"]            = d.alarm_fa;
+      data["alarm_fb"]            = d.alarm_fb;
+      data["alarm_fc"]            = d.alarm_fc;
+      data["alarm_fd"]            = d.alarm_fd;
+      data["main_motor_current"]  = d.main_motor_current;
+      data["slave_motor_current"] = d.slave_motor_current;
+      data["battery_voltage"]     = d.battery_voltage;
+      data["battery_current"]     = d.battery_current;
+      data["battery_status"]      = d.battery_status;
+      data["battery_level"]       = d.battery_level;
+      data["battery_temperature"] = d.battery_temperature;
+      data["position_info"]       = d.position_info;
+      data["working_duration"]    = d.working_duration;
+      data["total_run_count"]     = d.total_run_count;
+      data["current_lap_count"]   = d.current_lap_count;
+      data["solar_voltage"]       = d.solar_voltage;
+      data["solar_current"]       = d.solar_current;
+      data["board_temperature"]   = d.board_temperature;
+      data["timestamp_hour"]      = d.current_timestamp.hour;
+      data["timestamp_minute"]    = d.current_timestamp.minute;
+      data["timestamp_second"]    = d.current_timestamp.second;
+      json response;
+      response["success"]  = true;
+      response["robot_id"] = robot_id;
+      response["data"]     = data;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 获取E4数据 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/report/e4 - 设置机器人实时状态数据
+  svr.Post("/api/v1/robots/report/e4", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      json body = json::parse(req.body);
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      auto& d = robot->GetData();
+      if (body.contains("alarm_fa"))            d.alarm_fa            = body["alarm_fa"].get<uint32_t>();
+      if (body.contains("alarm_fb"))            d.alarm_fb            = static_cast<uint16_t>(body["alarm_fb"].get<uint32_t>());
+      if (body.contains("alarm_fc"))            d.alarm_fc            = body["alarm_fc"].get<uint32_t>();
+      if (body.contains("alarm_fd"))            d.alarm_fd            = static_cast<uint16_t>(body["alarm_fd"].get<uint32_t>());
+      if (body.contains("main_motor_current"))  d.main_motor_current  = body["main_motor_current"].get<int>();
+      if (body.contains("slave_motor_current")) d.slave_motor_current = body["slave_motor_current"].get<int>();
+      if (body.contains("battery_voltage"))     d.battery_voltage     = body["battery_voltage"].get<int>();
+      if (body.contains("battery_current"))     d.battery_current     = body["battery_current"].get<int>();
+      if (body.contains("battery_status"))      d.battery_status      = body["battery_status"].get<int>();
+      if (body.contains("battery_level"))       d.battery_level       = body["battery_level"].get<int>();
+      if (body.contains("battery_temperature")) d.battery_temperature = body["battery_temperature"].get<int>();
+      if (body.contains("position_info"))       d.position_info       = body["position_info"].get<std::string>();
+      if (body.contains("working_duration"))    d.working_duration    = body["working_duration"].get<int>();
+      if (body.contains("total_run_count"))     d.total_run_count     = body["total_run_count"].get<int>();
+      if (body.contains("current_lap_count"))   d.current_lap_count   = body["current_lap_count"].get<int>();
+      if (body.contains("solar_voltage"))       d.solar_voltage       = body["solar_voltage"].get<int>();
+      if (body.contains("solar_current"))       d.solar_current       = body["solar_current"].get<int>();
+      if (body.contains("board_temperature"))   d.board_temperature   = body["board_temperature"].get<int>();
+      if (body.contains("timestamp_hour"))      d.current_timestamp.hour   = body["timestamp_hour"].get<int>();
+      if (body.contains("timestamp_minute"))    d.current_timestamp.minute = body["timestamp_minute"].get<int>();
+      if (body.contains("timestamp_second"))    d.current_timestamp.second = body["timestamp_second"].get<int>();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      json response;
+      response["success"]  = true;
+      response["message"]  = "E4参数已更新";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置E4参数 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/report/e6 - 定时请求/未运行原因
+  svr.Get("/api/v1/robots/report/e6", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      const auto& d = robot->GetData();
+      json data;
+      data["scheduled_not_run_id"]     = d.scheduled_not_run_id;
+      data["scheduled_not_run_reason"] = d.scheduled_not_run_reason;
+      data["e6_alarm"]                 = d.e6_alarm;
+      // 关联对应定时任务的时间字段（id 为 1~7，对应 schedule_tasks 下标 0~6）
+      int task_idx = static_cast<int>(d.scheduled_not_run_id) - 1;
+      if (task_idx >= 0 && task_idx < static_cast<int>(d.schedule_tasks.size())) {
+        const auto& t = d.schedule_tasks[task_idx];
+        data["weekday"]   = t.weekday;
+        data["hour"]      = t.hour;
+        data["minute"]    = t.minute;
+        data["run_count"] = t.run_count;
+      } else {
+        data["weekday"]   = nullptr;
+        data["hour"]      = nullptr;
+        data["minute"]    = nullptr;
+        data["run_count"] = nullptr;
+      }
+      json response;
+      response["success"]  = true;
+      response["robot_id"] = robot_id;
+      response["data"]     = data;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 获取E6数据 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/report/e6 - 设置定时请求/未运行原因字段
+  svr.Post("/api/v1/robots/report/e6", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      json body = json::parse(req.body);
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      auto& d = robot->GetData();
+      if (body.contains("scheduled_not_run_id"))
+        d.scheduled_not_run_id = static_cast<uint8_t>(body["scheduled_not_run_id"].get<int>());
+      if (body.contains("scheduled_not_run_reason"))
+        d.scheduled_not_run_reason = static_cast<uint8_t>(body["scheduled_not_run_reason"].get<int>());
+      if (body.contains("e6_alarm"))             d.e6_alarm            = body["e6_alarm"].get<uint32_t>();
+      // 写入对应定时任务的星期/时/分/运行次数
+      int task_idx = static_cast<int>(d.scheduled_not_run_id) - 1;
+      if (task_idx >= 0 && task_idx < static_cast<int>(d.schedule_tasks.size())) {
+        auto& t = d.schedule_tasks[task_idx];
+        if (body.contains("weekday"))   t.weekday   = body["weekday"].get<int>();
+        if (body.contains("hour"))      t.hour      = body["hour"].get<int>();
+        if (body.contains("minute"))    t.minute    = body["minute"].get<int>();
+        if (body.contains("run_count")) t.run_count = body["run_count"].get<int>();
+      }
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      json response;
+      response["success"]  = true;
+      response["message"]  = "E6参数已更新";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置E6参数 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/report/e7 - 未启动原因
+  svr.Get("/api/v1/robots/report/e7", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      const auto& d = robot->GetData();
+      json data;
+      data["not_started_reason"] = d.not_started_reason;
+      data["e7_alarm"]           = d.e7_alarm;
+      json response;
+      response["success"]  = true;
+      response["robot_id"] = robot_id;
+      response["data"]     = data;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 获取E7数据 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/report/e7 - 设置未启动原因字段
+  svr.Post("/api/v1/robots/report/e7", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      json body = json::parse(req.body);
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      auto& d = robot->GetData();
+      if (body.contains("not_started_reason"))
+        d.not_started_reason = static_cast<uint8_t>(body["not_started_reason"].get<int>());
+      if (body.contains("e7_alarm"))             d.e7_alarm            = body["e7_alarm"].get<uint32_t>();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      json response;
+      response["success"]  = true;
+      response["message"]  = "E7参数已更新";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置E7参数 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/report/e8 - 启动请求回复接收后确认
+  svr.Get("/api/v1/robots/report/e8", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      const auto& d = robot->GetData();
+      json data;
+      data["startup_confirm_id"] = d.startup_confirm_id;
+      data["not_started_reason"] = d.not_started_reason;
+      data["e8_alarm"]           = d.e8_alarm;
+      json response;
+      response["success"]  = true;
+      response["robot_id"] = robot_id;
+      response["data"]     = data;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 获取E8数据 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // POST /api/v1/robots/report/e8 - 设置启动请求回复确认编号
+  svr.Post("/api/v1/robots/report/e8", [this, &findRobotOr404](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      json body = json::parse(req.body);
+      auto robot = findRobotOr404(robot_id, res);
+      if (!robot) return;
+      auto& d = robot->GetData();
+      if (body.contains("startup_confirm_id"))
+        d.startup_confirm_id = static_cast<uint8_t>(body["startup_confirm_id"].get<int>());
+      if (body.contains("not_started_reason"))
+        d.not_started_reason = static_cast<uint8_t>(body["not_started_reason"].get<int>());
+      if (body.contains("e8_alarm"))             d.e8_alarm            = body["e8_alarm"].get<uint32_t>();
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      json response;
+      response["success"]  = true;
+      response["message"]  = "E8参数已更新";
+      response["robot_id"] = robot_id;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 设置E8参数 - " << robot_id;
+    } catch (const std::exception& e) {
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
     }
   });
 
@@ -1704,6 +2167,57 @@ void HttpServer::ServerThreadFunc() {
   });
 
   // ─── 系统配置：定时上报间隔 ─────────────────────────────────────────────
+
+  // POST /api/v1/robots/control - 触发机器人控制指令（B0-BA）
+  svr.Post("/api/v1/robots/control", [this](const httplib::Request& req, httplib::Response& res) {
+    std::string robot_id = req.get_param_value("robot_id");
+    std::string code_str = req.get_param_value("code");  // 如 "B0", "B3", "BA"
+
+    LOG(INFO) << "收到控制指令请求 - 机器人: " << robot_id << ", 指令: " << code_str;
+    try {
+      if (robot_id.empty() || code_str.empty()) {
+        json error; error["success"] = false; error["error"] = "缺少必要参数 robot_id 或 code";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+      auto robot = mqtt_manager_->GetRobot(robot_id);
+      if (!robot) {
+        json error; error["success"] = false; error["error"] = "未找到机器人: " + robot_id;
+        res.status = 404; res.set_content(error.dump(), "application/json"); return;
+      }
+      std::string hex = code_str;
+      if (hex.size() >= 2 && hex[0] == '0' && (hex[1] == 'x' || hex[1] == 'X')) hex = hex.substr(2);
+      uint8_t code = static_cast<uint8_t>(std::stoul(hex, nullptr, 16));
+
+      std::string desc;
+      switch (code) {
+        case 0xB0: robot->ControlEnable();   robot->SendControlResponse(0xB0); desc = "启用";   break;
+        case 0xB1: robot->ControlDisable();  robot->SendControlResponse(0xB1); desc = "停用";   break;
+        case 0xB2: robot->ControlStart();    robot->SendControlResponse(0xB2); desc = "启动";   break;
+        case 0xB3: robot->ControlForward();  robot->SendControlResponse(0xB3); desc = "前进";   break;
+        case 0xB4: robot->ControlBackward(); robot->SendControlResponse(0xB4); desc = "后退";   break;
+        case 0xB5: robot->ControlStop();     robot->SendControlResponse(0xB5); desc = "停止";   break;
+        case 0xB6:                           robot->SendControlResponse(0xB6); desc = "复位";   break;
+        case 0xBA:                           robot->SendRestartResponse(0xBA); desc = "重启";   break;
+        default: {
+          json error; error["success"] = false; error["error"] = "不支持的控制指令: " + code_str;
+          res.status = 400; res.set_content(error.dump(), "application/json"); return;
+        }
+      }
+      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      json response;
+      response["success"]  = true;
+      response["message"]  = desc + " 指令已执行";
+      response["robot_id"] = robot_id;
+      response["code"]     = code_str;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "控制指令执行完成 - 机器人: " << robot_id << ", 指令: " << desc;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "控制指令执行失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
 
   // GET /api/v1/system/version - 获取后端版本号
   svr.Get("/api/v1/system/version", [](const httplib::Request&, httplib::Response& res) {

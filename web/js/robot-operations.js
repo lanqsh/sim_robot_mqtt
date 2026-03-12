@@ -3,12 +3,12 @@ import * as api from './api.js';
 import * as ui from './ui.js';
 
 // 添加机器人
-export async function addRobot(robotName, serialNumber, reloadCallback, robotId, enabled = true) {
+export async function addRobot(robotName, serialNumber, reloadCallback, robotId, enabled = true, bracketCount = 0) {
     // 序号可选，如果为空或<=0，后端会自动生成
     const serial = serialNumber && serialNumber > 0 ? parseInt(serialNumber) : 0;
 
     try {
-        const result = await api.addRobot(robotName, serial, robotId, enabled);
+        const result = await api.addRobot(robotName, serial, robotId, enabled, bracketCount);
 
         if (result.success) {
             const serialInfo = serial === 0 ? '（自动生成序号）' : '';

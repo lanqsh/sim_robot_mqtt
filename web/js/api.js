@@ -23,10 +23,11 @@ export async function updateRobot(oldRobotId, data) {
 }
 
 // 添加单个机器人
-export async function addRobot(robotName, serialNumber, robotId, enabled = true) {
+export async function addRobot(robotName, serialNumber, robotId, enabled = true, bracketCount = 0) {
     const body = {
         robot_name: robotName || '',
-        enabled: enabled
+        enabled: enabled,
+        bracket_count: (bracketCount && bracketCount >= 0) ? parseInt(bracketCount) : 0
     };
 
     // 如果提供了序号且大于0，才发送序号
@@ -296,6 +297,110 @@ export function downloadFirmwareFile(filename) {
 export async function triggerReport(robotId, code) {
     const response = await fetch(`${API_BASE}/api/v1/robots/trigger_report?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {
         method: 'POST'
+    });
+    return await response.json();
+}
+
+// 发送控制指令（code: "B0"~"BA"），触发机器人动作并发送MQTT响应
+export async function sendControl(robotId, code) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/control?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {
+        method: 'POST'
+    });
+    return await response.json();
+}
+
+// 获取 E0（LoRa参数 & 清扫设置）
+export async function fetchReportE0(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e0?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 获取 E1（电机参数 & 温度电压保护参数）
+export async function fetchReportE1(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e1?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 获取 E4（机器人实时状态数据）
+export async function fetchReportE4(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e4?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 获取 E6（定时请求/未运行原因）
+export async function fetchReportE6(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e6?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 设置 E6 参数（scheduled_not_run_id, scheduled_not_run_reason）
+export async function setReportE6(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e6?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 获取 E7（未启动原因）
+export async function fetchReportE7(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e7?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 设置 E7 参数（not_started_reason）
+export async function setReportE7(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e7?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 获取 E8（启动请求回复确认）
+export async function fetchReportE8(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e8?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 设置 E8 参数（startup_confirm_id）
+export async function setReportE8(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e8?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 设置 E0 参数（LoRa参数 & 清扫设置）
+export async function setReportE0(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e0?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 设置 E1 参数（电机参数 & 温度电压保护参数）
+export async function setReportE1(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e1?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 设置 E4 参数（机器人实时状态数据）
+export async function setReportE4(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e4?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
     });
     return await response.json();
 }

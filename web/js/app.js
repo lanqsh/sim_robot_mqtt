@@ -154,6 +154,40 @@ window.triggerReport = async function(code, desc) {
     }
 };
 
+// ── 控制指令 ──────────────────────────────────────────────────────────────
+
+let _controlRobotId = null;
+
+// 打开控制指令模态框
+window.openControlModal = function(robotId) {
+    _controlRobotId = robotId;
+    document.getElementById('controlModalRobotId').textContent = robotId;
+    document.getElementById('controlModal').style.display = 'flex';
+};
+
+// 关闭控制指令模态框
+window.closeControlModal = function() {
+    document.getElementById('controlModal').style.display = 'none';
+    _controlRobotId = null;
+};
+
+// 发送控制指令
+window.sendControlCmd = async function(code, desc) {
+    if (!_controlRobotId) return;
+    if (!confirm(`确定发送 ${desc} (0x${code}) 控制指令吗？`)) return;
+    try {
+        const result = await api.sendControl(_controlRobotId, code);
+        if (result.success) {
+            alert(`✓ ${desc} 指令已执行`);
+        } else {
+            alert('执行失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('控制指令失败:', error);
+        alert('执行失败: ' + error.message);
+    }
+};
+
 // 全局函数：切换表单
 window.toggleScheduleForm = () => ui.toggleForm('scheduleFormContent', 'scheduleCollapseIcon');
 window.toggleScheduleParamsForm = () => ui.toggleForm('scheduleParamsFormContent', 'scheduleParamsCollapseIcon');
@@ -848,6 +882,374 @@ window.pcSendDaytimeScanProtect = async function() {
     } catch (e) { ui.hideLoading(); alert('发送失败: ' + e.message); }
 };
 
+// ── 上报数据快照 (E0/E1/E4/E6/E7/E8) ────────────────────────────────────
+
+let _snapshotRobotId = null;
+
+// 打开上报数据快照模态框（并发请求六个接口）
+window.openReportSnapshot = async function(robotId) {
+    _snapshotRobotId = robotId;
+    const modal = document.getElementById('reportSnapshotModal');
+    const titleEl = document.getElementById('snapshotModalRobotId');
+    const bodyEl = document.getElementById('reportSnapshotBody');
+    if (!modal || !bodyEl) return;
+    if (titleEl) titleEl.textContent = robotId;
+    bodyEl.innerHTML = '<div class="loading">加载中...</div>';
+    modal.style.display = 'flex';
+    try {
+        const [r0, r1, r4, r6, r7, r8] = await Promise.all([
+            api.fetchReportE0(robotId),
+            api.fetchReportE1(robotId),
+            api.fetchReportE4(robotId),
+            api.fetchReportE6(robotId),
+            api.fetchReportE7(robotId),
+            api.fetchReportE8(robotId),
+        ]);
+        if (!r0.success || !r1.success || !r4.success || !r6.success || !r7.success || !r8.success) {
+            const err = [r0, r1, r4, r6, r7, r8].find(r => !r.success);
+            bodyEl.innerHTML = `<p style="color:#c00;">获取失败: ${err?.error || '未知错误'}</p>`;
+            return;
+        }
+        bodyEl.innerHTML = _renderSnapshotHtml(r0.data, r1.data, r4.data, r6.data, r7.data, r8.data);
+    } catch (e) {
+        bodyEl.innerHTML = `<p style="color:#c00;">获取失败: ${e.message}</p>`;
+    }
+};
+
+// 关闭上报数据快照模态框
+window.closeReportSnapshotModal = function() {
+    const modal = document.getElementById('reportSnapshotModal');
+    if (modal) modal.style.display = 'none';
+    _snapshotRobotId = null;
+};
+
+// 保存 E0 参数
+window.saveSnapshotE0 = async function() {
+    if (!_snapshotRobotId) return;
+    const gv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const gn = id => { const v = gv(id); return v !== '' ? Number(v) : undefined; };
+    const gb = id => { const el = document.getElementById(id); return el ? el.value === 'true' : undefined; };
+
+    const tasks = Array.from({ length: 7 }, (_, i) => {
+        const weekday = [];
+        for (let d = 1; d <= 7; d++) {
+            const cb = document.getElementById(`snap_e0_task_${i}_day_${d}`);
+            if (cb && cb.checked) weekday.push(d);
+        }
+        return { weekday, time: gv(`snap_e0_task_${i}_time`), run_count: gn(`snap_e0_task_${i}_run_count`) };
+    });
+    const params = {
+        lora_power: gn('snap_e0_lora_power'), lora_frequency: gn('snap_e0_lora_frequency'),
+        lora_rate: gn('snap_e0_lora_rate'), robot_number: gv('snap_e0_robot_number'),
+        software_version: gv('snap_e0_software_version'), parking_position: gn('snap_e0_parking_position'),
+        daytime_scan_protect: gb('snap_e0_daytime_scan_protect'), enabled: gb('snap_e0_enabled'),
+        schedule_tasks: tasks,
+    };
+    try {
+        ui.showLoading('正在保存 E0 参数...');
+        const r = await api.setReportE0(_snapshotRobotId, params);
+        ui.hideLoading();
+        r.success ? alert('E0 参数已保存！') : alert('保存失败: ' + r.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+// 保存 E1 参数
+window.saveSnapshotE1 = async function() {
+    if (!_snapshotRobotId) return;
+    const gn = id => { const el = document.getElementById(id); return el && el.value !== '' ? Number(el.value) : undefined; };
+    const keys = ['walk_motor_speed','brush_motor_speed','windproof_motor_speed',
+        'walk_motor_max_current_ma','brush_motor_max_current_ma','windproof_motor_max_current_ma',
+        'walk_motor_warning_current_ma','brush_motor_warning_current_ma','windproof_motor_warning_current_ma',
+        'walk_motor_mileage_m','brush_motor_timeout_s','windproof_motor_timeout_s',
+        'reverse_time_s','protection_angle','protection_current_ma','high_temp_threshold',
+        'low_temp_threshold','protection_temp','recovery_temp','protection_voltage','recovery_voltage',
+        'protection_battery_level','limit_run_battery_level','recovery_battery_level',
+        'board_protection_temp','board_recovery_temp'];
+    const params = {};
+    keys.forEach(k => { const v = gn(`snap_e1_${k}`); if (v !== undefined) params[k] = v; });
+    try {
+        ui.showLoading('正在保存 E1 参数...');
+        const r = await api.setReportE1(_snapshotRobotId, params);
+        ui.hideLoading();
+        r.success ? alert('E1 参数已保存！') : alert('保存失败: ' + r.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+// 保存 E4 参数
+window.saveSnapshotE4 = async function() {
+    if (!_snapshotRobotId) return;
+    const gn = id => { const el = document.getElementById(id); return el && el.value !== '' ? Number(el.value) : undefined; };
+    const gv = id => { const el = document.getElementById(id); return el ? el.value : undefined; };
+    const numKeys = ['alarm_fa','alarm_fb','alarm_fc','alarm_fd','main_motor_current','slave_motor_current',
+        'battery_voltage','battery_current','battery_status','battery_level','battery_temperature',
+        'working_duration','total_run_count','current_lap_count','solar_voltage','solar_current',
+        'board_temperature','timestamp_hour','timestamp_minute','timestamp_second'];
+    const params = {};
+    numKeys.forEach(k => { const v = gn(`snap_e4_${k}`); if (v !== undefined) params[k] = v; });
+    const pi = gv('snap_e4_position_info');
+    if (pi !== undefined) params.position_info = pi;
+    try {
+        ui.showLoading('正在保存 E4 参数...');
+        const r = await api.setReportE4(_snapshotRobotId, params);
+        ui.hideLoading();
+        r.success ? alert('E4 参数已保存！') : alert('保存失败: ' + r.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+// 保存 E6 参数
+window.saveSnapshotE6 = async function() {
+    if (!_snapshotRobotId) return;
+    const gn = id => { const el = document.getElementById(id); return el ? parseInt(el.value) : NaN; };
+    try {
+        ui.showLoading('正在保存 E6 参数...');
+        const r = await api.setReportE6(_snapshotRobotId, {
+            scheduled_not_run_id: gn('snap_e6_id'),
+            weekday:   gn('snap_e6_weekday'),
+            hour:      gn('snap_e6_hour'),
+            minute:    gn('snap_e6_minute'),
+            run_count: gn('snap_e6_run_count'),
+            scheduled_not_run_reason: gn('snap_e6_reason'),
+            e6_alarm:  gn('snap_e6_alarm')
+        });
+        ui.hideLoading();
+        r.success ? alert('E6 参数已保存！') : alert('保存失败: ' + r.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+// 保存 E7 参数
+window.saveSnapshotE7 = async function() {
+    if (!_snapshotRobotId) return;
+    const gn = id => { const el = document.getElementById(id); return el ? parseInt(el.value) : NaN; };
+    try {
+        ui.showLoading('正在保存 E7 参数...');
+        const r = await api.setReportE7(_snapshotRobotId, { not_started_reason: gn('snap_e7_reason'), e7_alarm: gn('snap_e7_alarm') });
+        ui.hideLoading();
+        r.success ? alert('E7 参数已保存！') : alert('保存失败: ' + r.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+// 保存 E8 参数
+window.saveSnapshotE8 = async function() {
+    if (!_snapshotRobotId) return;
+    const gn = id => { const el = document.getElementById(id); return el ? parseInt(el.value) : NaN; };
+    try {
+        ui.showLoading('正在保存 E8 参数...');
+        const r = await api.setReportE8(_snapshotRobotId, { startup_confirm_id: gn('snap_e8_id'), not_started_reason: gn('snap_e8_reason'), e8_alarm: gn('snap_e8_alarm') });
+        ui.hideLoading();
+        r.success ? alert('E8 参数已保存！') : alert('保存失败: ' + r.error);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+// 保存全部参数（E0/E1/E4/E6/E7/E8）
+window.saveSnapshotParams = async function() {
+    if (!_snapshotRobotId) return;
+    try {
+        ui.showLoading('正在保存全部参数...');
+        await Promise.all([
+            window.saveSnapshotE0(), window.saveSnapshotE1(), window.saveSnapshotE4(),
+            window.saveSnapshotE6(), window.saveSnapshotE7(), window.saveSnapshotE8(),
+        ]);
+        ui.hideLoading();
+        alert('全部参数已保存，可通过"手动触发"发送对应上报。');
+        window.openReportSnapshot(_snapshotRobotId);
+    } catch (e) { ui.hideLoading(); alert('保存失败: ' + e.message); }
+};
+
+const _WEEKDAY_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+
+function _row(label, value) {
+    return `<tr><td style="color:#666;white-space:nowrap;padding:4px 10px 4px 0;">${label}</td><td style="padding:4px 0;font-weight:500;">${value}</td></tr>`;
+}
+
+function _section(title, color, rows) {
+    return `
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:${color};margin-bottom:6px;padding:4px 8px;background:${color}18;border-radius:4px;">${title}</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">${rows}</table>
+        </div>`;
+}
+
+function _renderSnapshotHtml(e0, e1, e4, e6, e7, e8) {
+    // 内联 input/select 行渲染助手
+    const _ri = (label, id, type, value, extra = '') =>
+        `<tr><td style="color:#666;white-space:nowrap;padding:4px 10px 4px 0;font-size:13px;">${label}</td>` +
+        `<td style="padding:4px 0;"><input id="${id}" type="${type}" value="${value ?? ''}" style="width:110px;" ${extra}></td></tr>`;
+    const _rs = (label, id, options, selected) => {
+        const opts = options.map(([v, t]) =>
+            `<option value="${v}" ${String(selected) === String(v) ? 'selected' : ''}>${t}</option>`).join('');
+        return `<tr><td style="color:#666;white-space:nowrap;padding:4px 10px 4px 0;font-size:13px;">${label}</td>` +
+               `<td style="padding:4px 0;"><select id="${id}" style="width:110px;">${opts}</select></td></tr>`;
+    };
+    const _ro = (label, value) => _row(label, value); // 只读行
+
+    // ── E0 ──────────────────────────────────────────────────────────────
+    const taskRows = Array.from({ length: 7 }, (_, i) => {
+        const t = (e0.schedule_tasks || [])[i] || {};
+        const weekdayArr = Array.isArray(t.weekday) ? t.weekday : [];
+        const boxes = ['一','二','三','四','五','六','日'].map((d, di) => {
+            const dayNum = di + 1;
+            const checked = weekdayArr.includes(dayNum) ? 'checked' : '';
+            return `<label style="margin-right:5px;cursor:pointer;font-size:12px;white-space:nowrap;">` +
+                   `<input type="checkbox" id="snap_e0_task_${i}_day_${dayNum}" ${checked}>${d}</label>`;
+        }).join('');
+        const timeVal = t.time || (t.hour != null ? `${String(t.hour).padStart(2,'0')}:${String(t.minute).padStart(2,'0')}` : '');
+        return `<tr>
+            <td style="color:#666;font-size:12px;padding:4px 8px 4px 0;white-space:nowrap;">定时${i+1}</td>
+            <td style="padding:4px 2px;">${boxes}</td>
+            <td style="padding:4px 4px;"><input id="snap_e0_task_${i}_time" type="text" value="${timeVal}" placeholder="HH:MM" style="width:62px;"></td>
+            <td style="padding:4px 0;"><input id="snap_e0_task_${i}_run_count" type="number" min="0" max="255" value="${t.run_count ?? 0}" style="width:50px;"></td>
+        </tr>`;
+    }).join('');
+
+    const e0Html = `
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#2980b9;margin-bottom:6px;padding:4px 8px;background:#2980b918;border-radius:4px;">E0 — LoRa参数 &amp; 清扫设置</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${_ri('LoRa 功率', 'snap_e0_lora_power', 'number', e0.lora_power)}
+                ${_ri('LoRa 频率', 'snap_e0_lora_frequency', 'number', e0.lora_frequency)}
+                ${_ri('LoRa 速率', 'snap_e0_lora_rate', 'number', e0.lora_rate)}
+                ${_ri('机器人编号', 'snap_e0_robot_number', 'text', e0.robot_number || '')}
+                ${_ri('软件版本', 'snap_e0_software_version', 'text', e0.software_version || '')}
+                ${_ri('停机位', 'snap_e0_parking_position', 'number', e0.parking_position)}
+                ${_rs('白天防误扫', 'snap_e0_daytime_scan_protect', [['true','开启'],['false','关闭']], e0.daytime_scan_protect)}
+                ${_rs('启用状态', 'snap_e0_enabled', [['true','启用'],['false','禁用']], e0.enabled)}
+            </table>
+            <div style="font-size:12px;color:#666;margin:8px 0 3px;font-weight:600;">定时任务（weekday 勾选生效星期，时间格式 HH:MM，次数）</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead><tr>
+                    <th style="text-align:left;padding:3px 8px 3px 0;color:#888;width:48px;">任务</th>
+                    <th style="text-align:left;padding:3px 0;color:#888;">星期</th>
+                    <th style="text-align:left;padding:3px 0;color:#888;width:66px;">时间</th>
+                    <th style="text-align:left;padding:3px 0;color:#888;width:54px;">次数</th>
+                </tr></thead>
+                <tbody>${taskRows}</tbody>
+            </table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <button class="btn btn-success btn-sm" onclick="saveSnapshotE0()">保存 E0</button>
+            </div>
+        </div>`;
+
+    // ── E1 ──────────────────────────────────────────────────────────────
+    const e1Fields = [
+        ['行走电机速率', 'snap_e1_walk_motor_speed', e1.walk_motor_speed],
+        ['毛刷电机速率', 'snap_e1_brush_motor_speed', e1.brush_motor_speed],
+        ['防风电机速率', 'snap_e1_windproof_motor_speed', e1.windproof_motor_speed],
+        ['行走上限电流 (mA)', 'snap_e1_walk_motor_max_current_ma', e1.walk_motor_max_current_ma],
+        ['毛刷上限电流 (mA)', 'snap_e1_brush_motor_max_current_ma', e1.brush_motor_max_current_ma],
+        ['防风上限电流 (mA)', 'snap_e1_windproof_motor_max_current_ma', e1.windproof_motor_max_current_ma],
+        ['行走预警电流 (mA)', 'snap_e1_walk_motor_warning_current_ma', e1.walk_motor_warning_current_ma],
+        ['毛刷预警电流 (mA)', 'snap_e1_brush_motor_warning_current_ma', e1.brush_motor_warning_current_ma],
+        ['防风预警电流 (mA)', 'snap_e1_windproof_motor_warning_current_ma', e1.windproof_motor_warning_current_ma],
+        ['行走里程 (m)', 'snap_e1_walk_motor_mileage_m', e1.walk_motor_mileage_m],
+        ['毛刷运行超时 (s)', 'snap_e1_brush_motor_timeout_s', e1.brush_motor_timeout_s],
+        ['防风运行超时 (s)', 'snap_e1_windproof_motor_timeout_s', e1.windproof_motor_timeout_s],
+        ['反转时间 (s)', 'snap_e1_reverse_time_s', e1.reverse_time_s],
+        ['保护角度', 'snap_e1_protection_angle', e1.protection_angle],
+        ['保护电流 (mA)', 'snap_e1_protection_current_ma', e1.protection_current_ma],
+        ['高温阈值', 'snap_e1_high_temp_threshold', e1.high_temp_threshold],
+        ['低温阈值', 'snap_e1_low_temp_threshold', e1.low_temp_threshold],
+        ['保护温度', 'snap_e1_protection_temp', e1.protection_temp],
+        ['恢复温度', 'snap_e1_recovery_temp', e1.recovery_temp],
+        ['保护电压', 'snap_e1_protection_voltage', e1.protection_voltage],
+        ['恢复电压', 'snap_e1_recovery_voltage', e1.recovery_voltage],
+        ['保护电量', 'snap_e1_protection_battery_level', e1.protection_battery_level],
+        ['限制运行电量', 'snap_e1_limit_run_battery_level', e1.limit_run_battery_level],
+        ['恢复电量', 'snap_e1_recovery_battery_level', e1.recovery_battery_level],
+        ['主板保护温度', 'snap_e1_board_protection_temp', e1.board_protection_temp],
+        ['主板恢复温度', 'snap_e1_board_recovery_temp', e1.board_recovery_temp],
+    ];
+    const e1Rows = e1Fields.map(([l, id, v]) => _ri(l, id, 'number', v)).join('');
+    const e1Html = `
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#16a085;margin-bottom:6px;padding:4px 8px;background:#16a08518;border-radius:4px;">E1 — 电机 &amp; 温度电压保护参数</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">${e1Rows}</table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <button class="btn btn-success btn-sm" onclick="saveSnapshotE1()">保存 E1</button>
+            </div>
+        </div>`;
+
+    // ── E4 ──────────────────────────────────────────────────────────────
+    const e4Fields = [
+        ['FA 告警', 'snap_e4_alarm_fa', e4.alarm_fa],
+        ['FB 告警', 'snap_e4_alarm_fb', e4.alarm_fb],
+        ['FC 告警', 'snap_e4_alarm_fc', e4.alarm_fc],
+        ['FD 告警', 'snap_e4_alarm_fd', e4.alarm_fd],
+        ['主电机电流 (×100mA)', 'snap_e4_main_motor_current', e4.main_motor_current],
+        ['从电机电流 (×100mA)', 'snap_e4_slave_motor_current', e4.slave_motor_current],
+        ['电池电压 (×100mV)', 'snap_e4_battery_voltage', e4.battery_voltage],
+        ['电池电流 (×100mA)', 'snap_e4_battery_current', e4.battery_current],
+        ['电池状态', 'snap_e4_battery_status', e4.battery_status],
+        ['电池电量 (%)', 'snap_e4_battery_level', e4.battery_level],
+        ['电池温度', 'snap_e4_battery_temperature', e4.battery_temperature],
+        ['工作时长 (s)', 'snap_e4_working_duration', e4.working_duration],
+        ['累计运行次数', 'snap_e4_total_run_count', e4.total_run_count],
+        ['当前运行圈数', 'snap_e4_current_lap_count', e4.current_lap_count],
+        ['光伏电压 (×100mV)', 'snap_e4_solar_voltage', e4.solar_voltage],
+        ['光伏电流 (×100mA)', 'snap_e4_solar_current', e4.solar_current],
+        ['主板温度', 'snap_e4_board_temperature', e4.board_temperature],
+        ['时间戳-时', 'snap_e4_timestamp_hour', e4.timestamp_hour],
+        ['时间戳-分', 'snap_e4_timestamp_minute', e4.timestamp_minute],
+        ['时间戳-秒', 'snap_e4_timestamp_second', e4.timestamp_second],
+    ];
+    const e4Rows = e4Fields.map(([l, id, v]) => _ri(l, id, 'number', v)).join('');
+    const e4Html = `
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#e67e22;margin-bottom:6px;padding:4px 8px;background:#e67e2218;border-radius:4px;">E4 — 机器人实时状态</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${e4Rows}
+                <tr><td style="color:#666;white-space:nowrap;padding:4px 10px 4px 0;font-size:13px;">位置信息</td>
+                    <td style="padding:4px 0;"><input id="snap_e4_position_info" type="text" value="${e4.position_info || ''}" style="width:110px;"></td></tr>
+            </table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <button class="btn btn-success btn-sm" onclick="saveSnapshotE4()">保存 E4</button>
+            </div>
+        </div>`;
+
+    // ── E6/E7/E8 ────────────────────────────────────────────────────────
+    const e678Html = `
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#8e44ad;margin-bottom:6px;padding:4px 8px;background:#8e44ad18;border-radius:4px;">E6 — 定时请求/未运行原因</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${_ri('定时器编号 (1-7)', 'snap_e6_id', 'number', e6.scheduled_not_run_id, 'min="1" max="7"')}
+                ${_ri('星期 (0-6)', 'snap_e6_weekday', 'number', e6.weekday, 'min="0" max="6"')}
+                ${_ri('时 (0-23)', 'snap_e6_hour', 'number', e6.hour, 'min="0" max="23"')}
+                ${_ri('分 (0-59)', 'snap_e6_minute', 'number', e6.minute, 'min="0" max="59"')}
+                ${_ri('运行次数', 'snap_e6_run_count', 'number', e6.run_count, 'min="0"')}
+                ${_ri('未运行原因 (0-255)', 'snap_e6_reason', 'number', e6.scheduled_not_run_reason, 'min="0" max="255"')}
+                ${_ri('E6 故障信息', 'snap_e6_alarm', 'number', e6.e6_alarm)}
+            </table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <button class="btn btn-success btn-sm" onclick="saveSnapshotE6()">保存 E6</button>
+            </div>
+        </div>
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#c0392b;margin-bottom:6px;padding:4px 8px;background:#c0392b18;border-radius:4px;">E7 — 未启动原因</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${_ri('未启动原因 (0-255)', 'snap_e7_reason', 'number', e7.not_started_reason, 'min="0" max="255"')}
+                ${_ri('E7 故障信息', 'snap_e7_alarm', 'number', e7.e7_alarm)}
+            </table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <button class="btn btn-success btn-sm" onclick="saveSnapshotE7()">保存 E7</button>
+            </div>
+        </div>
+        <div style="margin-bottom:18px;">
+            <div style="font-weight:700;font-size:14px;color:#27ae60;margin-bottom:6px;padding:4px 8px;background:#27ae6018;border-radius:4px;">E8 — 启动请求回复确认</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                ${_ri('定时器编号 (0-255)', 'snap_e8_id', 'number', e8.startup_confirm_id, 'min="0" max="255"')}
+                ${_ri('未启动原因 (0-255)', 'snap_e8_reason', 'number', e8.not_started_reason, 'min="0" max="255"')}
+                ${_ri('E8 故障信息', 'snap_e8_alarm', 'number', e8.e8_alarm)}
+            </table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <button class="btn btn-success btn-sm" onclick="saveSnapshotE8()">保存 E8</button>
+            </div>
+        </div>`;
+
+    const left = e0Html + e4Html;
+    const right = e1Html + e678Html;
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">${left}${right}</div>`;
+}
+
+
 // 参数配置 - 设置机器人运行数据（E4字段，仅写数据库）
 window.pcSendRobotE4Data = async function() {
     if (!_paramConfigRobotId) return;
@@ -902,8 +1304,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const serialNumber = parseInt(document.getElementById('serialNumber').value);
         const robotId = document.getElementById('robotIdInput').value.trim();
         const enabled = document.getElementById('robotEnabled').value === 'true';
+        const bracketCount = parseInt(document.getElementById('bracketCount').value) || 0;
 
-        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId, enabled);
+        const success = await robotOps.addRobot(robotName, serialNumber, loadRobots, robotId, enabled, bracketCount);
         if (success) {
             document.getElementById('addRobotForm').reset();
             // 重置后确保 enabled 恢复默认值 "true"
@@ -941,6 +1344,16 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerModal.addEventListener('click', (e) => {
             if (e.target.id === 'triggerModal') {
                 window.closeTriggerModal();
+            }
+        });
+    }
+
+    // 点击控制指令模态框背景关闭
+    const controlModal = document.getElementById('controlModal');
+    if (controlModal) {
+        controlModal.addEventListener('click', (e) => {
+            if (e.target.id === 'controlModal') {
+                window.closeControlModal();
             }
         });
     }

@@ -80,6 +80,7 @@ bool ConfigDb::Init() {
       alarm_fb INTEGER DEFAULT 0,
       alarm_fc INTEGER DEFAULT 0,
       alarm_fd INTEGER DEFAULT 0,
+      bracket_count INTEGER DEFAULT 0,
       robot_data_json TEXT DEFAULT '{}'
     );
   )";
@@ -105,6 +106,19 @@ bool ConfigDb::Init() {
       return false;
     }
     LOG(INFO) << "已为robots表添加robot_data_json字段";
+  }
+
+  if (!TableColumnExists(db_, "robots", "bracket_count")) {
+    const char* alter_sql =
+        "ALTER TABLE robots ADD COLUMN bracket_count INTEGER DEFAULT 0";
+    char* alter_err = nullptr;
+    rc = sqlite3_exec(db_, alter_sql, nullptr, nullptr, &alter_err);
+    if (rc != SQLITE_OK) {
+      LOG(ERROR) << "为robots表添加bracket_count字段失败: " << alter_err;
+      sqlite3_free(alter_err);
+      return false;
+    }
+    LOG(INFO) << "已为robots表添加bracket_count字段";
   }
 
   // 插入默认配置（如果不存在）
@@ -285,12 +299,12 @@ std::string ConfigDb::ReplacePlaceholder(const std::string& topic_template,
 }
 
 bool ConfigDb::AddRobot(const std::string& robot_id,
-                        const std::string& robot_name, int serial_number, bool enabled) {
+                        const std::string& robot_name, int serial_number, bool enabled, int bracket_count) {
   if (!initialized_) return false;
 
   const char* sql =
-    "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled, robot_data_json) VALUES "
-    "(?, ?, ?, ?, COALESCE((SELECT robot_data_json FROM robots WHERE robot_id = ?), '{}'))";
+    "INSERT OR REPLACE INTO robots (robot_id, robot_name, serial_number, enabled, bracket_count, robot_data_json) VALUES "
+    "(?, ?, ?, ?, ?, COALESCE((SELECT robot_data_json FROM robots WHERE robot_id = ?), '{}'))";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -301,7 +315,8 @@ bool ConfigDb::AddRobot(const std::string& robot_id,
   sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
   sqlite3_bind_int(stmt, 3, serial_number);
   sqlite3_bind_int(stmt, 4, enabled ? 1 : 0);
-  sqlite3_bind_text(stmt, 5, robot_id.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_int(stmt, 5, bracket_count);
+  sqlite3_bind_text(stmt, 6, robot_id.c_str(), -1, SQLITE_STATIC);
 
   bool success = sqlite3_step(stmt) == SQLITE_DONE;
   sqlite3_finalize(stmt);
@@ -438,7 +453,7 @@ std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
   std::vector<RobotInfo> robots;
   if (!initialized_) return robots;
 
-  const char* sql = "SELECT robot_id, robot_name, serial_number, enabled FROM robots ORDER BY serial_number ASC";
+  const char* sql = "SELECT robot_id, robot_name, serial_number, enabled, bracket_count FROM robots ORDER BY serial_number ASC";
   sqlite3_stmt* stmt;
 
   if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -452,6 +467,7 @@ std::vector<ConfigDb::RobotInfo> ConfigDb::GetAllRobots() {
     info.robot_name = name ? name : "";
     info.serial_number = sqlite3_column_int(stmt, 2);
     info.enabled = sqlite3_column_int(stmt, 3) != 0;
+    info.bracket_count = sqlite3_column_int(stmt, 4);
     robots.push_back(info);
   }
 

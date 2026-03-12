@@ -63,27 +63,37 @@ export function renderRobots(robots) {
                     : '<span style="color:#27ae60;">正常</span>'}
             </div>
             <div class="robot-actions">
-                <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
-                    编辑
-                </button>
-                <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
-                    查看数据
-                </button>
-                <button class="btn btn-sm btn-success" onclick="window.openParamConfig('${robot.robot_id}')">
-                    参数配置
-                </button>
-                <button class="btn btn-sm btn-warning" onclick="window.openTriggerModal('${robot.robot_id}')">
-                    手动触发
-                </button>
-                <button class="btn btn-sm btn-info" onclick="window.openAlarmSettings('${robot.robot_id}', ${robot.serial_number})">
-                    告警设置
-                </button>
-                <button class="btn btn-sm btn-primary" onclick="window.openMqttMessages('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
-                    通信记录
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
-                    删除
-                </button>
+                <div class="robot-actions-row">
+                    <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
+                        编辑
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
+                        查看数据
+                    </button>
+                    <button class="btn btn-sm btn-success" onclick="window.openParamConfig('${robot.robot_id}')">
+                        参数配置
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="window.openTriggerModal('${robot.robot_id}')">
+                        手动触发
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="window.openControlModal('${robot.robot_id}')">
+                        控制指令
+                    </button>
+                </div>
+                <div class="robot-actions-row">
+                    <button class="btn btn-sm btn-secondary" onclick="window.openReportSnapshot('${robot.robot_id}')">
+                        上报数据
+                    </button>
+                    <button class="btn btn-sm btn-info" onclick="window.openAlarmSettings('${robot.robot_id}', ${robot.serial_number})">
+                        告警设置
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="window.openMqttMessages('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
+                        通信记录
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
+                        删除
+                    </button>
+                </div>
             </div>
         `;
         list.appendChild(row);
@@ -253,6 +263,9 @@ export function renderRobotData(data) {
     }
     if (data.robot_name) {
         html += `<div class="data-item"><span class="data-label">机器人名称:</span><span class="data-value">${data.robot_name}</span></div>`;
+    }
+    if (data.bracket_count !== undefined) {
+        html += `<div class="data-item"><span class="data-label">支架数量:</span><span class="data-value">${data.bracket_count}</span></div>`;
     }
     html += `<div class="data-item"><span class="data-label">运行状态:</span><span class="data-value">${data.status === 'running' ? '运行中' : '已停止'}</span></div>`;
 
