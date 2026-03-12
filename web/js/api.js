@@ -301,6 +301,14 @@ export async function triggerReport(robotId, code) {
     return await response.json();
 }
 
+// 发送控制指令（code: "B0"~"BA"），触发机器人动作并发送MQTT响应
+export async function sendControl(robotId, code) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/control?robot_id=${encodeURIComponent(robotId)}&code=${code}`, {
+        method: 'POST'
+    });
+    return await response.json();
+}
+
 // 获取 E0（LoRa参数 & 清扫设置）
 export async function fetchReportE0(robotId) {
     const response = await fetch(`${API_BASE}/api/v1/robots/report/e0?robot_id=${encodeURIComponent(robotId)}`);
@@ -360,6 +368,36 @@ export async function fetchReportE8(robotId) {
 // 设置 E8 参数（startup_confirm_id）
 export async function setReportE8(robotId, params) {
     const response = await fetch(`${API_BASE}/api/v1/robots/report/e8?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 设置 E0 参数（LoRa参数 & 清扫设置）
+export async function setReportE0(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e0?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 设置 E1 参数（电机参数 & 温度电压保护参数）
+export async function setReportE1(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e1?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 设置 E4 参数（机器人实时状态数据）
+export async function setReportE4(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/report/e4?robot_id=${encodeURIComponent(robotId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)

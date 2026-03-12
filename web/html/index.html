@@ -502,6 +502,66 @@
         </div>
     </div>
 
+    <!-- 控制指令模态框 -->
+    <div id="controlModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:520px; width:95%;">
+            <div class="modal-header">
+                <h2>控制指令</h2>
+                <span class="close-btn" onclick="closeControlModal()">&times;</span>
+            </div>
+            <div style="padding:20px;">
+                <p style="margin:0 0 16px;color:#555;font-size:13px;">
+                    机器人 ID：<strong id="controlModalRobotId"></strong>
+                </p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('B0','启用')">
+                        <span style="font-weight:bold;font-size:15px;">0xB0</span><br>
+                        <span style="font-size:12px;">启用设备</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('B1','停用')">
+                        <span style="font-weight:bold;font-size:15px;">0xB1</span><br>
+                        <span style="font-size:12px;">停用设备</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('B2','启动')">
+                        <span style="font-weight:bold;font-size:15px;">0xB2</span><br>
+                        <span style="font-size:12px;">启动运行</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('B3','前进')">
+                        <span style="font-weight:bold;font-size:15px;">0xB3</span><br>
+                        <span style="font-size:12px;">前进</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('B4','后退')">
+                        <span style="font-weight:bold;font-size:15px;">0xB4</span><br>
+                        <span style="font-size:12px;">后退</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('B5','停止')">
+                        <span style="font-weight:bold;font-size:15px;">0xB5</span><br>
+                        <span style="font-size:12px;">停止</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('B6','复位')">
+                        <span style="font-weight:bold;font-size:15px;">0xB6</span><br>
+                        <span style="font-size:12px;">复位</span>
+                    </button>
+                    <button class="btn btn-danger" style="text-align:left;padding:12px 14px;"
+                            onclick="sendControlCmd('BA','重启')">
+                        <span style="font-weight:bold;font-size:15px;">0xBA</span><br>
+                        <span style="font-size:12px;">重启设备</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeControlModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MQTT通信记录模态框 -->
     <div id="mqttMessagesModal" class="modal" style="display:none; align-items:center; justify-content:center;">
         <div class="modal-content" style="max-width:1200px; width:96%;">
@@ -812,7 +872,7 @@
             </div>
             <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end; gap:10px; position:sticky; bottom:0; background:#fff; z-index:10;">
                 <button class="btn btn-secondary" onclick="closeReportSnapshotModal()">关闭</button>
-                <button class="btn btn-success" onclick="saveSnapshotParams()">保存 E6/E7/E8 参数</button>
+                <button class="btn btn-success" onclick="saveSnapshotParams()">保存全部 (E0-E8)</button>
             </div>
         </div>
     </div>

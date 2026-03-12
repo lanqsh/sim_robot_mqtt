@@ -93,8 +93,15 @@
 
 .robot-actions {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 5px;
     flex-shrink: 0;
+}
+
+.robot-actions-row {
+    display: flex;
+    gap: 5px;
+    flex-wrap: nowrap;
 }
 
 .robot-actions .btn {

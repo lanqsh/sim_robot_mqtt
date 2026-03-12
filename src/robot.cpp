@@ -1049,32 +1049,37 @@ void Robot::HandleMessage(const std::string& data) {
           // 控制类指令 (0xB0-0xB6)
           case 0xB0:  // 启用/解锁
             LOG(INFO) << "    命令类型: 启用/解锁";
-            // 机器人收到控制指令后回复（使用机器人数据格式）
+            ControlEnable();
             SendControlResponse(0xB0);
             break;
 
           case 0xB1:  // 停用/锁定
             LOG(INFO) << "    命令类型: 停用/锁定";
+            ControlDisable();
             SendControlResponse(0xB1);
             break;
 
           case 0xB2:  // 启动
             LOG(INFO) << "    命令类型: 启动";
+            ControlStart();
             SendControlResponse(0xB2);
             break;
 
           case 0xB3:  // 前进
             LOG(INFO) << "    命令类型: 前进";
+            ControlForward();
             SendControlResponse(0xB3);
             break;
 
           case 0xB4:  // 后退
             LOG(INFO) << "    命令类型: 后退";
+            ControlBackward();
             SendControlResponse(0xB4);
             break;
 
           case 0xB5:  // 停止
             LOG(INFO) << "    命令类型: 停止";
+            ControlStop();
             SendControlResponse(0xB5);
             break;
 
@@ -1175,7 +1180,17 @@ void Robot::ReportThreadFunc() {
     ++robot_data_ticks;
     ++motor_params_ticks;
     ++lora_clean_ticks;
+    ++position_tick_;
 
+    // 位置更新：前进/后退时每秒扫描 1 个单位
+    if (position_tick_ >= 10) {
+      position_tick_ = 0;
+      int dir = move_direction_.load();
+      if (dir != 0) {
+        data_.position += dir;
+        if (data_.position < 0) data_.position = 0;
+      }
+    }
     // 每 tick 直接读成员变量，途中修改间隔立即生效
     // 机器人数据上报
     if (robot_data_ticks >= robot_data_report_interval_s_ * 10) {
@@ -2090,8 +2105,8 @@ void Robot::SendScheduledNotRunReport() {
   // 未运行原因 (1字节)
   data_field.push_back(data_.scheduled_not_run_reason);
 
-  // 故障信息 (4字节, 取 alarm_fa)
-  uint32_t fa = data_.alarm_fa;
+  // 故障信息 (4字节, 取 e6_alarm)
+  uint32_t fa = data_.e6_alarm;
   data_field.push_back(static_cast<uint8_t>(fa >> 24));
   data_field.push_back(static_cast<uint8_t>(fa >> 16));
   data_field.push_back(static_cast<uint8_t>(fa >> 8));
@@ -2306,6 +2321,67 @@ void Robot::SendRestartResponse(uint8_t control_identifier) {
   sequence_.fetch_add(1);
 }
 
+// ── 控制指令动作函数 ────────────────────────────────────────────────────────
+
+void Robot::ControlEnable() {
+  data_.enabled = true;
+  data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kDeviceEnabled);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 已启用";
+}
+
+void Robot::ControlDisable() {
+  data_.enabled = false;
+  data_.alarm_fa &= ~static_cast<uint32_t>(AlarmFA::kDeviceEnabled);
+  move_direction_.store(0);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 已停用";
+}
+
+void Robot::ControlStart() {
+  // 清除停止/前进/后退/已完成/已失败位
+  const uint32_t clear_mask = static_cast<uint32_t>(AlarmFA::kStopped)
+                            | static_cast<uint32_t>(AlarmFA::kForward)
+                            | static_cast<uint32_t>(AlarmFA::kBackward)
+                            | static_cast<uint32_t>(AlarmFA::kAutoCompleted)
+                            | static_cast<uint32_t>(AlarmFA::kAutoFailed);
+  data_.alarm_fa &= ~clear_mask;
+  // 自动运行中、前进
+  data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kAutoRunning)
+                  | static_cast<uint32_t>(AlarmFA::kForward);
+  move_direction_.store(1);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 启动清扫任务";
+}
+
+void Robot::ControlForward() {
+  data_.alarm_fa &= ~static_cast<uint32_t>(AlarmFA::kBackward);
+  data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kAutoRunning)
+                  | static_cast<uint32_t>(AlarmFA::kForward);
+  move_direction_.store(1);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 前进";
+}
+
+void Robot::ControlBackward() {
+  data_.alarm_fa &= ~static_cast<uint32_t>(AlarmFA::kForward);
+  data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kAutoRunning)
+                  | static_cast<uint32_t>(AlarmFA::kBackward);
+  move_direction_.store(-1);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 后退";
+}
+
+void Robot::ControlStop() {
+  // 清除 Bit2-Bit8（kAutoManual~kBackward）
+  const uint32_t clear_mask = static_cast<uint32_t>(AlarmFA::kAutoManual)
+                            | static_cast<uint32_t>(AlarmFA::kStartFailed)
+                            | static_cast<uint32_t>(AlarmFA::kAutoRunning)
+                            | static_cast<uint32_t>(AlarmFA::kAutoCompleted)
+                            | static_cast<uint32_t>(AlarmFA::kAutoFailed)
+                            | static_cast<uint32_t>(AlarmFA::kForward)
+                            | static_cast<uint32_t>(AlarmFA::kBackward);
+  data_.alarm_fa &= ~clear_mask;
+  data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kStopped);
+  move_direction_.store(0);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 停止运行";
+}
+
 std::string Robot::SerializeDataSnapshot() const {
   // 在序列化前更新时间字段（允许修改内部缓存以保证返回的是最新时间）
   const_cast<Robot*>(this)->UpdateTimeFields();
@@ -2436,6 +2512,7 @@ std::string Robot::SerializeDataSnapshot() const {
   d["board_humidity"] = data_.board_humidity;
   d["scheduled_not_run_id"]     = data_.scheduled_not_run_id;
   d["scheduled_not_run_reason"] = data_.scheduled_not_run_reason;
+  d["e6_alarm"]                  = data_.e6_alarm;
   d["not_started_reason"]       = data_.not_started_reason;
   d["e7_alarm"]                  = data_.e7_alarm;
   d["startup_confirm_id"]        = data_.startup_confirm_id;
@@ -2594,6 +2671,7 @@ bool Robot::LoadDataSnapshot(const std::string& data_json) {
     data_.board_humidity = d.value("board_humidity", data_.board_humidity);
     data_.scheduled_not_run_id     = d.value("scheduled_not_run_id",     data_.scheduled_not_run_id);
     data_.scheduled_not_run_reason = d.value("scheduled_not_run_reason", data_.scheduled_not_run_reason);
+    data_.e6_alarm                  = d.value("e6_alarm",                  data_.e6_alarm);
     data_.not_started_reason       = d.value("not_started_reason",       data_.not_started_reason);
     data_.e7_alarm                  = d.value("e7_alarm",                  data_.e7_alarm);
     data_.startup_confirm_id        = d.value("startup_confirm_id",        data_.startup_confirm_id);

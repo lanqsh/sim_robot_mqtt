@@ -287,6 +287,7 @@ struct RobotData {
   // E6: 定时请求/未运行原因
   uint8_t scheduled_not_run_id = 0;      // 定时器编号 (1~7)
   uint8_t scheduled_not_run_reason = 0;  // 未运行原因
+  uint32_t e6_alarm = 0;                 // E6故障信息
 
   // E7: 未启动原因
   uint8_t not_started_reason = 0;        // 未启动原因
@@ -420,6 +421,14 @@ class Robot {
   // 重启响应（仅包含标识符，无机器人数据）
   void SendRestartResponse(uint8_t control_identifier);
 
+  // 控制指令动作函数（前端 API 触发或 MQTT 收到指令时调用）
+  void ControlEnable();     // B0: 启用机器人
+  void ControlDisable();    // B1: 停用机器人
+  void ControlStart();      // B2: 启动清扫任务
+  void ControlForward();    // B3: 前进
+  void ControlBackward();   // B4: 后退
+  void ControlStop();       // B5: 停止运行
+
  private:
   std::string robot_id_;                   // 机器人ID
   std::string publish_topic_;              // 发布主题
@@ -457,6 +466,9 @@ class Robot {
   // 读取上行数据模板
   static std::string LoadUplinkTemplate();
   static std::string uplink_template_;  // 静态模板缓存
+
+  std::atomic<int> move_direction_{0};    // 运动方向：1=前进, -1=后退, 0=停止
+  int position_tick_{0};                   // 位置更新计时器（每10 tick=1s更新一次）
 
   // 请求回复跟踪状态（F0/F1/F2）
   void MarkRequestReplyReceived();
