@@ -1,16 +1,19 @@
-# HTTP服务器功能实现总结
+﻿# HTTP服务器功能实现总结
+
+> 最后更新：2026-03-13，v1.3.0
 
 ## 已完成的工作
 
-### 1. 数据库结构更新 ✅
+### 1. 数据库结构 ✅
 
 **修改文件**: `src/config_db.cpp`, `include/config_db.h`
 
-- 在 `robots` 表中添加了 `robot_name TEXT` 字段用于存储机器人名称
-- 在 `mqtt_config` 表中添加了 `http_port` 配置项，默认值为 8080
-- 更新了 `AddRobot()` 方法签名，增加 `robot_name` 参数
-- 新增了 `GetAllRobots()` 方法，返回包含所有机器人信息的列表
-- 定义了 `RobotInfo` 结构体存储机器人信息（id, name, enabled）
+- `robots` 表字段：robot_id, serial_number, robot_name, enabled, alarm_fa/fb/fc/fd, data_snapshot (JSON快照)
+- `mqtt_config` 表包含 http_port 等配置项
+- `ConfigDb::AddRobot()` — 支持 name/id/serial_number 三选一 + enabled
+- `ConfigDb::UpdateRobotInfo()` — 更新名称/ID/启用状态，ID变更时自动同步MqttManager
+- `ConfigDb::UpdateRobotDataSnapshot()` — 保存最近一次上报数据快照
+- `ConfigDb::UpdateRobotAlarms()` / `GetRobotAlarms()`
 
 ### 2. HttpServer类实现 ✅
 
@@ -80,36 +83,24 @@
 
 **修改文件**: `src/mqtt_manager.cpp`, `include/mqtt_manager.h`
 
-- 新增 `AddRobot(const std::string& robot_id)` 重载方法
-  - 通过robot_id直接添加机器人
-  - 自动从配置读取主题和间隔
-  - 创建Robot实例并启动上报线程
-
-- 新增 `GetRobot(const std::string& robot_id)` 方法
-  - 返回指定机器人的shared_ptr
-  - 用于HTTP API获取机器人数据
+- `AddRobot(robot_id)` / `RemoveRobot(robot_id)` / `GetRobot(robot_id)`
+- robot_id 变更时支持自动重建订阅
 
 ### 6. Robot类增强 ✅
 
 **修改文件**: `src/robot.cpp`, `include/robot.h`
 
-- 新增 `IsRunning()` 方法：返回机器人运行状态
-- 新增 `GetLastData()` 方法：返回JSON格式的机器人数据
-  - 包含电池电量、电压、电流、温度
-  - 主从电机电流
-  - 工作时长、运行次数、圈数
-  - 光伏电压、电流
-  - 主板温度
+- `IsRunning()`, `GetLastData()`, `GetData()`, `SerializeDataSnapshot()`
+- `software_version` 字段，`fault_status` 实时计算
+- `MotorSimConfig`, `AlarmSimConfig` 模拟配置结构
 
 ### 7. 主程序集成 ✅
 
 **修改文件**: `src/main.cpp`
 
-- 添加 `#include "http_server.h"`
-- 从数据库读取 `http_port` 配置
 - 创建并启动 HttpServer 实例
-- 在日志中输出HTTP服务器访问地址
-- 更新测试函数使用新的API
+- 从数据库读取 `http_port` 配置
+- 已移除 TestAddRemoveRobot 测试函数
 
 ### 8. 构建配置更新 ✅
 
@@ -119,67 +110,21 @@
 
 ### 9. 告警管理功能 ✅
 
-**修改文件**: `src/config_db.cpp`, `include/config_db.h`, `src/robot.cpp`, `include/robot.h`, `src/http_server.cpp`
+- 数据库字段：alarm_fa/fb/fc/fd（INTEGER位掩码）
+- 内存优先：获取告警直接从 Robot 对象读取
+- `Robot::UpdateAlarmsToDb()` 统一持久化接口
+- API：GET `/api/v1/robots/get_alarms` / POST `/api/v1/robots/set_alarms`
 
-#### 9.1 数据库结构扩展
-- 在 `robots` 表中添加四个告警字段：
-  - `alarm_fa INTEGER DEFAULT 0` - FA类告警（27位）
-  - `alarm_fb INTEGER DEFAULT 0` - FB类告警（11位）
-  - `alarm_fc INTEGER DEFAULT 0` - FC类告警（31位）
-  - `alarm_fd INTEGER DEFAULT 0` - FD类告警（5位）
-- 定义 `AlarmData` 结构体存储告警配置
+### 10. 数据模拟功能 ✅
 
-#### 9.2 ConfigDb增强
-- 新增 `UpdateRobotAlarms(const std::string& robot_id, const AlarmData& alarm)` 方法
-  - 更新指定机器人的告警配置到数据库
-- 新增 `GetRobotAlarms(const std::string& robot_id)` 方法
-  - 从数据库读取指定机器人的告警配置
+- 每个机器人维护 `MotorSimConfig`（电机电流模拟）和 `AlarmSimConfig`（随机告警模拟）
+- 配置通过 `config_db_` 持久化到数据库快照
+- 告警模拟 fc_bits_mask 以 fc_bit_0~fc_bit_31 独立字段传输，后端组装成 uint32 掩码
+- API：GET/POST `/api/v1/robots/sim_config/motor` 和 `/api/v1/robots/sim_config/alarm`
 
-#### 9.3 Robot类增强
-- 添加 `weak_ptr<ConfigDb> config_db_` 成员变量
-- 新增 `SetConfigDb(std::shared_ptr<ConfigDb> config_db)` 方法
-  - 设置数据库引用，避免循环引用
-- 新增 `UpdateAlarmsToDb()` 方法
-  - 统一的告警持久化接口
-  - 将当前内存中的告警数据更新到数据库
+### 11. 文档更新 ✅
 
-#### 9.4 MqttManager增强
-- 将 `ConfigDb&` 改为 `std::shared_ptr<ConfigDb>`
-- 在 `AddRobot()` 时调用 `robot->SetConfigDb(config_db_)`
-- 程序启动时自动从数据库加载每个机器人的告警配置
-
-#### 9.5 HTTP API端点
-**GET /api/robots/{identifier}/alarms?type=id|serial**
-- 从内存中的Robot对象获取告警数据（不读数据库）
-- 支持按robot_id或serial查询
-- 返回格式：`{"success": true, "robot_id": "...", "alarm_fa": 0, "alarm_fb": 0, "alarm_fc": 0, "alarm_fd": 0}`
-
-**PATCH /api/robots/{identifier}/alarms?type=id|serial**
-- 更新机器人的告警配置
-- 同时更新内存中的Robot对象和数据库
-- 调用 `robot->UpdateAlarmsToDb()` 进行数据库持久化
-- 请求体：`{"alarm_fa": 134217727, "alarm_fb": 2047, "alarm_fc": 2147483647, "alarm_fd": 31}`
-
-#### 9.6 前端界面
-- 每个机器人卡片添加“告警设置”按钮
-- 点击按钮打开模态框，显示4个标签页（FA/FB/FC/FD）
-- 每个标签页展示对应类型的所有告警项（两列布局）
-- 支持勾选/取消勾选告警项，点击保存后调用PATCH API
-- 打开模态框时自动从后端加载告警配置
-- 切换标签页时自动加载对应类型的告警数据
-
-#### 9.7 技术要点
-- **内存优先**: 获取告警时直接从robot对象读取，避免每次都查询数据库
-- **统一持久化**: Robot类提供UpdateAlarmsToDb()统一接口，告警变化时调用
-- **智能指针管理**: Robot使用weak_ptr引用ConfigDb，避免循环引用
-- **位掩码存储**: 每个告警类型使用一个整数，每个位表示一个告警项
-- **模态框设计**: 告警设置采用模态框，不占用页面固定区域
-
-### 10. 文档完善 ✅
-
-**更新文件**:
-- `README.md` - 添加Web管理界面和REST API说明
-- `HTTP_SERVER_SETUP.md` - cpp-httplib安装指南
+各模块详细说明见 ARCHITECTURE.txt / HTTP_SERVER_SETUP.md / OPENAPI.yaml。
 
 ## 技术要点
 
