@@ -738,11 +738,113 @@ window.saveEditRobot = async function() {
 
 let _paramConfigRobotId = null;
 
-// 打开参数配置弹窗
-window.openParamConfig = function(robotId) {
+// 打开参数配置弹窗（并发拉取当前配置填充表单）
+window.openParamConfig = async function(robotId) {
     _paramConfigRobotId = robotId;
     document.getElementById('paramConfigRobotId').textContent = robotId;
     document.getElementById('paramConfigModal').style.display = 'flex';
+
+    // 并发请求7个GET接口
+    const [motorRes, batteryRes, scheduleRes, parkingRes, loraRes, daytimeRes, runtimeRes] = await Promise.allSettled([
+        api.getMotorParams(robotId),
+        api.getBatteryParams(robotId),
+        api.getScheduleParams(robotId),
+        api.getParkingPosition(robotId),
+        api.getLoraParams(robotId),
+        api.getDaytimeScanProtect(robotId),
+        api.getRuntimeData(robotId)
+    ]);
+
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
+
+    // 电机参数
+    if (motorRes.status === 'fulfilled' && motorRes.value?.success) {
+        const d = motorRes.value.data;
+        setVal('pc_walkMotorSpeed',               d.walk_motor_speed);
+        setVal('pc_brushMotorSpeed',              d.brush_motor_speed);
+        setVal('pc_windproofMotorSpeed',          d.windproof_motor_speed);
+        setVal('pc_walkMotorMaxCurrent',          d.walk_motor_max_current_ma);
+        setVal('pc_brushMotorMaxCurrent',         d.brush_motor_max_current_ma);
+        setVal('pc_windproofMotorMaxCurrent',     d.windproof_motor_max_current_ma);
+        setVal('pc_walkMotorWarningCurrent',      d.walk_motor_warning_current_ma);
+        setVal('pc_brushMotorWarningCurrent',     d.brush_motor_warning_current_ma);
+        setVal('pc_windproofMotorWarningCurrent', d.windproof_motor_warning_current_ma);
+        setVal('pc_walkMotorMileage',             d.walk_motor_mileage_m);
+        setVal('pc_brushMotorTimeout',            d.brush_motor_timeout_s);
+        setVal('pc_windproofMotorTimeout',        d.windproof_motor_timeout_s);
+        setVal('pc_reverseTime',                  d.reverse_time_s);
+        setVal('pc_protectionAngle',              d.protection_angle);
+    }
+
+    // 电池参数
+    if (batteryRes.status === 'fulfilled' && batteryRes.value?.success) {
+        const d = batteryRes.value.data;
+        setVal('pc_protectionCurrent',      d.protection_current_ma);
+        setVal('pc_highTempThreshold',      d.high_temp_threshold);
+        setVal('pc_lowTempThreshold',       d.low_temp_threshold);
+        setVal('pc_protectionTemp',         d.protection_temp);
+        setVal('pc_recoveryTemp',           d.recovery_temp);
+        setVal('pc_protectionVoltage',      d.protection_voltage);
+        setVal('pc_recoveryVoltage',        d.recovery_voltage);
+        setVal('pc_protectionBatteryLevel', d.protection_battery_level);
+        setVal('pc_limitRunBatteryLevel',   d.limit_run_battery_level);
+        setVal('pc_recoveryBatteryLevel',   d.recovery_battery_level);
+    }
+
+    // 定时任务
+    if (scheduleRes.status === 'fulfilled' && scheduleRes.value?.success) {
+        const tasks = scheduleRes.value.tasks || [];
+        tasks.forEach((t, i) => {
+            const n = i + 1;
+            setVal(`pc_wday${n}`, t.weekday);
+            setVal(`pc_hour${n}`, t.hour);
+            setVal(`pc_min${n}`,  t.minute);
+            setVal(`pc_cnt${n}`,  t.run_count);
+        });
+    }
+
+    // 停机位
+    if (parkingRes.status === 'fulfilled' && parkingRes.value?.success) {
+        setVal('pc_parkingPosition', parkingRes.value.parking_position);
+    }
+
+    // Lora参数
+    if (loraRes.status === 'fulfilled' && loraRes.value?.success) {
+        setVal('pc_loraPower',     loraRes.value.power);
+        setVal('pc_loraFrequency', loraRes.value.frequency);
+        setVal('pc_loraRate',      loraRes.value.rate);
+    }
+
+    // 白天防误扫
+    if (daytimeRes.status === 'fulfilled' && daytimeRes.value?.success) {
+        const enabled = daytimeRes.value.enabled;
+        const onEl  = document.getElementById('pc_daytimeScanOn');
+        const offEl = document.getElementById('pc_daytimeScanOff');
+        if (onEl && offEl) { onEl.checked = !!enabled; offEl.checked = !enabled; }
+    }
+
+    // 机器人运行数据（E4字段）
+    if (runtimeRes.status === 'fulfilled' && runtimeRes.value?.success) {
+        const d = runtimeRes.value.data;
+        setVal('pc_e4_mainMotorCurrent',  d.main_motor_current);
+        setVal('pc_e4_slaveMotorCurrent', d.slave_motor_current);
+        setVal('pc_e4_batteryVoltage',    d.battery_voltage);
+        setVal('pc_e4_batteryCurrent',    d.battery_current);
+        setVal('pc_e4_batteryStatus',     d.battery_status);
+        setVal('pc_e4_batteryLevel',      d.battery_level);
+        setVal('pc_e4_batteryTemp',       d.battery_temperature);
+        setVal('pc_e4_position',          d.position);
+        setVal('pc_e4_workingDuration',   d.working_duration);
+        setVal('pc_e4_solarVoltage',      d.solar_voltage);
+        setVal('pc_e4_solarCurrent',      d.solar_current);
+        setVal('pc_e4_totalRunCount',     d.total_run_count);
+        setVal('pc_e4_currentLapCount',   d.current_lap_count);
+        setVal('pc_e4_boardTemp',         d.board_temperature);
+        setVal('pc_e4_alarmFa',           d.alarm_fa);
+        setVal('pc_e4_alarmFb',           d.alarm_fb);
+        setVal('pc_e4_alarmFc',           d.alarm_fc);
+        setVal('pc_e4_alarmFd',           d.alarm_fd);
+    }
 };
 
 // 关闭参数配置弹窗
@@ -1287,7 +1389,7 @@ window.pcSendRobotE4Data = async function() {
     if (Object.keys(params).length === 0) { alert('请至少填写一个字段'); return; }
     try {
         ui.showLoading('正在保存运行数据...');
-        const result = await api.sendRobotE4DataRequest(_paramConfigRobotId, params);
+        const result = await api.saveRuntimeData(_paramConfigRobotId, params);
         ui.hideLoading();
         if (result.success) alert('机器人运行数据已保存到数据库！');
         else alert('保存失败: ' + result.error);
@@ -1388,4 +1490,200 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 点击数据模拟模态框背景关闭
+    const simConfigModal = document.getElementById('simConfigModal');
+    if (simConfigModal) {
+        simConfigModal.addEventListener('click', (e) => {
+            if (e.target.id === 'simConfigModal') {
+                window.closeSimConfigModal();
+            }
+        });
+    }
+
 });
+
+// ── 数据模拟配置 ──────────────────────────────────────────────────────────
+
+let _simRobotId = null;
+let _simCurrentTab = 'motorData';
+// 记录哪些 tab 已经加载过数据，避免重复请求
+const _simTabLoaded = { motorData: false, alarmSim: false };
+
+const _simSetField = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+const _simSetRadio = (name, isRandom) => {
+    document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
+        r.checked = (r.value === (isRandom ? 'random' : 'fixed'));
+    });
+};
+
+async function _loadMotorSimData(robotId) {
+    const result = await api.getMotorSimConfig(robotId);
+    if (result.success && result.motor_sim) {
+        const s = result.motor_sim;
+        const simEnabledEl = document.getElementById('simEnabled');
+        if (simEnabledEl) simEnabledEl.checked = s.enabled ?? false;
+        _simSetRadio('mainCurrentMode', s.main_current_random);
+        _simSetField('mainCurrentMin', s.main_current_min);
+        _simSetField('mainCurrentMax', s.main_current_max);
+        _simSetField('mainCurrentFixed', s.main_current_fixed);
+        _simSetRadio('slaveCurrentMode', s.slave_current_random);
+        _simSetField('slaveCurrentMin', s.slave_current_min);
+        _simSetField('slaveCurrentMax', s.slave_current_max);
+        _simSetField('slaveCurrentFixed', s.slave_current_fixed);
+        _simSetRadio('solarVoltageMode', s.solar_voltage_random);
+        _simSetField('solarVoltageMin', s.solar_voltage_min);
+        _simSetField('solarVoltageMax', s.solar_voltage_max);
+        _simSetField('solarVoltageFixed', s.solar_voltage_fixed);
+        _simSetRadio('solarCurrentMode', s.solar_current_random);
+        _simSetField('solarCurrentMin', s.solar_current_min);
+        _simSetField('solarCurrentMax', s.solar_current_max);
+        _simSetField('solarCurrentFixed', s.solar_current_fixed);
+        _simSetRadio('boardTempMode', s.board_temp_random);
+        _simSetField('boardTempMin', s.board_temp_min);
+        _simSetField('boardTempMax', s.board_temp_max);
+        _simSetField('boardTempFixed', s.board_temp_fixed);
+        _simSetRadio('batteryVoltageMode', s.battery_voltage_random);
+        _simSetField('batteryVoltageMin', s.battery_voltage_min);
+        _simSetField('batteryVoltageMax', s.battery_voltage_max);
+        _simSetField('batteryVoltageFixed', s.battery_voltage_fixed);
+        _simSetField('batteryDischargeRun', s.battery_discharge_run);
+        _simSetField('batteryDischargeStop', s.battery_discharge_stop);
+        _simSetField('batteryChargeRate', s.battery_charge_rate);
+        _simSetRadio('batteryTempMode', s.battery_temp_random);
+        _simSetField('batteryTempMin', s.battery_temp_min);
+        _simSetField('batteryTempMax', s.battery_temp_max);
+        _simSetField('batteryTempFixed', s.battery_temp_fixed);
+    }
+}
+
+async function _loadAlarmSimData(robotId) {
+    const result = await api.getAlarmSimConfig(robotId);
+    if (result.success && result.alarm_sim) {
+        const alm = result.alarm_sim;
+        const alarmEn = document.getElementById('alarmSimEnabled');
+        if (alarmEn) alarmEn.checked = alm.enabled ?? false;
+        _simSetField('alarmDurationMin', alm.duration_min ?? 5);
+        _simSetField('alarmDurationMax', alm.duration_max ?? 10);
+        _simSetField('alarmFrequency', alm.frequency ?? 2);
+        const fcMask = alm.fc_bits_mask >>> 0 || 0;
+        for (let b = 0; b < 32; b++) {
+            const cb = document.getElementById(`fcBit${b}`);
+            if (cb) cb.checked = !!(fcMask & (1 << b));
+        }
+    }
+}
+
+window.openSimConfigModal = async function(robotId) {
+    _simRobotId = robotId;
+    _simTabLoaded.motorData = false;
+    _simTabLoaded.alarmSim = false;
+    document.getElementById('simConfigModalRobotId').textContent = robotId;
+    document.getElementById('simConfigModal').style.display = 'flex';
+    // 切换到第一个 tab，并触发首次加载
+    window.switchSimTab('motorData');
+};
+
+window.closeSimConfigModal = function() {
+    document.getElementById('simConfigModal').style.display = 'none';
+    _simRobotId = null;
+};
+
+window.switchSimTab = async function(tab) {
+    _simCurrentTab = tab;
+    document.querySelectorAll('.sim-tab-btn').forEach(btn => {
+        const isActive = btn.dataset.tab === tab;
+        btn.classList.toggle('active', isActive);
+        btn.style.borderBottom = isActive ? '3px solid #2980b9' : '3px solid transparent';
+        btn.style.color = isActive ? '#2980b9' : '#666';
+        btn.style.fontWeight = isActive ? '600' : 'normal';
+    });
+    document.querySelectorAll('.sim-tab-panel').forEach(panel => {
+        panel.style.display = panel.dataset.tab === tab ? 'block' : 'none';
+    });
+    if (!_simRobotId || _simTabLoaded[tab]) return;
+    try {
+        if (tab === 'motorData') {
+            await _loadMotorSimData(_simRobotId);
+        } else if (tab === 'alarmSim') {
+            await _loadAlarmSimData(_simRobotId);
+        }
+        _simTabLoaded[tab] = true;
+    } catch (e) {
+        console.error('获取数据模拟配置失败:', e);
+    }
+};
+
+window.saveSimConfig = async function() {
+    if (!_simRobotId) return;
+    const getFloat = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+    const getRadio = (name) => {
+        const el = document.querySelector(`input[name="${name}"]:checked`);
+        return el ? el.value === 'random' : true;
+    };
+    try {
+        if (_simCurrentTab === 'motorData') {
+            const motorConfig = {
+                enabled:                document.getElementById('simEnabled')?.checked ?? false,
+                main_current_random:    getRadio('mainCurrentMode'),
+                main_current_min:       getFloat('mainCurrentMin'),
+                main_current_max:       getFloat('mainCurrentMax'),
+                main_current_fixed:     getFloat('mainCurrentFixed'),
+                slave_current_random:   getRadio('slaveCurrentMode'),
+                slave_current_min:      getFloat('slaveCurrentMin'),
+                slave_current_max:      getFloat('slaveCurrentMax'),
+                slave_current_fixed:    getFloat('slaveCurrentFixed'),
+                solar_voltage_random:   getRadio('solarVoltageMode'),
+                solar_voltage_min:      getFloat('solarVoltageMin'),
+                solar_voltage_max:      getFloat('solarVoltageMax'),
+                solar_voltage_fixed:    getFloat('solarVoltageFixed'),
+                solar_current_random:   getRadio('solarCurrentMode'),
+                solar_current_min:      getFloat('solarCurrentMin'),
+                solar_current_max:      getFloat('solarCurrentMax'),
+                solar_current_fixed:    getFloat('solarCurrentFixed'),
+                board_temp_random:      getRadio('boardTempMode'),
+                board_temp_min:         getFloat('boardTempMin'),
+                board_temp_max:         getFloat('boardTempMax'),
+                board_temp_fixed:       getFloat('boardTempFixed'),
+                battery_voltage_random: getRadio('batteryVoltageMode'),
+                battery_voltage_min:    getFloat('batteryVoltageMin'),
+                battery_voltage_max:    getFloat('batteryVoltageMax'),
+                battery_voltage_fixed:  getFloat('batteryVoltageFixed'),
+                battery_discharge_run:  getFloat('batteryDischargeRun'),
+                battery_discharge_stop: getFloat('batteryDischargeStop'),
+                battery_charge_rate:    getFloat('batteryChargeRate'),
+                battery_temp_random:    getRadio('batteryTempMode'),
+                battery_temp_min:       getFloat('batteryTempMin'),
+                battery_temp_max:       getFloat('batteryTempMax'),
+                battery_temp_fixed:     getFloat('batteryTempFixed'),
+            };
+            const result = await api.saveMotorSimConfig(_simRobotId, motorConfig);
+            if (result.success) {
+                alert('✓ 电机模拟配置已保存');
+            } else {
+                alert('保存失败: ' + (result.error || '未知错误'));
+            }
+        } else if (_simCurrentTab === 'alarmSim') {
+            let fc_bits_mask = 0;
+            for (let b = 0; b < 32; b++) {
+                const cb = document.getElementById(`fcBit${b}`);
+                if (cb && cb.checked) fc_bits_mask |= (1 << b);
+            }
+            const alarmData = {
+                enabled:      document.getElementById('alarmSimEnabled')?.checked ?? false,
+                duration_min: parseInt(document.getElementById('alarmDurationMin')?.value) || 5,
+                duration_max: parseInt(document.getElementById('alarmDurationMax')?.value) || 10,
+                frequency:    parseInt(document.getElementById('alarmFrequency')?.value) || 2,
+                fc_bits_mask: fc_bits_mask >>> 0,
+            };
+            const result = await api.saveAlarmSimConfig(_simRobotId, alarmData);
+            if (result.success) {
+                alert('✓ 告警模拟配置已保存');
+            } else {
+                alert('保存失败: ' + (result.error || '未知错误'));
+            }
+        }
+    } catch (e) {
+        console.error('保存数据模拟配置失败:', e);
+        alert('保存失败: ' + e.message);
+    }
+};
