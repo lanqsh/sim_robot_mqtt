@@ -2518,13 +2518,16 @@ void HttpServer::ServerThreadFunc() {
       json response;
       response["success"] = true;
       response["robot_id"] = robot_id;
-      response["alarm_sim"] = {
+      json alarm_json = {
         {"enabled",      a.enabled},
         {"duration_min", a.duration_min},
         {"duration_max", a.duration_max},
-        {"frequency",    a.frequency},
-        {"fc_bits_mask", a.fc_bits_mask}
+        {"frequency",    a.frequency}
       };
+      for (int b = 0; b < 32; b++) {
+        alarm_json["fc_bit_" + std::to_string(b)] = (a.fc_bits_mask & (1u << b)) != 0;
+      }
+      response["alarm_sim"] = alarm_json;
       res.set_content(response.dump(), "application/json");
     } catch (const std::exception& e) {
       json error; error["success"] = false; error["error"] = e.what();
@@ -2547,7 +2550,20 @@ void HttpServer::ServerThreadFunc() {
       if (body.contains("duration_min")) a.duration_min = body["duration_min"].get<int>();
       if (body.contains("duration_max")) a.duration_max = body["duration_max"].get<int>();
       if (body.contains("frequency"))    a.frequency    = body["frequency"].get<int>();
-      if (body.contains("fc_bits_mask")) a.fc_bits_mask = body["fc_bits_mask"].get<uint32_t>();
+      {
+        bool has_fc_bits = false;
+        for (int b = 0; b < 32 && !has_fc_bits; b++) {
+          if (body.contains("fc_bit_" + std::to_string(b))) has_fc_bits = true;
+        }
+        if (has_fc_bits) {
+          uint32_t mask = 0;
+          for (int b = 0; b < 32; b++) {
+            std::string k = "fc_bit_" + std::to_string(b);
+            if (body.contains(k) && body[k].get<bool>()) mask |= (1u << b);
+          }
+          a.fc_bits_mask = mask;
+        }
+      }
       config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
       json response;
       response["success"] = true;

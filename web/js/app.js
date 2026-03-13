@@ -1565,10 +1565,9 @@ async function _loadAlarmSimData(robotId) {
         _simSetField('alarmDurationMin', alm.duration_min ?? 5);
         _simSetField('alarmDurationMax', alm.duration_max ?? 10);
         _simSetField('alarmFrequency', alm.frequency ?? 2);
-        const fcMask = alm.fc_bits_mask >>> 0 || 0;
         for (let b = 0; b < 32; b++) {
             const cb = document.getElementById(`fcBit${b}`);
-            if (cb) cb.checked = !!(fcMask & (1 << b));
+            if (cb) cb.checked = alm[`fc_bit_${b}`] ?? false;
         }
     }
 }
@@ -1663,18 +1662,16 @@ window.saveSimConfig = async function() {
                 alert('保存失败: ' + (result.error || '未知错误'));
             }
         } else if (_simCurrentTab === 'alarmSim') {
-            let fc_bits_mask = 0;
-            for (let b = 0; b < 32; b++) {
-                const cb = document.getElementById(`fcBit${b}`);
-                if (cb && cb.checked) fc_bits_mask |= (1 << b);
-            }
             const alarmData = {
                 enabled:      document.getElementById('alarmSimEnabled')?.checked ?? false,
                 duration_min: parseInt(document.getElementById('alarmDurationMin')?.value) || 5,
                 duration_max: parseInt(document.getElementById('alarmDurationMax')?.value) || 10,
                 frequency:    parseInt(document.getElementById('alarmFrequency')?.value) || 2,
-                fc_bits_mask: fc_bits_mask >>> 0,
             };
+            for (let b = 0; b < 32; b++) {
+                const cb = document.getElementById(`fcBit${b}`);
+                alarmData[`fc_bit_${b}`] = !!(cb && cb.checked);
+            }
             const result = await api.saveAlarmSimConfig(_simRobotId, alarmData);
             if (result.success) {
                 alert('✓ 告警模拟配置已保存');

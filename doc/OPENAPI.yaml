@@ -3056,7 +3056,7 @@ components:
 
     AlarmSimConfig:
       type: object
-      description: 告警模拟配置
+      description: 告警模拟配置，fc_bit_0～fc_bit_31 分别对应FC告警字的第0～31位
       properties:
         enabled:
           type: boolean
@@ -3074,10 +3074,134 @@ components:
           type: integer
           description: 每10分钟产生的告警数量
           example: 2
-        fc_bits_mask:
-          type: integer
-          description: 可触发的FC告警位掩码（uint32，最多32位）
-          example: 0
+        fc_bit_0:
+          type: boolean
+          description: FC告警 bit0
+          example: false
+        fc_bit_1:
+          type: boolean
+          description: FC告警 bit1
+          example: false
+        fc_bit_2:
+          type: boolean
+          description: FC告警 bit2
+          example: false
+        fc_bit_3:
+          type: boolean
+          description: FC告警 bit3
+          example: false
+        fc_bit_4:
+          type: boolean
+          description: FC告警 bit4
+          example: false
+        fc_bit_5:
+          type: boolean
+          description: FC告警 bit5
+          example: false
+        fc_bit_6:
+          type: boolean
+          description: FC告警 bit6
+          example: false
+        fc_bit_7:
+          type: boolean
+          description: FC告警 bit7
+          example: false
+        fc_bit_8:
+          type: boolean
+          description: FC告警 bit8
+          example: false
+        fc_bit_9:
+          type: boolean
+          description: FC告警 bit9
+          example: false
+        fc_bit_10:
+          type: boolean
+          description: FC告警 bit10
+          example: false
+        fc_bit_11:
+          type: boolean
+          description: FC告警 bit11
+          example: false
+        fc_bit_12:
+          type: boolean
+          description: FC告警 bit12
+          example: false
+        fc_bit_13:
+          type: boolean
+          description: FC告警 bit13
+          example: false
+        fc_bit_14:
+          type: boolean
+          description: FC告警 bit14
+          example: false
+        fc_bit_15:
+          type: boolean
+          description: FC告警 bit15
+          example: false
+        fc_bit_16:
+          type: boolean
+          description: FC告警 bit16
+          example: false
+        fc_bit_17:
+          type: boolean
+          description: FC告警 bit17
+          example: false
+        fc_bit_18:
+          type: boolean
+          description: FC告警 bit18
+          example: false
+        fc_bit_19:
+          type: boolean
+          description: FC告警 bit19
+          example: false
+        fc_bit_20:
+          type: boolean
+          description: FC告警 bit20
+          example: false
+        fc_bit_21:
+          type: boolean
+          description: FC告警 bit21
+          example: false
+        fc_bit_22:
+          type: boolean
+          description: FC告警 bit22
+          example: false
+        fc_bit_23:
+          type: boolean
+          description: FC告警 bit23
+          example: false
+        fc_bit_24:
+          type: boolean
+          description: FC告警 bit24
+          example: false
+        fc_bit_25:
+          type: boolean
+          description: FC告警 bit25
+          example: false
+        fc_bit_26:
+          type: boolean
+          description: FC告警 bit26
+          example: false
+        fc_bit_27:
+          type: boolean
+          description: FC告警 bit27
+          example: false
+        fc_bit_28:
+          type: boolean
+          description: FC告警 bit28
+          example: false
+        fc_bit_29:
+          type: boolean
+          description: FC告警 bit29
+          example: false
+        fc_bit_30:
+          type: boolean
+          description: FC告警 bit30
+          example: false
+        fc_bit_31:
+          type: boolean
+          description: FC告警 bit31
+          example: false
 
     MotorSimObject:
       type: object
@@ -3380,7 +3504,9 @@ components:
 
     AlarmSimRequest:
       type: object
-      description: 告警模拟配置请求，所有字段均为可选，只传需要修改的字段
+      description: |
+        告警模拟配置请求，所有字段均为可选，只传需要修改的字段。
+        fc_bit_0～fc_bit_31 分别对应FC告警字的第0～31位，有任意一个存在时整体重建掩码。
       properties:
         enabled:
           type: boolean
@@ -3398,10 +3524,102 @@ components:
           type: integer
           description: 每10分钟产生的告警数量
           example: 2
-        fc_bits_mask:
-          type: integer
-          description: 可触发的FC告警位掩码（uint32，最多32位）
-          example: 0
+        fc_bit_0:
+          type: boolean
+          example: false
+        fc_bit_1:
+          type: boolean
+          example: false
+        fc_bit_2:
+          type: boolean
+          example: false
+        fc_bit_3:
+          type: boolean
+          example: false
+        fc_bit_4:
+          type: boolean
+          example: false
+        fc_bit_5:
+          type: boolean
+          example: false
+        fc_bit_6:
+          type: boolean
+          example: false
+        fc_bit_7:
+          type: boolean
+          example: false
+        fc_bit_8:
+          type: boolean
+          example: false
+        fc_bit_9:
+          type: boolean
+          example: false
+        fc_bit_10:
+          type: boolean
+          example: false
+        fc_bit_11:
+          type: boolean
+          example: false
+        fc_bit_12:
+          type: boolean
+          example: false
+        fc_bit_13:
+          type: boolean
+          example: false
+        fc_bit_14:
+          type: boolean
+          example: false
+        fc_bit_15:
+          type: boolean
+          example: false
+        fc_bit_16:
+          type: boolean
+          example: false
+        fc_bit_17:
+          type: boolean
+          example: false
+        fc_bit_18:
+          type: boolean
+          example: false
+        fc_bit_19:
+          type: boolean
+          example: false
+        fc_bit_20:
+          type: boolean
+          example: false
+        fc_bit_21:
+          type: boolean
+          example: false
+        fc_bit_22:
+          type: boolean
+          example: false
+        fc_bit_23:
+          type: boolean
+          example: false
+        fc_bit_24:
+          type: boolean
+          example: false
+        fc_bit_25:
+          type: boolean
+          example: false
+        fc_bit_26:
+          type: boolean
+          example: false
+        fc_bit_27:
+          type: boolean
+          example: false
+        fc_bit_28:
+          type: boolean
+          example: false
+        fc_bit_29:
+          type: boolean
+          example: false
+        fc_bit_30:
+          type: boolean
+          example: false
+        fc_bit_31:
+          type: boolean
+          example: false
 
     RuntimeDataResponse:
       allOf:
