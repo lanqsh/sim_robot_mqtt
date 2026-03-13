@@ -112,6 +112,12 @@ export async function sendMotorParamsRequest(robotId, params) {
     return await response.json();
 }
 
+// 获取电机参数
+export async function getMotorParams(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/motor_params?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
 // 发送电池参数设置请求
 export async function sendBatteryParamsRequest(robotId, params) {
     const response = await fetch(`${API_BASE}/api/v1/robots/battery_params?robot_id=${robotId}`, {
@@ -119,6 +125,12 @@ export async function sendBatteryParamsRequest(robotId, params) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
     });
+    return await response.json();
+}
+
+// 获取电池参数
+export async function getBatteryParams(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/battery_params?robot_id=${encodeURIComponent(robotId)}`);
     return await response.json();
 }
 
@@ -132,6 +144,12 @@ export async function sendScheduleParamsRequest(robotId, params) {
     return await response.json();
 }
 
+// 获取定时任务参数
+export async function getScheduleParams(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/schedule_params?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
 // 发送停机位设置请求
 export async function sendParkingPositionRequest(robotId, params) {
     const response = await fetch(`${API_BASE}/api/v1/robots/parking_position?robot_id=${robotId}`, {
@@ -139,6 +157,12 @@ export async function sendParkingPositionRequest(robotId, params) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
     });
+    return await response.json();
+}
+
+// 获取停机位
+export async function getParkingPosition(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/parking_position?robot_id=${encodeURIComponent(robotId)}`);
     return await response.json();
 }
 
@@ -227,6 +251,12 @@ export async function sendLoraParamsRequest(robotId, params) {
     return await response.json();
 }
 
+// 获取Lora参数
+export async function getLoraParams(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/lora_params?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
 // 设置白天防误扫开关
 export async function sendDaytimeScanProtectRequest(robotId, enabled) {
     const response = await fetch(`${API_BASE}/api/v1/robots/daytime_scan_protect?robot_id=${robotId}`, {
@@ -234,6 +264,12 @@ export async function sendDaytimeScanProtectRequest(robotId, enabled) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled })
     });
+    return await response.json();
+}
+
+// 获取白天防误扫开关状态
+export async function getDaytimeScanProtect(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/daytime_scan_protect?robot_id=${encodeURIComponent(robotId)}`);
     return await response.json();
 }
 
@@ -401,6 +437,54 @@ export async function setReportE4(robotId, params) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 获取机器人运行数据（E4字段）
+export async function getRuntimeData(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/runtime_data?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 保存机器人运行数据（E4字段），不触发MQTT
+export async function saveRuntimeData(robotId, params) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/runtime_data?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+    });
+    return await response.json();
+}
+
+// 获取电机模拟配置
+export async function getMotorSimConfig(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/motor?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 保存电机模拟配置
+export async function saveMotorSimConfig(robotId, config) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/motor?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+    });
+    return await response.json();
+}
+
+// 获取告警模拟配置
+export async function getAlarmSimConfig(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/alarm?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
+// 保存告警模拟配置
+export async function saveAlarmSimConfig(robotId, data) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/alarm?robot_id=${encodeURIComponent(robotId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
     });
     return await response.json();
 }

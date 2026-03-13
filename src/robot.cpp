@@ -3,6 +3,7 @@
 #include <glog/logging.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -1150,7 +1151,133 @@ void Robot::StopReport() {
   }
 }
 
+void Robot::UpdateSimulatedData() {
+  if (!data_.sim_config.enabled) return;
+  const auto& sim = data_.sim_config;
+  const int dir = move_direction_.load();
+  const bool is_moving = (dir != 0);
+  const bool at_dock   = (data_.position == 0 && !is_moving);
+
+  auto rand_val = [&](float lo, float hi) -> float {
+    std::uniform_real_distribution<float> dist(lo, hi);
+    return dist(rng_);
+  };
+
+  // 主/从电机电流（运行时有值，否则为0）
+  if (is_moving) {
+    float main_a  = sim.main_current_random
+                    ? rand_val(sim.main_current_min, sim.main_current_max)
+                    : sim.main_current_fixed;
+    float slave_a = sim.slave_current_random
+                    ? rand_val(sim.slave_current_min, sim.slave_current_max)
+                    : sim.slave_current_fixed;
+    data_.main_motor_current  = static_cast<int>(std::round(main_a  * 10.0f));
+    data_.slave_motor_current = static_cast<int>(std::round(slave_a * 10.0f));
+  } else {
+    data_.main_motor_current  = 0;
+    data_.slave_motor_current = 0;
+  }
+
+  // 光伏输出（停靠时有值，否则为0）
+  if (at_dock) {
+    float sv = sim.solar_voltage_random
+               ? rand_val(sim.solar_voltage_min, sim.solar_voltage_max)
+               : sim.solar_voltage_fixed;
+    float sc = sim.solar_current_random
+               ? rand_val(sim.solar_current_min, sim.solar_current_max)
+               : sim.solar_current_fixed;
+    data_.solar_voltage = static_cast<int>(std::round(sv * 10.0f));
+    data_.solar_current = static_cast<int>(std::round(sc * 10.0f));
+  } else {
+    data_.solar_voltage = 0;
+    data_.solar_current = 0;
+  }
+
+  // 主板温度（始终有值）
+  {
+    float bt = sim.board_temp_random
+               ? rand_val(sim.board_temp_min, sim.board_temp_max)
+               : sim.board_temp_fixed;
+    data_.board_temperature = static_cast<int>(std::round(bt));
+  }
+
+  // 电池电压（始终有值）
+  {
+    float bv = sim.battery_voltage_random
+               ? rand_val(sim.battery_voltage_min, sim.battery_voltage_max)
+               : sim.battery_voltage_fixed;
+    data_.battery_voltage = static_cast<int>(std::round(bv * 10.0f));
+  }
+
+  // 电池电流 = 主 + 从电机电流
+  data_.battery_current = data_.main_motor_current + data_.slave_motor_current;
+
+  // 电池温度（始终有值）
+  {
+    float t = sim.battery_temp_random
+              ? rand_val(sim.battery_temp_min, sim.battery_temp_max)
+              : sim.battery_temp_fixed;
+    data_.battery_temperature = static_cast<int>(std::round(t));
+  }
+
+  // 电池电量（每600 tick 即每分钟更新一次）
+  ++battery_level_tick_;
+  if (battery_level_tick_ >= 600) {
+    battery_level_tick_ = 0;
+    if (is_moving) {
+      battery_level_f_ -= sim.battery_discharge_run;
+    } else if (at_dock) {
+      battery_level_f_ += sim.battery_charge_rate;
+    } else {
+      battery_level_f_ -= sim.battery_discharge_stop;
+    }
+    battery_level_f_ = std::clamp(battery_level_f_, 0.0f, 100.0f);
+    data_.battery_level = static_cast<int>(battery_level_f_);
+  }
+
+  // 告警模拟
+  ++total_ticks_;
+  ++alarm_sim_tick_;
+  const auto& alm = data_.sim_config.alarm_sim;
+
+  // 清除到期的模拟告警
+  for (auto it = alarm_entries_.begin(); it != alarm_entries_.end(); ) {
+    if (total_ticks_ >= it->expire_tick) {
+      data_.alarm_fc &= ~(static_cast<uint32_t>(1) << it->bit);
+      it = alarm_entries_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  // 每6000 tick（10分钟）产生新告警
+  if (alm.enabled && alarm_sim_tick_ >= 6000) {
+    alarm_sim_tick_ = 0;
+    std::vector<int> available_bits;
+    for (int b = 0; b < 32; ++b) {
+      if (alm.fc_bits_mask & (static_cast<uint32_t>(1) << b)) {
+        available_bits.push_back(b);
+      }
+    }
+    if (!available_bits.empty()) {
+      std::uniform_int_distribution<int> bit_dist(0, static_cast<int>(available_bits.size()) - 1);
+      int dur_lo = std::min(alm.duration_min, alm.duration_max);
+      int dur_hi = std::max(alm.duration_min, alm.duration_max);
+      if (dur_lo == dur_hi) ++dur_hi;
+      std::uniform_int_distribution<int> dur_dist(dur_lo, dur_hi);
+      for (int i = 0; i < alm.frequency; ++i) {
+        int bit    = available_bits[bit_dist(rng_)];
+        int expire = total_ticks_ + dur_dist(rng_) * 600;
+        data_.alarm_fc |= (static_cast<uint32_t>(1) << bit);
+        alarm_entries_.push_back({bit, expire});
+      }
+    }
+  }
+}
+
 void Robot::ReportThreadFunc() {
+  // 初始化浮点电量
+  battery_level_f_ = static_cast<float>(data_.battery_level);
   // 实时计算错峰偏移：索引 × 间隔 / 总数（在线程启动时从 MqttManager 获取总数）
   int total_robots = 1;
   if (auto mgr = mqtt_manager_.lock()) {
@@ -1181,6 +1308,9 @@ void Robot::ReportThreadFunc() {
     ++motor_params_ticks;
     ++lora_clean_ticks;
     ++position_tick_;
+
+    // 模拟数据更新（每 tick）
+    UpdateSimulatedData();
 
     // 位置更新：前进/后退时每秒扫描 1 个单位
     if (position_tick_ >= 10) {
@@ -2518,6 +2648,50 @@ std::string Robot::SerializeDataSnapshot() const {
   d["startup_confirm_id"]        = data_.startup_confirm_id;
   d["e8_alarm"]                  = data_.e8_alarm;
 
+  // 数据模拟配置
+  const auto& sc = data_.sim_config;
+  d["sim_config"] = {
+    {"enabled",              sc.enabled},
+    {"main_current_random",   sc.main_current_random},
+    {"main_current_min",      sc.main_current_min},
+    {"main_current_max",      sc.main_current_max},
+    {"main_current_fixed",    sc.main_current_fixed},
+    {"slave_current_random",  sc.slave_current_random},
+    {"slave_current_min",     sc.slave_current_min},
+    {"slave_current_max",     sc.slave_current_max},
+    {"slave_current_fixed",   sc.slave_current_fixed},
+    {"solar_voltage_random",  sc.solar_voltage_random},
+    {"solar_voltage_min",     sc.solar_voltage_min},
+    {"solar_voltage_max",     sc.solar_voltage_max},
+    {"solar_voltage_fixed",   sc.solar_voltage_fixed},
+    {"solar_current_random",  sc.solar_current_random},
+    {"solar_current_min",     sc.solar_current_min},
+    {"solar_current_max",     sc.solar_current_max},
+    {"solar_current_fixed",   sc.solar_current_fixed},
+    {"board_temp_random",     sc.board_temp_random},
+    {"board_temp_min",        sc.board_temp_min},
+    {"board_temp_max",        sc.board_temp_max},
+    {"board_temp_fixed",      sc.board_temp_fixed},
+    {"battery_voltage_random",sc.battery_voltage_random},
+    {"battery_voltage_min",   sc.battery_voltage_min},
+    {"battery_voltage_max",   sc.battery_voltage_max},
+    {"battery_voltage_fixed", sc.battery_voltage_fixed},
+    {"battery_discharge_run", sc.battery_discharge_run},
+    {"battery_discharge_stop",sc.battery_discharge_stop},
+    {"battery_charge_rate",   sc.battery_charge_rate},
+    {"battery_temp_random",   sc.battery_temp_random},
+    {"battery_temp_min",      sc.battery_temp_min},
+    {"battery_temp_max",      sc.battery_temp_max},
+    {"battery_temp_fixed",    sc.battery_temp_fixed},
+    {"alarm_sim", {
+      {"enabled",       sc.alarm_sim.enabled},
+      {"duration_min",  sc.alarm_sim.duration_min},
+      {"duration_max",  sc.alarm_sim.duration_max},
+      {"frequency",     sc.alarm_sim.frequency},
+      {"fc_bits_mask",  sc.alarm_sim.fc_bits_mask}
+    }}
+  };
+
   return d.dump();
 }
 
@@ -2676,6 +2850,52 @@ bool Robot::LoadDataSnapshot(const std::string& data_json) {
     data_.e7_alarm                  = d.value("e7_alarm",                  data_.e7_alarm);
     data_.startup_confirm_id        = d.value("startup_confirm_id",        data_.startup_confirm_id);
     data_.e8_alarm                  = d.value("e8_alarm",                  data_.e8_alarm);
+
+    if (d.contains("sim_config") && d["sim_config"].is_object()) {
+      const auto& sc = d["sim_config"];
+      auto& s = data_.sim_config;
+      s.enabled                = sc.value("enabled",                s.enabled);
+      s.main_current_random    = sc.value("main_current_random",    s.main_current_random);
+      s.main_current_min       = sc.value("main_current_min",       s.main_current_min);
+      s.main_current_max       = sc.value("main_current_max",       s.main_current_max);
+      s.main_current_fixed     = sc.value("main_current_fixed",     s.main_current_fixed);
+      s.slave_current_random   = sc.value("slave_current_random",   s.slave_current_random);
+      s.slave_current_min      = sc.value("slave_current_min",      s.slave_current_min);
+      s.slave_current_max      = sc.value("slave_current_max",      s.slave_current_max);
+      s.slave_current_fixed    = sc.value("slave_current_fixed",    s.slave_current_fixed);
+      s.solar_voltage_random   = sc.value("solar_voltage_random",   s.solar_voltage_random);
+      s.solar_voltage_min      = sc.value("solar_voltage_min",      s.solar_voltage_min);
+      s.solar_voltage_max      = sc.value("solar_voltage_max",      s.solar_voltage_max);
+      s.solar_voltage_fixed    = sc.value("solar_voltage_fixed",    s.solar_voltage_fixed);
+      s.solar_current_random   = sc.value("solar_current_random",   s.solar_current_random);
+      s.solar_current_min      = sc.value("solar_current_min",      s.solar_current_min);
+      s.solar_current_max      = sc.value("solar_current_max",      s.solar_current_max);
+      s.solar_current_fixed    = sc.value("solar_current_fixed",    s.solar_current_fixed);
+      s.board_temp_random      = sc.value("board_temp_random",      s.board_temp_random);
+      s.board_temp_min         = sc.value("board_temp_min",         s.board_temp_min);
+      s.board_temp_max         = sc.value("board_temp_max",         s.board_temp_max);
+      s.board_temp_fixed       = sc.value("board_temp_fixed",       s.board_temp_fixed);
+      s.battery_voltage_random = sc.value("battery_voltage_random", s.battery_voltage_random);
+      s.battery_voltage_min    = sc.value("battery_voltage_min",    s.battery_voltage_min);
+      s.battery_voltage_max    = sc.value("battery_voltage_max",    s.battery_voltage_max);
+      s.battery_voltage_fixed  = sc.value("battery_voltage_fixed",  s.battery_voltage_fixed);
+      s.battery_discharge_run  = sc.value("battery_discharge_run",  s.battery_discharge_run);
+      s.battery_discharge_stop = sc.value("battery_discharge_stop", s.battery_discharge_stop);
+      s.battery_charge_rate    = sc.value("battery_charge_rate",    s.battery_charge_rate);
+      s.battery_temp_random    = sc.value("battery_temp_random",    s.battery_temp_random);
+      s.battery_temp_min       = sc.value("battery_temp_min",       s.battery_temp_min);
+      s.battery_temp_max       = sc.value("battery_temp_max",       s.battery_temp_max);
+      s.battery_temp_fixed     = sc.value("battery_temp_fixed",     s.battery_temp_fixed);
+      if (sc.contains("alarm_sim") && sc["alarm_sim"].is_object()) {
+        const auto& aj = sc["alarm_sim"];
+        auto& a = s.alarm_sim;
+        a.enabled      = aj.value("enabled",      a.enabled);
+        a.duration_min = aj.value("duration_min", a.duration_min);
+        a.duration_max = aj.value("duration_max", a.duration_max);
+        a.frequency    = aj.value("frequency",    a.frequency);
+        a.fc_bits_mask = aj.value("fc_bits_mask", a.fc_bits_mask);
+      }
+    }
 
     return true;
   } catch (const std::exception& e) {

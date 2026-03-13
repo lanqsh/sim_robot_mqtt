@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 #include <thread>
@@ -187,6 +188,70 @@ enum class AlarmFD : uint32_t {
   kPowerLossWarning = 1 << 4            // 设备掉电预警
 };
 
+// 告警模拟配置
+struct AlarmSimConfig {
+  bool     enabled      = false;  // 是否启用随机告警模拟
+  int      duration_min = 5;     // 告警持续时长最小值（分钟）
+  int      duration_max = 10;    // 告警持续时长最大值（分钟）
+  int      frequency    = 2;     // 每10分钟产生的告警数量
+  uint32_t fc_bits_mask = 0;     // 可触发的FC告警位掩码
+};
+
+// 数据模拟配置
+struct SimConfig {
+  bool enabled = false;  // 是否启用数据模拟（关闭时 UpdateSimulatedData 不覆盖数据）
+
+  // 主电机电流(A) - 运行时有效（前进/后退）
+  bool  main_current_random = true;
+  float main_current_min    = 2.4f;
+  float main_current_max    = 3.6f;
+  float main_current_fixed  = 3.0f;
+
+  // 从电机电流(A) - 运行时有效
+  bool  slave_current_random = true;
+  float slave_current_min    = 0.4f;
+  float slave_current_max    = 0.5f;
+  float slave_current_fixed  = 0.5f;
+
+  // 光伏板输出电压(V) - 停靠时有效（position==0 且停止）
+  bool  solar_voltage_random = true;
+  float solar_voltage_min    = 27.9f;
+  float solar_voltage_max    = 30.0f;
+  float solar_voltage_fixed  = 29.0f;
+
+  // 光伏板输出电流(A) - 停靠时有效
+  bool  solar_current_random = true;
+  float solar_current_min    = 4.3f;
+  float solar_current_max    = 4.5f;
+  float solar_current_fixed  = 4.4f;
+
+  // 主板温度(°C) - 始终有效
+  bool  board_temp_random = true;
+  float board_temp_min    = 10.0f;
+  float board_temp_max    = 20.0f;
+  float board_temp_fixed  = 15.0f;
+
+  // 电池电压(V) - 始终有效
+  bool  battery_voltage_random = true;
+  float battery_voltage_min    = 27.0f;
+  float battery_voltage_max    = 30.0f;
+  float battery_voltage_fixed  = 29.0f;
+
+  // 电池电量变化率(每分钟%)
+  float battery_discharge_run  = 1.0f;   // 运行时放电速率
+  float battery_discharge_stop = 0.1f;   // 停止时放电速率
+  float battery_charge_rate    = 1.0f;   // 停靠充电速率
+
+  // 电池温度(°C) - 始终有效
+  bool  battery_temp_random = true;
+  float battery_temp_min    = 10.0f;
+  float battery_temp_max    = 20.0f;
+  float battery_temp_fixed  = 16.0f;
+
+  // 随机告警模拟
+  AlarmSimConfig alarm_sim{};
+};
+
 // 机器人数据结构
 struct RobotData {
   struct RequestReply {
@@ -299,6 +364,9 @@ struct RobotData {
 
   // F0/F1/F2: 请求回复公共数据
   RequestReply request_reply{};
+
+  // 数据模拟配置
+  SimConfig sim_config{};
 };
 
 // 前向声明
@@ -469,6 +537,18 @@ class Robot {
 
   std::atomic<int> move_direction_{0};    // 运动方向：1=前进, -1=后退, 0=停止
   int position_tick_{0};                   // 位置更新计时器（每10 tick=1s更新一次）
+  int battery_level_tick_{0};              // 电量计时器（每600 tick=1分钟更新一次）
+  float battery_level_f_{100.0f};          // 浮点电量（用于精确计算放电/充电）
+  std::mt19937 rng_{std::random_device{}()};  // 随机数生成器
+
+  // 告警模拟
+  int alarm_sim_tick_{0};                  // 告警计时器（每6000 tick=10分钟触发）
+  int total_ticks_{0};                     // 累计tick数（用于告警到期判断）
+  struct AlarmEntry { int bit; int expire_tick; };
+  std::vector<AlarmEntry> alarm_entries_;  // 当前活跃的模拟告警
+
+  // 更新模拟数据（每 tick 调用）
+  void UpdateSimulatedData();
 
   // 请求回复跟踪状态（F0/F1/F2）
   void MarkRequestReplyReceived();

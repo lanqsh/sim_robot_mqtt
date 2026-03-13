@@ -878,5 +878,206 @@
     </div>
 
     <script type="module" src="../js/app.js"></script>
+
+    <!-- 数据模拟配置模态框 -->
+    <div id="simConfigModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:780px; width:96%; max-height:90vh; overflow-y:auto;">
+            <div class="modal-header">
+                <h2>数据模拟配置</h2>
+                <span class="close-btn" onclick="closeSimConfigModal()">&times;</span>
+            </div>
+            <div style="padding:8px 20px 4px; font-size:13px; color:#666; display:flex; align-items:center; justify-content:space-between;">
+                <span>机器人 ID：<strong id="simConfigModalRobotId"></strong></span>
+                <label style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; cursor:pointer; color:#2980b9;">
+                    <input type="checkbox" id="simEnabled" style="width:16px; height:16px;">
+                    启用数据模拟
+                </label>
+            </div>
+            <!-- Tab 导航 -->
+            <div style="display:flex; gap:0; border-bottom:2px solid #e0e0e0; padding:0 20px;">
+                <button class="sim-tab-btn active" data-tab="motorData"
+                    onclick="switchSimTab('motorData')"
+                    style="padding:8px 20px; border:none; background:none; cursor:pointer; font-size:14px; font-weight:600; margin-bottom:-2px;">
+                    电机数据
+                </button>
+                <button class="sim-tab-btn" data-tab="alarmSim"
+                    onclick="switchSimTab('alarmSim')"
+                    style="padding:8px 20px; border:none; background:none; cursor:pointer; font-size:14px; margin-bottom:-2px;">
+                    告警模拟
+                </button>
+            </div>
+
+            <!-- 电机数据 Tab -->
+            <div class="sim-tab-panel" data-tab="motorData" style="padding:16px 20px;">
+                <!-- 电气数据 -->
+                <div style="margin-bottom:16px;">
+                    <div style="font-weight:700; font-size:14px; color:#333; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #e8e8e8;">
+                        电气数据
+                    </div>
+                    <!-- 主电机电流 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">主电机电流(A) - 运行时</label>
+                        <label style="font-size:13px;"><input type="radio" name="mainCurrentMode" value="random" checked> 随机值</label>
+                        <label style="font-size:13px;">最小</label>
+                        <input type="number" id="mainCurrentMin" value="2.4" step="0.1" style="width:60px;">
+                        <label style="font-size:13px;">最大</label>
+                        <input type="number" id="mainCurrentMax" value="3.6" step="0.1" style="width:60px;">
+                        <label style="font-size:13px; margin-left:10px;"><input type="radio" name="mainCurrentMode" value="fixed"> 固定值</label>
+                        <input type="number" id="mainCurrentFixed" value="3.0" step="0.1" style="width:60px;">
+                    </div>
+                    <!-- 从电机电流 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">从电机电流(A) - 运行时</label>
+                        <label style="font-size:13px;"><input type="radio" name="slaveCurrentMode" value="random" checked> 随机值</label>
+                        <label style="font-size:13px;">最小</label>
+                        <input type="number" id="slaveCurrentMin" value="0.4" step="0.1" style="width:60px;">
+                        <label style="font-size:13px;">最大</label>
+                        <input type="number" id="slaveCurrentMax" value="0.5" step="0.1" style="width:60px;">
+                        <label style="font-size:13px; margin-left:10px;"><input type="radio" name="slaveCurrentMode" value="fixed"> 固定值</label>
+                        <input type="number" id="slaveCurrentFixed" value="0.5" step="0.1" style="width:60px;">
+                    </div>
+                    <!-- 光伏电压 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">光伏板输出电压(V) - 停靠</label>
+                        <label style="font-size:13px;"><input type="radio" name="solarVoltageMode" value="random" checked> 随机值</label>
+                        <label style="font-size:13px;">最小</label>
+                        <input type="number" id="solarVoltageMin" value="27.9" step="0.1" style="width:60px;">
+                        <label style="font-size:13px;">最大</label>
+                        <input type="number" id="solarVoltageMax" value="30.0" step="0.1" style="width:60px;">
+                        <label style="font-size:13px; margin-left:10px;"><input type="radio" name="solarVoltageMode" value="fixed"> 固定值</label>
+                        <input type="number" id="solarVoltageFixed" value="29.0" step="0.1" style="width:60px;">
+                    </div>
+                    <!-- 光伏电流 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">光伏板输出电流(A) - 停靠</label>
+                        <label style="font-size:13px;"><input type="radio" name="solarCurrentMode" value="random" checked> 随机值</label>
+                        <label style="font-size:13px;">最小</label>
+                        <input type="number" id="solarCurrentMin" value="4.3" step="0.1" style="width:60px;">
+                        <label style="font-size:13px;">最大</label>
+                        <input type="number" id="solarCurrentMax" value="4.5" step="0.1" style="width:60px;">
+                        <label style="font-size:13px; margin-left:10px;"><input type="radio" name="solarCurrentMode" value="fixed"> 固定值</label>
+                        <input type="number" id="solarCurrentFixed" value="4.4" step="0.1" style="width:60px;">
+                    </div>
+                    <!-- 主板温度 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">主板温度(°C)</label>
+                        <label style="font-size:13px;"><input type="radio" name="boardTempMode" value="random" checked> 随机值</label>
+                        <label style="font-size:13px;">最小</label>
+                        <input type="number" id="boardTempMin" value="10" step="1" style="width:60px;">
+                        <label style="font-size:13px;">最大</label>
+                        <input type="number" id="boardTempMax" value="20" step="1" style="width:60px;">
+                        <label style="font-size:13px; margin-left:10px;"><input type="radio" name="boardTempMode" value="fixed"> 固定值</label>
+                        <input type="number" id="boardTempFixed" value="15" step="1" style="width:60px;">
+                    </div>
+                </div>
+
+                <!-- 电池数据 -->
+                <div>
+                    <div style="font-weight:700; font-size:14px; color:#333; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #e8e8e8;">
+                        电池数据
+                    </div>
+                    <!-- 电池电压 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">电池电压(V)</label>
+                        <label style="font-size:13px;"><input type="radio" name="batteryVoltageMode" value="random" checked> 随机值</label>
+                        <label style="font-size:13px;">最小</label>
+                        <input type="number" id="batteryVoltageMin" value="27.0" step="0.1" style="width:60px;">
+                        <label style="font-size:13px;">最大</label>
+                        <input type="number" id="batteryVoltageMax" value="30.0" step="0.1" style="width:60px;">
+                        <label style="font-size:13px; margin-left:10px;"><input type="radio" name="batteryVoltageMode" value="fixed"> 固定值</label>
+                        <input type="number" id="batteryVoltageFixed" value="29.0" step="0.1" style="width:60px;">
+                    </div>
+                    <!-- 电池电流（说明） -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">电池电流(A)</label>
+                        <span style="font-size:13px; color:#888;">按主电机电流 + 从电机电流模拟</span>
+                    </div>
+                    <!-- 电池电量 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">电池电量(%)</label>
+                        <label style="font-size:13px;">放电(每分钟减少)&nbsp;运行时</label>
+                        <input type="number" id="batteryDischargeRun" value="1.0" step="0.1" style="width:60px;" min="0">
+                        <label style="font-size:13px;">停止时</label>
+                        <input type="number" id="batteryDischargeStop" value="0.1" step="0.1" style="width:60px;" min="0">
+                        <label style="font-size:13px; margin-left:10px;">充电(每分钟增加)</label>
+                        <input type="number" id="batteryChargeRate" value="1.0" step="0.1" style="width:60px;" min="0">
+                    </div>
+                    <!-- 电池温度 -->
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                        <label style="width:170px; font-size:13px; color:#555; flex-shrink:0;">电池温度(°C)</label>
+                        <label style="font-size:13px;"><input type="radio" name="batteryTempMode" value="random" checked> 随机值</label>
+                        <label style="font-size:13px;">最小</label>
+                        <input type="number" id="batteryTempMin" value="10" step="1" style="width:60px;">
+                        <label style="font-size:13px;">最大</label>
+                        <input type="number" id="batteryTempMax" value="20" step="1" style="width:60px;">
+                        <label style="font-size:13px; margin-left:10px;"><input type="radio" name="batteryTempMode" value="fixed"> 固定值</label>
+                        <input type="number" id="batteryTempFixed" value="16" step="1" style="width:60px;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 告警模拟 Tab -->
+            <div class="sim-tab-panel" data-tab="alarmSim" style="padding:16px 20px; display:none;">
+                <div style="background:#e8f4fd; border:1px solid #b3d9f7; border-radius:6px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:#1a6a9a; line-height:1.6;">
+                    <strong>随机告警模拟说明：</strong>按频率每10分钟产生N个告警，机器人随机，告警点位根据配置的点位随机一个，告警在产生后在配置的时长后自动恢复。
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <label style="font-weight:600; font-size:14px;">
+                        <input type="checkbox" id="alarmSimEnabled" style="margin-right:4px;"> 启用
+                    </label>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <label style="width:160px; font-size:13px; color:#555; flex-shrink:0;">告警持续时长(分钟)</label>
+                    <input type="number" id="alarmDurationMin" value="5" min="1" style="width:60px;">
+                    <span style="color:#888;">-</span>
+                    <input type="number" id="alarmDurationMax" value="10" min="1" style="width:60px;">
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+                    <label style="width:160px; font-size:13px; color:#555; flex-shrink:0;">告警产生频率(个/10分钟)</label>
+                    <input type="number" id="alarmFrequency" value="2" min="1" style="width:60px;">
+                </div>
+                <div style="font-size:13px; color:#333; font-weight:600; margin-bottom:8px;">模拟告警点位</div>
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px 10px; font-size:12px;">
+                    <label><input type="checkbox" id="fcBit0"> 充放电控制器通信故障(bit0)</label>
+                    <label><input type="checkbox" id="fcBit1"> 电池包通信故障(bit1)</label>
+                    <label><input type="checkbox" id="fcBit2"> 存储模块通信故障(bit2)</label>
+                    <label><input type="checkbox" id="fcBit3"> 保护电量预警(bit3)</label>
+                    <label><input type="checkbox" id="fcBit4"> 温湿度传感器通信故障(bit4)</label>
+                    <label><input type="checkbox" id="fcBit5"> 电池电压保护(bit5)</label>
+                    <label><input type="checkbox" id="fcBit6"> 电池温度保护(bit6)</label>
+                    <label><input type="checkbox" id="fcBit7"> 电池电流保护(bit7)</label>
+                    <label><input type="checkbox" id="fcBit8"> 低电量保护(bit8)</label>
+                    <label><input type="checkbox" id="fcBit9"> 主电机上限故障(bit9)</label>
+                    <label><input type="checkbox" id="fcBit10"> 从电机上限故障(bit10)</label>
+                    <label><input type="checkbox" id="fcBit11"> 远近端无信号(bit11)</label>
+                    <label><input type="checkbox" id="fcBit12"> 自动运行超时(bit12)</label>
+                    <label><input type="checkbox" id="fcBit13"> Lora通信故障(bit13)</label>
+                    <label><input type="checkbox" id="fcBit14"> 大风保护(bit14)</label>
+                    <label><input type="checkbox" id="fcBit15"> 湿度保护(bit15)</label>
+                    <label><input type="checkbox" id="fcBit16"> 电池放电欠压(bit16)</label>
+                    <label><input type="checkbox" id="fcBit17"> 电池放电温度故障(bit17)</label>
+                    <label><input type="checkbox" id="fcBit18"> 电池放电过流(bit18)</label>
+                    <label><input type="checkbox" id="fcBit19"> 电池放电短路(bit19)</label>
+                    <label><input type="checkbox" id="fcBit20"> 电池充电过压(bit20)</label>
+                    <label><input type="checkbox" id="fcBit21"> 电池充电过温(bit21)</label>
+                    <label><input type="checkbox" id="fcBit22"> 电池超低压或者断线(bit22)</label>
+                    <label><input type="checkbox" id="fcBit23"> 电池寿命到期(bit23)</label>
+                    <label><input type="checkbox" id="fcBit24"> 角度传感器故障(bit24)</label>
+                    <label><input type="checkbox" id="fcBit25"> 二次运行超时(bit25)</label>
+                    <label><input type="checkbox" id="fcBit26"> 支架保护(bit26)</label>
+                    <label><input type="checkbox" id="fcBit27"> 环境温度故障(bit27)</label>
+                    <label><input type="checkbox" id="fcBit28"> 主板温度故障(bit28)</label>
+                    <label><input type="checkbox" id="fcBit29"> 保留(bit29)</label>
+                    <label><input type="checkbox" id="fcBit30"> 保留(bit30)</label>
+                    <label><input type="checkbox" id="fcBit31"> 保留(bit31)</label>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end; gap:10px; position:sticky; bottom:0; background:#fff; z-index:10;">
+                <button class="btn btn-secondary" onclick="closeSimConfigModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveSimConfig()">保存</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

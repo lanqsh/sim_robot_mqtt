@@ -23,6 +23,8 @@ tags:
     description: 上报数据读写（E0/E1/E4/E6/E7/E8）
   - name: System
     description: 系统全局配置
+  - name: Simulation
+    description: 数据模拟配置
 paths:
   /api/v1/robots/get:
     get:
@@ -67,7 +69,7 @@ paths:
           description: 按启用状态精确过滤，`true` 或 `1` 表示启用，`false` 或 `0` 表示禁用，与 robot_name/robot_id 三选一
           schema:
             type: string
-            enum: [true, false, "1", "0"]
+            enum: ["true", "false", "1", "0"]
           example: "true"
       responses:
         '200':
@@ -235,7 +237,7 @@ paths:
 
   /api/v1/robots/data:
     get:
-      tags: [Robots]
+      tags: [Commands]
       summary: 获取机器人详细数据
       description: |
         优先从 MQTT 管理器（在线机器人）读取实时数据。
@@ -276,6 +278,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/runtime_data:
+    get:
+      tags: [Commands]
+      summary: 获取机器人运行数据快照（E4字段）
+      description: |
+        返回指定机器人当前内存中的E4字段值（告警、电流、电池、光伏、温度等）。
+        当数据模拟未启用（`sim_config.enabled=false`）时，GET 返回的就是 POST 设置的原始值。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeDataResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Commands]
+      summary: 设置机器人运行数据（E4字段）
+      description: |
+        直接写入机器人内存并持久化到数据库快照，不触发MQTT指令。所有字段均可选，空字段保持原値不变。
+        建议在设置前先通过 `POST /api/v1/robots/sim_config/motor` 将 `enabled` 设为 false，避免模拟逻辑覆盖手动写入的值。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeDataRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -329,6 +379,28 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/motor_params:
+    get:
+      tags: [Commands]
+      summary: 获取电机参数
+      description: 读取指定机器人当前缓存的电机参数配置（14个字段）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MotorParamsRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
       tags: [Commands]
       summary: 发送电机参数设置请求
@@ -358,6 +430,28 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/battery_params:
+    get:
+      tags: [Commands]
+      summary: 获取电池参数
+      description: 读取指定机器人当前缓存的电池（温压）保护参数配置（10个字段）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BatteryParamsRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
       tags: [Commands]
       summary: 发送电池参数设置请求
@@ -387,6 +481,30 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/schedule_params:
+    get:
+      tags: [Commands]
+      summary: 获取定时任务参数
+      description: 读取指定机器人当前缓存的7路定时任务配置，返回 `tasks` 数组（长度固定为7）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                  - type: object
+                    properties:
+                      tasks:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ScheduleTaskItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
       tags: [Commands]
       summary: 发送定时设置请求
@@ -416,6 +534,23 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/parking_position:
+    get:
+      tags: [Commands]
+      summary: 获取停机位
+      description: 读取指定机器人当前缓存的停机位配置（0～255）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingPositionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
       tags: [Commands]
       summary: 发送停机位设置请求
@@ -445,6 +580,25 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/lora_params:
+    get:
+      tags: [Commands]
+      summary: 获取Lora参数
+      description: 读取指定机器人当前缓存的 Lora 通信参数（power、frequency、rate）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                  - $ref: '#/components/schemas/LoraParamsRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
       tags: [Commands]
       summary: 设置Lora参数
@@ -474,6 +628,23 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/daytime_scan_protect:
+    get:
+      tags: [Commands]
+      summary: 获取白天防误扫开关状态
+      description: 读取指定机器人当前缓存的白天防误扫开关状态（true=开启，false=关闭）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaytimeScanProtectResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
       tags: [Commands]
       summary: 设置白天防误扫功能开关
@@ -713,6 +884,101 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/sim_config/motor:
+    get:
+      tags: [Simulation]
+      summary: 获取电机模拟配置
+      description: 读取指定机器人的电机/传感器数据模拟参数（电流、电压、温度、电池等）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotorSimResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Simulation]
+      summary: 保存电机模拟配置
+      description: |
+        保存指定机器人的电机/传感器模拟参数，所有字段均为可选，只传需要修改的字段。
+        - **enabled**：总开关，关闭时 UpdateSimulatedData 不覆盖运行数据
+        - **电机电流**：机器人前进/后退运行时生效，停止时置0
+        - **光伏电压/电流**：机器人停靠位（position=0）时生效，运行时置0
+        - **电池电量变化**：运行时按 discharge_run 放电，停靠位时按 charge_rate 充电，停止非停靠位时按 discharge_stop 放电
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MotorSimRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/sim_config/alarm:
+    get:
+      tags: [Simulation]
+      summary: 获取告警模拟配置
+      description: 读取指定机器人的随机告警模拟参数。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlarmSimResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Simulation]
+      summary: 保存告警模拟配置
+      description: |
+        保存指定机器人的随机告警模拟参数，所有字段均为可选，只传需要修改的字段。
+        每10分钟从 fc_bits_mask 中随机选取位触发 FC 告警，持续 duration_min~duration_max 分钟后自动清除。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmSimRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -2786,4 +3052,512 @@ components:
           example: 4
         patch:
           type: integer
+          example: 0
+
+    AlarmSimConfig:
+      type: object
+      description: 告警模拟配置
+      properties:
+        enabled:
+          type: boolean
+          description: 是否启用随机告警模拟
+          example: false
+        duration_min:
+          type: integer
+          description: 告警最短持续时长（分钟）
+          example: 5
+        duration_max:
+          type: integer
+          description: 告警最长持续时长（分钟）
+          example: 10
+        frequency:
+          type: integer
+          description: 每10分钟产生的告警数量
+          example: 2
+        fc_bits_mask:
+          type: integer
+          description: 可触发的FC告警位掩码（uint32，最多32位）
+          example: 0
+
+    MotorSimObject:
+      type: object
+      description: 电机/传感器数据模拟配置
+      properties:
+        enabled:
+          type: boolean
+          description: 是否启用数据模拟（关闭时不覆盖运行数据）
+          example: false
+        main_current_random:
+          type: boolean
+          description: 主电机电流是否随机（运行时有效）
+          example: true
+        main_current_min:
+          type: number
+          format: float
+          description: 主电机电流最小值（A，random=true时有效）
+          example: 0.5
+        main_current_max:
+          type: number
+          format: float
+          description: 主电机电流最大值（A，random=true时有效）
+          example: 2.0
+        main_current_fixed:
+          type: number
+          format: float
+          description: 主电机电流固定值（A，random=false时有效）
+          example: 1.2
+        slave_current_random:
+          type: boolean
+          description: 从电机电流是否随机（运行时有效）
+          example: true
+        slave_current_min:
+          type: number
+          format: float
+          description: 从电机电流最小值（A）
+          example: 0.3
+        slave_current_max:
+          type: number
+          format: float
+          description: 从电机电流最大值（A）
+          example: 1.5
+        slave_current_fixed:
+          type: number
+          format: float
+          description: 从电机电流固定值（A）
+          example: 0.8
+        solar_voltage_random:
+          type: boolean
+          description: 光伏电压是否随机（停靠位时有效）
+          example: true
+        solar_voltage_min:
+          type: number
+          format: float
+          description: 光伏电压最小值（V）
+          example: 38.0
+        solar_voltage_max:
+          type: number
+          format: float
+          description: 光伏电压最大值（V）
+          example: 42.0
+        solar_voltage_fixed:
+          type: number
+          format: float
+          description: 光伏电压固定值（V）
+          example: 40.0
+        solar_current_random:
+          type: boolean
+          description: 光伏电流是否随机（停靠位时有效）
+          example: true
+        solar_current_min:
+          type: number
+          format: float
+          description: 光伏电流最小值（A）
+          example: 0.5
+        solar_current_max:
+          type: number
+          format: float
+          description: 光伏电流最大值（A）
+          example: 3.0
+        solar_current_fixed:
+          type: number
+          format: float
+          description: 光伏电流固定值（A）
+          example: 1.5
+        board_temp_random:
+          type: boolean
+          description: 主板温度是否随机
+          example: true
+        board_temp_min:
+          type: number
+          format: float
+          description: 主板温度最小值（℃）
+          example: 20.0
+        board_temp_max:
+          type: number
+          format: float
+          description: 主板温度最大值（℃）
+          example: 45.0
+        board_temp_fixed:
+          type: number
+          format: float
+          description: 主板温度固定值（℃）
+          example: 30.0
+        battery_voltage_random:
+          type: boolean
+          description: 电池电压是否随机
+          example: false
+        battery_voltage_min:
+          type: number
+          format: float
+          description: 电池电压最小值（V）
+          example: 11.5
+        battery_voltage_max:
+          type: number
+          format: float
+          description: 电池电压最大值（V）
+          example: 14.0
+        battery_voltage_fixed:
+          type: number
+          format: float
+          description: 电池电压固定值（V）
+          example: 12.6
+        battery_discharge_run:
+          type: number
+          format: float
+          description: 运行时电池电量放电速率（%/min）
+          example: 0.5
+        battery_discharge_stop:
+          type: number
+          format: float
+          description: 停止非停靠位时电池电量放电速率（%/min）
+          example: 0.1
+        battery_charge_rate:
+          type: number
+          format: float
+          description: 停靠位时电池电量充电速率（%/min）
+          example: 0.3
+        battery_temp_random:
+          type: boolean
+          description: 电池温度是否随机
+          example: true
+        battery_temp_min:
+          type: number
+          format: float
+          description: 电池温度最小值（℃）
+          example: 15.0
+        battery_temp_max:
+          type: number
+          format: float
+          description: 电池温度最大值（℃）
+          example: 40.0
+        battery_temp_fixed:
+          type: number
+          format: float
+          description: 电池温度固定值（℃）
+          example: 25.0
+
+    MotorSimResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            motor_sim:
+              $ref: '#/components/schemas/MotorSimObject'
+
+    MotorSimRequest:
+      type: object
+      description: 电机模拟配置请求，所有字段均为可选，只传需要修改的字段
+      properties:
+        enabled:
+          type: boolean
+          description: 是否启用数据模拟
+          example: false
+        main_current_random:
+          type: boolean
+          example: true
+        main_current_min:
+          type: number
+          format: float
+          example: 0.5
+        main_current_max:
+          type: number
+          format: float
+          example: 2.0
+        main_current_fixed:
+          type: number
+          format: float
+          example: 1.2
+        slave_current_random:
+          type: boolean
+          example: true
+        slave_current_min:
+          type: number
+          format: float
+          example: 0.3
+        slave_current_max:
+          type: number
+          format: float
+          example: 1.5
+        slave_current_fixed:
+          type: number
+          format: float
+          example: 0.8
+        solar_voltage_random:
+          type: boolean
+          example: true
+        solar_voltage_min:
+          type: number
+          format: float
+          example: 38.0
+        solar_voltage_max:
+          type: number
+          format: float
+          example: 42.0
+        solar_voltage_fixed:
+          type: number
+          format: float
+          example: 40.0
+        solar_current_random:
+          type: boolean
+          example: true
+        solar_current_min:
+          type: number
+          format: float
+          example: 0.5
+        solar_current_max:
+          type: number
+          format: float
+          example: 3.0
+        solar_current_fixed:
+          type: number
+          format: float
+          example: 1.5
+        board_temp_random:
+          type: boolean
+          example: true
+        board_temp_min:
+          type: number
+          format: float
+          example: 20.0
+        board_temp_max:
+          type: number
+          format: float
+          example: 45.0
+        board_temp_fixed:
+          type: number
+          format: float
+          example: 30.0
+        battery_voltage_random:
+          type: boolean
+          example: false
+        battery_voltage_min:
+          type: number
+          format: float
+          example: 11.5
+        battery_voltage_max:
+          type: number
+          format: float
+          example: 14.0
+        battery_voltage_fixed:
+          type: number
+          format: float
+          example: 12.6
+        battery_discharge_run:
+          type: number
+          format: float
+          example: 0.5
+        battery_discharge_stop:
+          type: number
+          format: float
+          example: 0.1
+        battery_charge_rate:
+          type: number
+          format: float
+          example: 0.3
+        battery_temp_random:
+          type: boolean
+          example: true
+        battery_temp_min:
+          type: number
+          format: float
+          example: 15.0
+        battery_temp_max:
+          type: number
+          format: float
+          example: 40.0
+        battery_temp_fixed:
+          type: number
+          format: float
+          example: 25.0
+
+    AlarmSimResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            alarm_sim:
+              $ref: '#/components/schemas/AlarmSimConfig'
+
+    AlarmSimRequest:
+      type: object
+      description: 告警模拟配置请求，所有字段均为可选，只传需要修改的字段
+      properties:
+        enabled:
+          type: boolean
+          description: 是否启用随机告警模拟
+          example: false
+        duration_min:
+          type: integer
+          description: 告警最短持续时长（分钟）
+          example: 5
+        duration_max:
+          type: integer
+          description: 告警最长持续时长（分钟）
+          example: 10
+        frequency:
+          type: integer
+          description: 每10分钟产生的告警数量
+          example: 2
+        fc_bits_mask:
+          type: integer
+          description: 可触发的FC告警位掩码（uint32，最多32位）
+          example: 0
+
+    RuntimeDataResponse:
+      allOf:
+        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              description: E4字段快照
+              properties:
+                main_motor_current:
+                  type: integer
+                  description: 主电机电流（100mA）
+                  example: 23
+                slave_motor_current:
+                  type: integer
+                  description: 从电机电流（100mA）
+                  example: 4
+                battery_voltage:
+                  type: integer
+                  description: 电池电压（100mV）
+                  example: 271
+                battery_current:
+                  type: integer
+                  description: 电池电流（100mA）
+                  example: 32
+                battery_status:
+                  type: integer
+                  description: 电池状态
+                  example: 0
+                battery_level:
+                  type: integer
+                  description: 电池电量（%）
+                  example: 90
+                battery_temperature:
+                  type: integer
+                  description: 电池温度（℃）
+                  example: 15
+                position:
+                  type: integer
+                  description: 位置
+                  example: 25
+                working_duration:
+                  type: integer
+                  description: 工作时长（s）
+                  example: 200
+                solar_voltage:
+                  type: integer
+                  description: 光伏电压（100mV）
+                  example: 273
+                solar_current:
+                  type: integer
+                  description: 光伏电流（100mA）
+                  example: 43
+                total_run_count:
+                  type: integer
+                  description: 累计运行次数
+                  example: 10
+                current_lap_count:
+                  type: integer
+                  description: 当前运行圈数
+                  example: 10
+                board_temperature:
+                  type: integer
+                  description: 主板温度（℃）
+                  example: 100
+                alarm_fa:
+                  type: integer
+                  description: FA告警
+                  example: 0
+                alarm_fb:
+                  type: integer
+                  description: FB告警
+                  example: 0
+                alarm_fc:
+                  type: integer
+                  description: FC告警
+                  example: 0
+                alarm_fd:
+                  type: integer
+                  description: FD告警
+                  example: 0
+
+    RuntimeDataRequest:
+      type: object
+      description: E4字段设置，所有字段均可选，空字段保持原值
+      properties:
+        main_motor_current:
+          type: integer
+          description: 主电机电流（100mA）
+          example: 23
+        slave_motor_current:
+          type: integer
+          description: 从电机电流（100mA）
+          example: 4
+        battery_voltage:
+          type: integer
+          description: 电池电压（100mV）
+          example: 271
+        battery_current:
+          type: integer
+          description: 电池电流（100mA）
+          example: 32
+        battery_status:
+          type: integer
+          description: 电池状态
+          example: 0
+        battery_level:
+          type: integer
+          description: 电池电量（%）
+          example: 90
+        battery_temperature:
+          type: integer
+          description: 电池温度（℃）
+          example: 15
+        position:
+          type: integer
+          description: 位置
+          example: 25
+        working_duration:
+          type: integer
+          description: 工作时长（s）
+          example: 200
+        solar_voltage:
+          type: integer
+          description: 光伏电压（100mV）
+          example: 273
+        solar_current:
+          type: integer
+          description: 光伏电流（100mA）
+          example: 43
+        total_run_count:
+          type: integer
+          description: 累计运行次数
+          example: 10
+        current_lap_count:
+          type: integer
+          description: 当前运行圈数
+          example: 10
+        board_temperature:
+          type: integer
+          description: 主板温度（℃）
+          example: 100
+        alarm_fa:
+          type: integer
+          description: FA告警
+          example: 0
+        alarm_fb:
+          type: integer
+          description: FB告警
+          example: 0
+        alarm_fc:
+          type: integer
+          description: FC告警
+          example: 0
+        alarm_fd:
+          type: integer
+          description: FD告警
           example: 0
