@@ -1516,8 +1516,8 @@ const _simSetRadio = (name, isRandom) => {
     });
 };
 
-async function _loadMotorSimData(robotId) {
-    const result = await api.getMotorSimConfig(robotId);
+async function _loadMotorSimData() {
+    const result = await api.getMotorSimConfig();
     if (result.success && result.motor_sim) {
         const s = result.motor_sim;
         const simEnabledEl = document.getElementById('simEnabled');
@@ -1556,8 +1556,8 @@ async function _loadMotorSimData(robotId) {
     }
 }
 
-async function _loadAlarmSimData(robotId) {
-    const result = await api.getAlarmSimConfig(robotId);
+async function _loadAlarmSimData() {
+    const result = await api.getAlarmSimConfig();
     if (result.success && result.alarm_sim) {
         const alm = result.alarm_sim;
         const alarmEn = document.getElementById('alarmSimEnabled');
@@ -1572,11 +1572,9 @@ async function _loadAlarmSimData(robotId) {
     }
 }
 
-window.openSimConfigModal = async function(robotId) {
-    _simRobotId = robotId;
+window.openSimConfigModal = async function(/*robotId*/) {
     _simTabLoaded.motorData = false;
     _simTabLoaded.alarmSim = false;
-    document.getElementById('simConfigModalRobotId').textContent = robotId;
     document.getElementById('simConfigModal').style.display = 'flex';
     // 切换到第一个 tab，并触发首次加载
     window.switchSimTab('motorData');
@@ -1584,7 +1582,6 @@ window.openSimConfigModal = async function(robotId) {
 
 window.closeSimConfigModal = function() {
     document.getElementById('simConfigModal').style.display = 'none';
-    _simRobotId = null;
 };
 
 window.switchSimTab = async function(tab) {
@@ -1599,12 +1596,12 @@ window.switchSimTab = async function(tab) {
     document.querySelectorAll('.sim-tab-panel').forEach(panel => {
         panel.style.display = panel.dataset.tab === tab ? 'block' : 'none';
     });
-    if (!_simRobotId || _simTabLoaded[tab]) return;
+    if (_simTabLoaded[tab]) return;
     try {
         if (tab === 'motorData') {
-            await _loadMotorSimData(_simRobotId);
+            await _loadMotorSimData();
         } else if (tab === 'alarmSim') {
-            await _loadAlarmSimData(_simRobotId);
+            await _loadAlarmSimData();
         }
         _simTabLoaded[tab] = true;
     } catch (e) {
@@ -1613,7 +1610,6 @@ window.switchSimTab = async function(tab) {
 };
 
 window.saveSimConfig = async function() {
-    if (!_simRobotId) return;
     const getFloat = (id) => parseFloat(document.getElementById(id)?.value) || 0;
     const getRadio = (name) => {
         const el = document.querySelector(`input[name="${name}"]:checked`);
@@ -1655,7 +1651,7 @@ window.saveSimConfig = async function() {
                 battery_temp_max:       getFloat('batteryTempMax'),
                 battery_temp_fixed:     getFloat('batteryTempFixed'),
             };
-            const result = await api.saveMotorSimConfig(_simRobotId, motorConfig);
+            const result = await api.saveMotorSimConfig(motorConfig);
             if (result.success) {
                 alert('✓ 电机模拟配置已保存');
             } else {
@@ -1672,7 +1668,7 @@ window.saveSimConfig = async function() {
                 const cb = document.getElementById(`fcBit${b}`);
                 alarmData[`fc_bit_${b}`] = !!(cb && cb.checked);
             }
-            const result = await api.saveAlarmSimConfig(_simRobotId, alarmData);
+            const result = await api.saveAlarmSimConfig(alarmData);
             if (result.success) {
                 alert('✓ 告警模拟配置已保存');
             } else {

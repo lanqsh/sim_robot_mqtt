@@ -457,15 +457,15 @@ export async function saveRuntimeData(robotId, params) {
     return await response.json();
 }
 
-// 获取电机模拟配置
-export async function getMotorSimConfig(robotId) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/motor?robot_id=${encodeURIComponent(robotId)}`);
+// 获取电机模拟配置（全局）
+export async function getMotorSimConfig() {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/motor`);
     return await response.json();
 }
 
-// 保存电机模拟配置
-export async function saveMotorSimConfig(robotId, config) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/motor?robot_id=${encodeURIComponent(robotId)}`, {
+// 保存电机模拟配置（全局）
+export async function saveMotorSimConfig(config) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/motor`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -473,15 +473,15 @@ export async function saveMotorSimConfig(robotId, config) {
     return await response.json();
 }
 
-// 获取告警模拟配置
-export async function getAlarmSimConfig(robotId) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/alarm?robot_id=${encodeURIComponent(robotId)}`);
+// 获取告警模拟配置（全局）
+export async function getAlarmSimConfig() {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/alarm`);
     return await response.json();
 }
 
-// 保存告警模拟配置
-export async function saveAlarmSimConfig(robotId, data) {
-    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/alarm?robot_id=${encodeURIComponent(robotId)}`, {
+// 保存告警模拟配置（全局）
+export async function saveAlarmSimConfig(data) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/sim_config/alarm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)

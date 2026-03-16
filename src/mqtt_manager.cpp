@@ -298,6 +298,62 @@ bool MqttManager::Run(int keepalive) {
     return false;
   }
 
+  // 从数据库加载全局数据模拟配置
+  {
+    std::string sc_json = config_db_->LoadGlobalSimConfig();
+    if (!sc_json.empty()) {
+      try {
+        json sc = json::parse(sc_json);
+        SimConfig s;
+        s.enabled                = sc.value("enabled",                s.enabled);
+        s.main_current_random    = sc.value("main_current_random",    s.main_current_random);
+        s.main_current_min       = sc.value("main_current_min",       s.main_current_min);
+        s.main_current_max       = sc.value("main_current_max",       s.main_current_max);
+        s.main_current_fixed     = sc.value("main_current_fixed",     s.main_current_fixed);
+        s.slave_current_random   = sc.value("slave_current_random",   s.slave_current_random);
+        s.slave_current_min      = sc.value("slave_current_min",      s.slave_current_min);
+        s.slave_current_max      = sc.value("slave_current_max",      s.slave_current_max);
+        s.slave_current_fixed    = sc.value("slave_current_fixed",    s.slave_current_fixed);
+        s.solar_voltage_random   = sc.value("solar_voltage_random",   s.solar_voltage_random);
+        s.solar_voltage_min      = sc.value("solar_voltage_min",      s.solar_voltage_min);
+        s.solar_voltage_max      = sc.value("solar_voltage_max",      s.solar_voltage_max);
+        s.solar_voltage_fixed    = sc.value("solar_voltage_fixed",    s.solar_voltage_fixed);
+        s.solar_current_random   = sc.value("solar_current_random",   s.solar_current_random);
+        s.solar_current_min      = sc.value("solar_current_min",      s.solar_current_min);
+        s.solar_current_max      = sc.value("solar_current_max",      s.solar_current_max);
+        s.solar_current_fixed    = sc.value("solar_current_fixed",    s.solar_current_fixed);
+        s.board_temp_random      = sc.value("board_temp_random",      s.board_temp_random);
+        s.board_temp_min         = sc.value("board_temp_min",         s.board_temp_min);
+        s.board_temp_max         = sc.value("board_temp_max",         s.board_temp_max);
+        s.board_temp_fixed       = sc.value("board_temp_fixed",       s.board_temp_fixed);
+        s.battery_voltage_random = sc.value("battery_voltage_random", s.battery_voltage_random);
+        s.battery_voltage_min    = sc.value("battery_voltage_min",    s.battery_voltage_min);
+        s.battery_voltage_max    = sc.value("battery_voltage_max",    s.battery_voltage_max);
+        s.battery_voltage_fixed  = sc.value("battery_voltage_fixed",  s.battery_voltage_fixed);
+        s.battery_discharge_run  = sc.value("battery_discharge_run",  s.battery_discharge_run);
+        s.battery_discharge_stop = sc.value("battery_discharge_stop", s.battery_discharge_stop);
+        s.battery_charge_rate    = sc.value("battery_charge_rate",    s.battery_charge_rate);
+        s.battery_temp_random    = sc.value("battery_temp_random",    s.battery_temp_random);
+        s.battery_temp_min       = sc.value("battery_temp_min",       s.battery_temp_min);
+        s.battery_temp_max       = sc.value("battery_temp_max",       s.battery_temp_max);
+        s.battery_temp_fixed     = sc.value("battery_temp_fixed",     s.battery_temp_fixed);
+        if (sc.contains("alarm_sim") && sc["alarm_sim"].is_object()) {
+          const auto& aj = sc["alarm_sim"];
+          s.alarm_sim.enabled      = aj.value("enabled",      s.alarm_sim.enabled);
+          s.alarm_sim.duration_min = aj.value("duration_min", s.alarm_sim.duration_min);
+          s.alarm_sim.duration_max = aj.value("duration_max", s.alarm_sim.duration_max);
+          s.alarm_sim.frequency    = aj.value("frequency",    s.alarm_sim.frequency);
+          s.alarm_sim.fc_bits_mask = aj.value("fc_bits_mask", s.alarm_sim.fc_bits_mask);
+        }
+        std::lock_guard<std::mutex> lock(sim_config_mutex_);
+        global_sim_config_ = s;
+        LOG(INFO) << "全局数据模拟配置已加载，启用状态: " << (s.enabled ? "是" : "否");
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "加载全局数据模拟配置失败: " << e.what();
+      }
+    }
+  }
+
   // 初始加载机器人并注册
   RefreshRobots();
 
@@ -555,8 +611,17 @@ std::vector<MqttCommMessage> MqttManager::GetRecentMqttMessages(const std::strin
   return result;
 }
 
-void MqttManager::Stop() {
-  if (!running_.load()) return;
+SimConfig MqttManager::GetGlobalSimConfig() const {
+  std::lock_guard<std::mutex> lock(sim_config_mutex_);
+  return global_sim_config_;
+}
+
+void MqttManager::SetGlobalSimConfig(const SimConfig& config) {
+  std::lock_guard<std::mutex> lock(sim_config_mutex_);
+  global_sim_config_ = config;
+}
+
+void MqttManager::Stop() {  if (!running_.load()) return;
   running_.store(false);  // 停止主循环
 
   // 停止发送线程

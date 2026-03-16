@@ -69,6 +69,10 @@ class ConfigDb {
   bool UpdateRobotDataSnapshot(const std::string& robot_id,
                                const std::string& data_json);
   std::string GetRobotDataSnapshot(const std::string& robot_id);
+
+  // 全局数据模拟配置（JSON）
+  bool SaveGlobalSimConfig(const std::string& json);
+  std::string LoadGlobalSimConfig();
 };
 
 #endif  // CONFIG_DB_H_

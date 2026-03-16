@@ -670,3 +670,11 @@ std::string ConfigDb::GetRobotDataSnapshot(const std::string& robot_id) {
   sqlite3_finalize(stmt);
   return snapshot;
 }
+
+bool ConfigDb::SaveGlobalSimConfig(const std::string& json) {
+  return SetValue("global_sim_config", json);
+}
+
+std::string ConfigDb::LoadGlobalSimConfig() {
+  return GetValue("global_sim_config", "");
+}

@@ -364,9 +364,6 @@ struct RobotData {
 
   // F0/F1/F2: 请求回复公共数据
   RequestReply request_reply{};
-
-  // 数据模拟配置
-  SimConfig sim_config{};
 };
 
 // 前向声明
