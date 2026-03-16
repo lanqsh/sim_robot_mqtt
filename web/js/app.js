@@ -411,6 +411,11 @@ window.toggleFirmwareForm = async function() {
     if (wasHidden) await window.loadFirmwareList();
 };
 
+// 数据模拟配置
+window.toggleSimConfigSection = function() {
+    ui.toggleForm('simConfigSectionContent', 'simConfigCollapseIcon');
+};
+
 window.loadFirmwareList = async function() {
     const versionInput = document.getElementById('firmwareVersionInput');
     const listEl       = document.getElementById('firmwareFileList');

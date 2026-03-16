@@ -89,9 +89,8 @@ export function renderRobots(robots) {
                     </button>
                     <button class="btn btn-sm btn-primary" onclick="window.openMqttMessages('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
                         通信记录
-                    </button>                    <button class="btn btn-sm btn-warning" onclick="window.openSimConfigModal('${robot.robot_id}')">
-                        数据模拟
-                    </button>                    <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
                         删除
                     </button>
                 </div>

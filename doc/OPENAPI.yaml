@@ -893,9 +893,7 @@ paths:
     get:
       tags: [Simulation]
       summary: 获取电机模拟配置
-      description: 读取指定机器人的电机/传感器数据模拟参数（电流、电压、温度、电池等）。
-      parameters:
-        - $ref: '#/components/parameters/RobotIdQuery'
+      description: 读取全局电机/传感器数据模拟参数（电流、电压、温度、电池等），对所有机器人生效。
       responses:
         '200':
           description: 成功
@@ -911,13 +909,11 @@ paths:
       tags: [Simulation]
       summary: 保存电机模拟配置
       description: |
-        保存指定机器人的电机/传感器模拟参数，所有字段均为可选，只传需要修改的字段。
+        保存全局电机/传感器模拟参数，对所有机器人生效，所有字段均为可选，只传需要修改的字段。
         - **enabled**：总开关，关闭时 UpdateSimulatedData 不覆盖运行数据
         - **电机电流**：机器人前进/后退运行时生效，停止时置0
         - **光伏电压/电流**：机器人停靠位（position=0）时生效，运行时置0
         - **电池电量变化**：运行时按 discharge_run 放电，停靠位时按 charge_rate 充电，停止非停靠位时按 discharge_stop 放电
-      parameters:
-        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -930,11 +926,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                $ref: '#/components/schemas/BasicSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -942,9 +936,7 @@ paths:
     get:
       tags: [Simulation]
       summary: 获取告警模拟配置
-      description: 读取指定机器人的随机告警模拟参数。
-      parameters:
-        - $ref: '#/components/parameters/RobotIdQuery'
+      description: 读取全局随机告警模拟参数，对所有机器人生效。
       responses:
         '200':
           description: 成功
@@ -960,10 +952,8 @@ paths:
       tags: [Simulation]
       summary: 保存告警模拟配置
       description: |
-        保存指定机器人的随机告警模拟参数，所有字段均为可选，只传需要修改的字段。
+        保存全局随机告警模拟参数，对所有机器人生效，所有字段均为可选，只传需要修改的字段。
         每10分钟从 fc_bits_mask 中随机选取位触发 FC 告警，持续 duration_min~duration_max 分钟后自动清除。
-      parameters:
-        - $ref: '#/components/parameters/RobotIdQuery'
       requestBody:
         required: true
         content:
@@ -976,11 +966,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+                $ref: '#/components/schemas/BasicSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -3362,7 +3350,7 @@ components:
 
     MotorSimResponse:
       allOf:
-        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - $ref: '#/components/schemas/BasicSuccessResponse'
         - type: object
           properties:
             motor_sim:
@@ -3496,7 +3484,7 @@ components:
 
     AlarmSimResponse:
       allOf:
-        - $ref: '#/components/schemas/BasicSuccessWithRobotResponse'
+        - $ref: '#/components/schemas/BasicSuccessResponse'
         - type: object
           properties:
             alarm_sim:
