@@ -3163,7 +3163,18 @@ components:
           type: array
           description: 可用的固件升级文件列表（.bin 文件）
           items:
-            $ref: '#/components/schemas/FirmwareFileItem'
+            type: object
+            required: [filename, size]
+            properties:
+              filename:
+                type: string
+                description: 文件名
+                example: 20250226132000.bin
+              size:
+                type: integer
+                format: int64
+                description: 文件大小（字节）
+                example: 524288
 
     FirmwareListResponse:
       type: object
