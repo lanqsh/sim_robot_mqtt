@@ -311,6 +311,7 @@ void HttpServer::ServerThreadFunc() {
         robot_json["robot_id"] = robot.robot_id;
         robot_json["robot_name"] = robot.robot_name;
         robot_json["serial_number"] = robot.serial_number;
+        robot_json["bracket_count"] = robot.bracket_count;
         robot_json["enabled"] = robot.enabled;
         {
           auto live = mqtt_manager_->GetRobot(robot.robot_id);

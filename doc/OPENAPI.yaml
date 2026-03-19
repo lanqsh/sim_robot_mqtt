@@ -2369,7 +2369,7 @@ components:
 
     RobotItem:
       type: object
-      required: [robot_id, robot_name, serial_number, enabled, software_version, fault_status]
+      required: [robot_id, robot_name, serial_number, bracket_count, enabled, software_version, fault_status]
       properties:
         robot_id:
           type: string
@@ -2380,6 +2380,10 @@ components:
         serial_number:
           type: integer
           example: 101
+        bracket_count:
+          type: integer
+          description: 支架数量
+          example: 3
         enabled:
           type: boolean
           example: true
