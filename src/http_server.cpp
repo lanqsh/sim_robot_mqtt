@@ -476,7 +476,40 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // API: 编辑机器人信息（名称/ID/启用状态）
+  // API: 获取单个机器人信息（用于编辑表单回填）
+  svr.Get("/api/v1/robots/update", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      if (robot_id.empty()) {
+        json error; error["success"] = false; error["error"] = "缺少 robot_id 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      auto all = config_db_->GetAllRobots();
+      for (const auto& r : all) {
+        if (r.robot_id == robot_id) {
+          json response;
+          response["success"]       = true;
+          response["serial_number"] = r.serial_number;
+          response["robot_id"]      = r.robot_id;
+          response["robot_name"]    = r.robot_name;
+          response["bracket_count"] = r.bracket_count;
+          response["enabled"]       = r.enabled;
+          res.set_content(response.dump(), "application/json");
+          return;
+        }
+      }
+
+      json error; error["success"] = false; error["error"] = "机器人不存在";
+      res.status = 404; res.set_content(error.dump(), "application/json");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "获取机器人信息失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // API: 编辑机器人信息（名称/ID/启用状态/支架数量）
   svr.Post("/api/v1/robots/update", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       std::string old_robot_id = req.get_param_value("robot_id");
@@ -486,11 +519,12 @@ void HttpServer::ServerThreadFunc() {
       }
 
       json body = json::parse(req.body);
-      std::string new_robot_id  = body.value("robot_id",    old_robot_id);
-      std::string new_robot_name = body.value("robot_name", "");
-      bool new_enabled           = body.value("enabled",    true);
+      std::string new_robot_id   = body.value("robot_id",      old_robot_id);
+      std::string new_robot_name = body.value("robot_name",    "");
+      bool new_enabled           = body.value("enabled",       true);
+      int  new_bracket_count     = body.contains("bracket_count") ? body["bracket_count"].get<int>() : -1;
 
-      // 如果 robot_id 要改变，检查新 ID 是否干冲
+      // 如果 robot_id 要改变，检查新 ID 是否冲突
       if (new_robot_id != old_robot_id) {
         auto all = config_db_->GetAllRobots();
         for (const auto& r : all) {
@@ -502,7 +536,7 @@ void HttpServer::ServerThreadFunc() {
         }
       }
 
-      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled);
+      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled, new_bracket_count);
       if (!success) {
         json error; error["success"] = false; error["error"] = "数据库更新失败";
         res.status = 500; res.set_content(error.dump(), "application/json"); return;
@@ -510,7 +544,6 @@ void HttpServer::ServerThreadFunc() {
 
       // 同步 MqttManager
       if (new_robot_id != old_robot_id) {
-        // ID 改变：移除旧的，如果启用则添加新的
         mqtt_manager_->RemoveRobot(old_robot_id);
         if (new_enabled) mqtt_manager_->AddRobot(new_robot_id);
       } else if (new_enabled) {
@@ -520,11 +553,12 @@ void HttpServer::ServerThreadFunc() {
       }
 
       json response;
-      response["success"]    = true;
-      response["message"]    = "机器人信息已更新";
-      response["robot_id"]   = new_robot_id;
-      response["robot_name"] = new_robot_name;
-      response["enabled"]    = new_enabled;
+      response["success"]       = true;
+      response["message"]       = "机器人信息已更新";
+      response["robot_id"]      = new_robot_id;
+      response["robot_name"]    = new_robot_name;
+      response["enabled"]       = new_enabled;
+      if (new_bracket_count >= 0) response["bracket_count"] = new_bracket_count;
       res.set_content(response.dump(), "application/json");
       LOG(INFO) << "API: 编辑机器人 - " << old_robot_id << " -> " << new_robot_id;
     } catch (const std::exception& e) {
@@ -788,6 +822,128 @@ void HttpServer::ServerThreadFunc() {
       error["error"] = e.what();
       res.status = 500;
       res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/version?robot_id=xxx
+  // 返回指定机器人当前版本号及可用升级文件列表
+  svr.Get("/api/v1/robots/version", [this](const httplib::Request& req, httplib::Response& res) {
+    namespace fs = std::filesystem;
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      if (robot_id.empty()) {
+        json error; error["success"] = false; error["error"] = "缺少 robot_id 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 获取软件版本：优先从运行中的机器人获取，否则读快照
+      std::string software_version;
+      bool robot_found = false;
+      auto live = mqtt_manager_->GetRobot(robot_id);
+      if (live) {
+        software_version = live->GetData().software_version;
+        robot_found = true;
+      } else {
+        auto all = config_db_->GetAllRobots();
+        for (const auto& r : all) {
+          if (r.robot_id == robot_id) { robot_found = true; break; }
+        }
+        if (robot_found) {
+          std::string snapshot = config_db_->GetRobotDataSnapshot(robot_id);
+          try {
+            if (!snapshot.empty())
+              software_version = json::parse(snapshot).value("software_version", "");
+          } catch (...) {}
+        }
+      }
+
+      if (!robot_found) {
+        json error; error["success"] = false; error["error"] = "机器人不存在";
+        res.status = 404; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 扫描固件目录
+      std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+      json files_arr = json::array();
+      try {
+        if (!fs::exists(firmware_dir)) fs::create_directories(firmware_dir);
+        if (fs::is_directory(firmware_dir)) {
+          for (const auto& entry : fs::directory_iterator(firmware_dir)) {
+            if (!entry.is_regular_file()) continue;
+            if (entry.path().extension().string() != ".bin") continue;
+            json item;
+            item["filename"] = entry.path().filename().string();
+            item["size"]     = static_cast<uint64_t>(entry.file_size());
+            files_arr.push_back(item);
+          }
+        }
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "扫描固件目录失败: " << e.what();
+      }
+
+      json response;
+      response["success"]          = true;
+      response["robot_id"]         = robot_id;
+      response["software_version"] = software_version;
+      response["files"]            = files_arr;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 查询机器人版本 - " << robot_id << " v" << software_version;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "查询机器人版本失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/version/download?robot_id=xxx&filename=xxx
+  // 下载指定机器人的升级文件
+  svr.Get("/api/v1/robots/version/download", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      std::string filename  = req.get_param_value("filename");
+
+      if (robot_id.empty() || filename.empty()) {
+        json error; error["success"] = false; error["error"] = "需要 robot_id 和 filename 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 安全检查：防止路径穿越
+      if (filename.find("..") != std::string::npos ||
+          filename.find('/') != std::string::npos  ||
+          filename.find('\\') != std::string::npos) {
+        json error; error["success"] = false; error["error"] = "非法文件名";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 验证机器人存在
+      bool robot_found = (mqtt_manager_->GetRobot(robot_id) != nullptr);
+      if (!robot_found) {
+        auto all = config_db_->GetAllRobots();
+        for (const auto& r : all) { if (r.robot_id == robot_id) { robot_found = true; break; } }
+      }
+      if (!robot_found) {
+        json error; error["success"] = false; error["error"] = "机器人不存在";
+        res.status = 404; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+      std::string filepath = firmware_dir + "/" + filename;
+      std::ifstream ifs(filepath, std::ios::binary | std::ios::ate);
+      if (!ifs.is_open()) {
+        json error; error["success"] = false; error["error"] = "文件不存在: " + filename;
+        res.status = 404; res.set_content(error.dump(), "application/json"); return;
+      }
+      auto sz = ifs.tellg();
+      ifs.seekg(0, std::ios::beg);
+      std::string content(static_cast<size_t>(sz), '\0');
+      ifs.read(content.data(), sz);
+      res.set_header("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+      res.set_content(content, "application/octet-stream");
+      LOG(INFO) << "API: 机器人固件下载 - robot=" << robot_id << " file=" << filename << " (" << sz << " bytes)";
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "机器人固件下载失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
     }
   });
 

@@ -701,12 +701,30 @@ window.closeAlarmModal = function() {
 // ── 编辑机器人 ─────────────────────────────────────────────────────────
 let _editOldRobotId = null;
 
-window.openEditModal = function(robotId, robotName, enabled) {
+window.openEditModal = async function(robotId) {
     _editOldRobotId = robotId;
-    document.getElementById('editRobotId').value    = robotId;
-    document.getElementById('editRobotName').value  = robotName;
-    document.getElementById('editRobotEnabled').value = enabled ? 'true' : 'false';
+    // 首先用占位文本，防止旧值沪进
+    document.getElementById('editSerialNumber').textContent = '加载中...';
+    document.getElementById('editRobotId').value            = robotId;
+    document.getElementById('editRobotName').value          = '';
+    document.getElementById('editBracketCount').value       = 0;
+    document.getElementById('editRobotEnabled').value       = 'true';
     document.getElementById('editRobotModal').style.display = 'flex';
+
+    try {
+        const result = await api.getRobotInfo(robotId);
+        if (result.success) {
+            document.getElementById('editSerialNumber').textContent = result.serial_number ?? '-';
+            document.getElementById('editRobotId').value            = result.robot_id;
+            document.getElementById('editRobotName').value          = result.robot_name || '';
+            document.getElementById('editBracketCount').value       = result.bracket_count ?? 0;
+            document.getElementById('editRobotEnabled').value       = result.enabled ? 'true' : 'false';
+        } else {
+            document.getElementById('editSerialNumber').textContent = '-';
+        }
+    } catch (e) {
+        document.getElementById('editSerialNumber').textContent = '-';
+    }
 };
 
 window.closeEditModal = function() {

@@ -64,7 +64,7 @@ export function renderRobots(robots) {
             </div>
             <div class="robot-actions">
                 <div class="robot-actions-row">
-                    <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
+                    <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}')">
                         编辑
                     </button>
                     <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">

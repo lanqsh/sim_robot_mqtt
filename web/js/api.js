@@ -12,6 +12,12 @@ export async function fetchRobots(page, pageSize, filters = {}) {
     return await response.json();
 }
 
+// 获取单个机器人信息（编辑表单回填）
+export async function getRobotInfo(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/update?robot_id=${encodeURIComponent(robotId)}`);
+    return await response.json();
+}
+
 // 编辑机器人信息
 export async function updateRobot(oldRobotId, data) {
     const response = await fetch(`${API_BASE}/api/v1/robots/update?robot_id=${encodeURIComponent(oldRobotId)}`, {
@@ -305,6 +311,25 @@ export async function listFirmwareFiles() {
     const response = await fetch(`${API_BASE}/api/v1/system/firmware`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
+}
+
+// 获取指定机器人的版本号及可用升级文件列表
+export async function getRobotVersion(robotId) {
+    const response = await fetch(`${API_BASE}/api/v1/robots/version?robot_id=${encodeURIComponent(robotId)}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+}
+
+// 触发浏览器下载指定机器人的升级文件
+export function downloadRobotFirmware(robotId, filename) {
+    const url = `${API_BASE}/api/v1/robots/version/download?robot_id=${encodeURIComponent(robotId)}&filename=${encodeURIComponent(filename)}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 1000);
 }
 
 // 设置机器人版本号
