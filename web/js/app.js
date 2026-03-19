@@ -719,7 +719,7 @@ window.openVersionModal = async function(robotId, robotName) {
                 <div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #eee;font-size:14px;">
                     <span style="flex:1;word-break:break-all;">${f.filename}</span>
                     <span style="color:#999;white-space:nowrap;">${(f.size/1024).toFixed(1)} KB</span>
-                    <button class="btn btn-secondary btn-sm" onclick="api.downloadRobotFirmware('${robotId}', '${f.filename}')">&#11015; 下载</button>
+                    <button class="btn btn-secondary btn-sm" data-fname="${f.filename}" onclick="window.downloadFirmwareFile(this.dataset.fname)">&#11015; 下载</button>
                 </div>
             `).join('');
         }
