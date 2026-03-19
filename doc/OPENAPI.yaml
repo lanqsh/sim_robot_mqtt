@@ -2558,7 +2558,11 @@ components:
 
     UpdateRobotRequest:
       type: object
-      description: 字段均可选，不填则保持原内容；`bracket_count` 不填或传 -1 时保持数据库原值。
+      description: |
+        字段均可选，不填则保持原内容。
+        `bracket_count` 不填或传 -1 时保持数据库原值。
+        `serial_number` 不填或传 -1 时保持数据库原序号。
+        若修改 `serial_number`，后端会检查新序号是否与其他机器人冲突，冲突时返回 400。
       properties:
         robot_id:
           type: string
@@ -2576,6 +2580,11 @@ components:
           type: integer
           description: 支架数量；不填则保持原值
           example: 4
+        serial_number:
+          type: integer
+          description: 序号（正整数）；不填则保持原序号；修改时如与其他机器人冲突则返回 400
+          minimum: 1
+          example: 102
 
     UpdateRobotResponse:
       allOf:
@@ -2598,6 +2607,10 @@ components:
               type: integer
               description: 仅在请求中传了该字段时才返回
               example: 4
+            serial_number:
+              type: integer
+              description: 仅在请求中传了该字段时才返回
+              example: 102
 
     RobotDataResponse:
       type: object
