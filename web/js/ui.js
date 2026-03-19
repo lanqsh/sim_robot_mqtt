@@ -87,6 +87,9 @@ export function renderRobots(robots) {
                     <button class="btn btn-sm btn-info" onclick="window.openAlarmSettings('${robot.robot_id}', ${robot.serial_number})">
                         告警设置
                     </button>
+                    <button class="btn btn-sm btn-info" onclick="window.openVersionModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
+                        版本信息
+                    </button>
                     <button class="btn btn-sm btn-primary" onclick="window.openMqttMessages('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
                         通信记录
                     </button>

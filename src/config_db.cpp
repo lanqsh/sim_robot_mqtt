@@ -365,14 +365,27 @@ bool ConfigDb::UpdateRobotInfo(const std::string& old_robot_id,
                                const std::string& new_robot_id,
                                const std::string& robot_name,
                                bool enabled,
-                               int bracket_count) {
+                               int bracket_count,
+                               int serial_number) {
   if (!initialized_) return false;
 
   sqlite3_stmt* stmt;
   bool success = false;
 
-  if (bracket_count >= 0) {
-    // 同时更新 bracket_count
+  bool update_bracket = (bracket_count >= 0);
+  bool update_serial  = (serial_number >= 0);
+
+  if (update_bracket && update_serial) {
+    const char* sql =
+      "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ?, bracket_count = ?, serial_number = ? WHERE robot_id = ?";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+    sqlite3_bind_int(stmt, 4, bracket_count);
+    sqlite3_bind_int(stmt, 5, serial_number);
+    sqlite3_bind_text(stmt, 6, old_robot_id.c_str(), -1, SQLITE_STATIC);
+  } else if (update_bracket) {
     const char* sql =
       "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ?, bracket_count = ? WHERE robot_id = ?";
     if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
@@ -380,6 +393,15 @@ bool ConfigDb::UpdateRobotInfo(const std::string& old_robot_id,
     sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
     sqlite3_bind_int(stmt, 4, bracket_count);
+    sqlite3_bind_text(stmt, 5, old_robot_id.c_str(), -1, SQLITE_STATIC);
+  } else if (update_serial) {
+    const char* sql =
+      "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ?, serial_number = ? WHERE robot_id = ?";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+    sqlite3_bind_int(stmt, 4, serial_number);
     sqlite3_bind_text(stmt, 5, old_robot_id.c_str(), -1, SQLITE_STATIC);
   } else {
     const char* sql =

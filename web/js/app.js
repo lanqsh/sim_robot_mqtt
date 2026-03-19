@@ -698,32 +698,69 @@ window.closeAlarmModal = function() {
     ui.closeAlarmModal();
 };
 
+// ── 版本信息弹窗 ─────────────────────────────────────────────────────────
+let _versionRobotId = null;
+
+window.openVersionModal = async function(robotId, robotName) {
+    _versionRobotId = robotId;
+    document.getElementById('versionModalRobotName').textContent = robotName || robotId;
+    document.getElementById('versionModalVersion').textContent   = '加载中...';
+    document.getElementById('versionModalFileList').innerHTML    = '<span style="color:#999;font-size:14px;">加载中...</span>';
+    document.getElementById('versionModal').style.display = 'flex';
+
+    try {
+        const result = await api.getRobotVersion(robotId);
+        document.getElementById('versionModalVersion').textContent = result.software_version || '-';
+        if (!result.files || result.files.length === 0) {
+            document.getElementById('versionModalFileList').innerHTML =
+                '<span style="color:#999;font-size:14px;">暂无升级包，请将 .bin 文件放入服务器 ./firmware/ 目录</span>';
+        } else {
+            document.getElementById('versionModalFileList').innerHTML = result.files.map(f => `
+                <div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #eee;font-size:14px;">
+                    <span style="flex:1;word-break:break-all;">${f.filename}</span>
+                    <span style="color:#999;white-space:nowrap;">${(f.size/1024).toFixed(1)} KB</span>
+                    <button class="btn btn-secondary btn-sm" onclick="api.downloadRobotFirmware('${robotId}', '${f.filename}')">&#11015; 下载</button>
+                </div>
+            `).join('');
+        }
+    } catch (e) {
+        document.getElementById('versionModalVersion').textContent = '-';
+        document.getElementById('versionModalFileList').innerHTML =
+            `<span style="color:#c00;font-size:14px;">加载失败: ${e.message}</span>`;
+    }
+};
+
+window.closeVersionModal = function() {
+    document.getElementById('versionModal').style.display = 'none';
+    _versionRobotId = null;
+};
+
 // ── 编辑机器人 ─────────────────────────────────────────────────────────
 let _editOldRobotId = null;
 
 window.openEditModal = async function(robotId) {
     _editOldRobotId = robotId;
     // 首先用占位文本，防止旧值沪进
-    document.getElementById('editSerialNumber').textContent = '加载中...';
-    document.getElementById('editRobotId').value            = robotId;
-    document.getElementById('editRobotName').value          = '';
-    document.getElementById('editBracketCount').value       = 0;
-    document.getElementById('editRobotEnabled').value       = 'true';
+    document.getElementById('editSerialNumber').value  = '';
+    document.getElementById('editRobotId').value        = robotId;
+    document.getElementById('editRobotName').value      = '';
+    document.getElementById('editBracketCount').value   = 0;
+    document.getElementById('editRobotEnabled').value   = 'true';
     document.getElementById('editRobotModal').style.display = 'flex';
 
     try {
         const result = await api.getRobotInfo(robotId);
         if (result.success) {
-            document.getElementById('editSerialNumber').textContent = result.serial_number ?? '-';
-            document.getElementById('editRobotId').value            = result.robot_id;
-            document.getElementById('editRobotName').value          = result.robot_name || '';
-            document.getElementById('editBracketCount').value       = result.bracket_count ?? 0;
-            document.getElementById('editRobotEnabled').value       = result.enabled ? 'true' : 'false';
+            document.getElementById('editSerialNumber').value  = result.serial_number ?? '';
+            document.getElementById('editRobotId').value       = result.robot_id;
+            document.getElementById('editRobotName').value     = result.robot_name || '';
+            document.getElementById('editBracketCount').value  = result.bracket_count ?? 0;
+            document.getElementById('editRobotEnabled').value  = result.enabled ? 'true' : 'false';
         } else {
-            document.getElementById('editSerialNumber').textContent = '-';
+            document.getElementById('editSerialNumber').value = '';
         }
     } catch (e) {
-        document.getElementById('editSerialNumber').textContent = '-';
+        document.getElementById('editSerialNumber').value = '';
     }
 };
 
@@ -734,18 +771,23 @@ window.closeEditModal = function() {
 
 window.saveEditRobot = async function() {
     if (!_editOldRobotId) return;
-    const newId      = document.getElementById('editRobotId').value.trim();
-    const newName    = document.getElementById('editRobotName').value.trim();
-    const newEnabled = document.getElementById('editRobotEnabled').value === 'true';
+    const newId           = document.getElementById('editRobotId').value.trim();
+    const newName         = document.getElementById('editRobotName').value.trim();
+    const newEnabled      = document.getElementById('editRobotEnabled').value === 'true';
+    const newBracketCount = parseInt(document.getElementById('editBracketCount').value) || 0;
+    const snRaw           = document.getElementById('editSerialNumber').value.trim();
+    const newSerial       = snRaw !== '' ? parseInt(snRaw) : undefined;
 
-    if (!newId) { alert('机器人ID 不能为空'); return; }
+    if (!newId) { alert('机器人 ID 不能为空'); return; }
+    if (newSerial !== undefined && (isNaN(newSerial) || newSerial < 1)) {
+        alert('序号必须为正整数'); return;
+    }
+
+    const payload = { robot_id: newId, robot_name: newName, enabled: newEnabled, bracket_count: newBracketCount };
+    if (newSerial !== undefined) payload.serial_number = newSerial;
 
     try {
-        const result = await api.updateRobot(_editOldRobotId, {
-            robot_id:    newId,
-            robot_name:  newName,
-            enabled:     newEnabled
-        });
+        const result = await api.updateRobot(_editOldRobotId, payload);
         if (result.success) {
             window.closeEditModal();
             loadRobots();

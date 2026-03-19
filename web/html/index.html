@@ -640,6 +640,31 @@
         </div>
     </div>
 
+    <!-- 版本信息模态框 -->
+    <div id="versionModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:500px; width:95%;">
+            <div class="modal-header">
+                <h2>版本信息 &mdash; <span id="versionModalRobotName" style="font-size:0.85em;color:#555;"></span></h2>
+                <span class="close-btn" onclick="closeVersionModal()">&times;</span>
+            </div>
+            <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:13px; color:#555; white-space:nowrap;">当前版本：</span>
+                    <span id="versionModalVersion" style="font-size:15px; font-weight:600; color:#222;">-</span>
+                </div>
+                <div>
+                    <div style="font-size:13px; color:#555; margin-bottom:8px;">可用升级包（.bin）：</div>
+                    <div id="versionModalFileList" style="min-height:40px;">
+                        <span style="color:#999; font-size:14px;">加载中...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeVersionModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 编辑机器人模态框 -->
     <div id="editRobotModal" class="modal" style="display:none; align-items:center; justify-content:center;">
         <div class="modal-content" style="max-width:460px; width:95%;">
@@ -650,7 +675,7 @@
             <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
                 <div>
                     <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">序号</label>
-                    <span id="editSerialNumber" style="font-size:14px; color:#222; font-weight:500;">-</span>
+                    <input type="number" id="editSerialNumber" min="1" style="width:100%; box-sizing:border-box;" placeholder="序号">
                 </div>
                 <div>
                     <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">机器人名称</label>

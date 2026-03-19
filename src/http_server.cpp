@@ -523,6 +523,7 @@ void HttpServer::ServerThreadFunc() {
       std::string new_robot_name = body.value("robot_name",    "");
       bool new_enabled           = body.value("enabled",       true);
       int  new_bracket_count     = body.contains("bracket_count") ? body["bracket_count"].get<int>() : -1;
+      int  new_serial_number     = body.contains("serial_number") ? body["serial_number"].get<int>() : -1;
 
       // 如果 robot_id 要改变，检查新 ID 是否冲突
       if (new_robot_id != old_robot_id) {
@@ -536,7 +537,17 @@ void HttpServer::ServerThreadFunc() {
         }
       }
 
-      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled, new_bracket_count);
+      // 如果序号要改变，检查新序号是否冲突
+      if (new_serial_number >= 0) {
+        auto sn_owner = config_db_->GetRobotIdBySerial(new_serial_number);
+        if (!sn_owner.empty() && sn_owner != old_robot_id) {
+          json error; error["success"] = false;
+          error["error"] = "序号 " + std::to_string(new_serial_number) + " 已存在";
+          res.status = 400; res.set_content(error.dump(), "application/json"); return;
+        }
+      }
+
+      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled, new_bracket_count, new_serial_number);
       if (!success) {
         json error; error["success"] = false; error["error"] = "数据库更新失败";
         res.status = 500; res.set_content(error.dump(), "application/json"); return;
@@ -559,6 +570,7 @@ void HttpServer::ServerThreadFunc() {
       response["robot_name"]    = new_robot_name;
       response["enabled"]       = new_enabled;
       if (new_bracket_count >= 0) response["bracket_count"] = new_bracket_count;
+      if (new_serial_number  >= 0) response["serial_number"] = new_serial_number;
       res.set_content(response.dump(), "application/json");
       LOG(INFO) << "API: 编辑机器人 - " << old_robot_id << " -> " << new_robot_id;
     } catch (const std::exception& e) {

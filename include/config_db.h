@@ -46,7 +46,8 @@ class ConfigDb {
                        const std::string& new_robot_id,
                        const std::string& robot_name,
                        bool enabled,
-                       int bracket_count = -1);  // -1 表示不修改支架数量
+                       int bracket_count = -1,   // -1 表示不修改支架数量
+                       int serial_number = -1);  // -1 表示不修改序号
   bool IsSerialNumberExists(int serial_number);  // 检查序号是否已存在
   int GetMaxSerialNumber();  // 获取当前最大序号
   std::string GetRobotIdBySerial(int serial_number);  // 通过序号获取机器人ID
