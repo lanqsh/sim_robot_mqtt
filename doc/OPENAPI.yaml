@@ -204,12 +204,47 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/v1/robots/update:
+    get:
+      tags: [Robots]
+      summary: 获取机器人信息（用于编辑表单回填）
+      description: |
+        通过 query 参数 `robot_id` 获取指定机器人的基本信息，返回序号、机器人ID、名称、支架数量、启用状态，
+        供前端编辑弹窗回填使用。机器人不存在时返回 404。
+      parameters:
+        - name: robot_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 机器人 ID
+          example: a1b2c3d4e5f67890
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotInfoResponse'
+              example:
+                success: true
+                serial_number: 101
+                robot_id: a1b2c3d4e5f67890
+                robot_name: 清扫机器人-01
+                bracket_count: 4
+                enabled: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
       tags: [Robots]
       summary: 编辑机器人信息
       description: |
-        通过 query 参数 `robot_id` 指定要编辑的目标机器人，请求体中可修改 robot_id、robot_name、enabled。
+        通过 query 参数 `robot_id` 指定要编辑的目标机器人，请求体中可修改 robot_id、robot_name、enabled、bracket_count。
         若 robot_id 要改变，后端会检查新 ID 是否已存在。
+        `bracket_count` 不填（或传 -1）则保持数据库原值不变。
       parameters:
         - name: robot_id
           in: query
@@ -232,6 +267,69 @@ paths:
                 $ref: '#/components/schemas/UpdateRobotResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/version:
+    get:
+      tags: [Robots]
+      summary: 获取机器人版本号及可用升级文件列表
+      description: |
+        返回指定机器人当前的软件版本号（`software_version`）以及服务器 `./firmware/` 目录中可用的升级包列表。
+        机器人在线时从实时数据读取版本号；不在线时从数据库快照读取。
+        机器人不存在时返回 404。固件列表只列出 `.bin` 文件，目录不存在时自动创建（返回空列表）。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+      responses:
+        '200':
+          description: 成功（files 可为空数组）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotVersionResponse'
+              example:
+                success: true
+                robot_id: a1b2c3d4e5f67890
+                software_version: "1.2"
+                files:
+                  - filename: firmware_v1.3.bin
+                    size: 102400
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v1/robots/version/download:
+    get:
+      tags: [Robots]
+      summary: 下载指定机器人的固件升级文件
+      description: |
+        以二进制流形式返回 `./firmware/` 目录中的指定文件，触发浏览器下载。
+        需先验证 `robot_id` 对应的机器人存在，否则返回 404。
+        **安全限制**：`filename` 不可包含 `..`、`/`、`\`，防止路径穿越攻击。
+      parameters:
+        - $ref: '#/components/parameters/RobotIdQuery'
+        - name: filename
+          in: query
+          required: true
+          description: 文件名（仅文件名，不含路径）
+          schema:
+            type: string
+          example: firmware_v1.3.bin
+      responses:
+        '200':
+          description: 文件内容（二进制流）
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -2430,9 +2528,37 @@ components:
               type: integer
               example: 3
 
+    RobotInfoResponse:
+      type: object
+      required: [success, serial_number, robot_id, robot_name, bracket_count, enabled]
+      properties:
+        success:
+          type: boolean
+          example: true
+        serial_number:
+          type: integer
+          description: 机器人序号
+          example: 101
+        robot_id:
+          type: string
+          description: 机器人 ID
+          example: a1b2c3d4e5f67890
+        robot_name:
+          type: string
+          description: 机器人名称
+          example: 清扫机器人-01
+        bracket_count:
+          type: integer
+          description: 支架数量
+          example: 4
+        enabled:
+          type: boolean
+          description: 启用状态
+          example: true
+
     UpdateRobotRequest:
       type: object
-      description: 字段均可选，不填则保持原内容。
+      description: 字段均可选，不填则保持原内容；`bracket_count` 不填或传 -1 时保持数据库原值。
       properties:
         robot_id:
           type: string
@@ -2446,6 +2572,10 @@ components:
           type: boolean
           description: 启用状态
           example: true
+        bracket_count:
+          type: integer
+          description: 支架数量；不填则保持原值
+          example: 4
 
     UpdateRobotResponse:
       allOf:
@@ -2464,6 +2594,10 @@ components:
             enabled:
               type: boolean
               example: true
+            bracket_count:
+              type: integer
+              description: 仅在请求中传了该字段时才返回
+              example: 4
 
     RobotDataResponse:
       type: object
@@ -2992,6 +3126,27 @@ components:
           type: string
           description: 密码，可留空
           example: secret
+
+    RobotVersionResponse:
+      type: object
+      required: [success, robot_id, software_version, files]
+      properties:
+        success:
+          type: boolean
+          example: true
+        robot_id:
+          type: string
+          description: 机器人 ID
+          example: a1b2c3d4e5f67890
+        software_version:
+          type: string
+          description: 机器人当前软件版本号，未上报时为空字符串
+          example: "1.2"
+        files:
+          type: array
+          description: 可用的固件升级文件列表（.bin 文件）
+          items:
+            $ref: '#/components/schemas/FirmwareFileItem'
 
     FirmwareListResponse:
       type: object
