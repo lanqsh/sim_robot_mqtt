@@ -1447,12 +1447,25 @@ void HttpServer::ServerThreadFunc() {
       json data = json::array();
       int index = 1;
       for (const auto& item : messages) {
+        // item.data 可能含非UTF-8字节（原始协议内容），序列化前做安全处理
+        std::string safe_data;
+        safe_data.reserve(item.data.size());
+        for (unsigned char c : item.data) {
+          if (c < 0x80) {
+            safe_data += static_cast<char>(c);
+          } else {
+            // 非ASCII字节转为 \xNN 转义文本，避免JSON序列化异常
+            char buf[5];
+            snprintf(buf, sizeof(buf), "\\x%02X", c);
+            safe_data += buf;
+          }
+        }
         data.push_back({
             {"index", index++},
             {"category", item.category},
             {"command", item.command},
             {"direction", item.direction},
-            {"data", item.data},
+            {"data", safe_data},
             {"time", item.timestamp},
             {"topic", item.topic},
             {"robot_id", item.robot_id},

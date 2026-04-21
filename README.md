@@ -77,6 +77,51 @@ cmake ..
 make
 ```
 
+## Docker 构建与部署
+
+### 构建镜像
+
+```bash
+docker build -t sim_robot_mqtt .
+```
+
+### 直接运行
+
+```bash
+docker run -d \
+  --name robot \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  sim_robot_mqtt
+```
+
+### 导出镜像（用于离线传输到其他服务器）
+
+```bash
+# 导出并压缩
+docker save sim_robot_mqtt | gzip > sim_robot_mqtt.tar.gz
+
+# 传输到目标服务器
+scp sim_robot_mqtt.tar.gz root@<目标服务器IP>:/root/
+```
+
+### 在目标服务器导入并运行
+
+```bash
+# 导入镜像
+docker load < /root/sim_robot_mqtt.tar.gz
+
+# 运行（挂载数据目录以持久化 config.db）
+docker run -d \
+  --name robot \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -v /root/robot_data:/app \
+  sim_robot_mqtt
+```
+
+> `-v /root/robot_data:/app` 将 `config.db` 等数据文件持久化到宿主机，容器重启后配置不丢失。如不需要持久化可去掉 `-v` 参数。
+
 ## 数据库配置
 
 项目使用 SQLite 数据库 (`config.db`) 存储配置信息。首次运行时会自动创建数据库并初始化默认配置。

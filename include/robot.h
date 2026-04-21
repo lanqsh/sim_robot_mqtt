@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <random>
 #include <string>
@@ -489,10 +490,14 @@ class Robot {
   // 控制指令动作函数（前端 API 触发或 MQTT 收到指令时调用）
   void ControlEnable();     // B0: 启用机器人
   void ControlDisable();    // B1: 停用机器人
-  void ControlStart();      // B2: 启动清扫任务
+  void ControlStart();      // B2: 启动清扫任务（含完整F0确认流程）
   void ControlForward();    // B3: 前进
   void ControlBackward();   // B4: 后退
   void ControlStop();       // B5: 停止运行
+
+  // 启动清扫任务完整流程（异步，含F0确认、E5周期上报、E9完成上报）
+  // schedule_id: 触发该任务的定时器编号(1~7)，手动触发传0
+  void StartCleaningTask(uint8_t schedule_id = 0);
 
  private:
   std::string robot_id_;                   // 机器人ID
@@ -533,7 +538,8 @@ class Robot {
   static std::string uplink_template_;  // 静态模板缓存
 
   std::atomic<int> move_direction_{0};    // 运动方向：1=前进, -1=后退, 0=停止
-  int position_tick_{0};                   // 位置更新计时器（每10 tick=1s更新一次）
+  int position_tick_{0};                   // 位置更新计时器（每300 tick=30s更新一次位置）
+  int max_bracket_count_{50};              // 支架总数（默认50），前进到此值时自动折返
   int battery_level_tick_{0};              // 电量计时器（每600 tick=1分钟更新一次）
   float battery_level_f_{100.0f};          // 浮点电量（用于精确计算放电/充电）
   std::mt19937 rng_{std::random_device{}()};  // 随机数生成器
@@ -553,6 +559,25 @@ class Robot {
   mutable std::condition_variable request_reply_cv_;
   uint64_t request_reply_token_{0};
   uint64_t request_reply_completed_token_{0};
+
+  // 清扫任务（异步线程）
+  std::thread cleaning_task_thread_;
+  std::atomic<bool> cleaning_task_running_{false};
+  int clean_task_duration_min_{30};         // 清扫持续时间（分钟），默认30分钟
+  int clean_current_report_interval_s_{30}; // 清扫期间E5上报间隔（秒），默认30秒
+
+  // 清扫任务线程函数
+  void CleaningTaskThreadFunc(uint8_t schedule_id);
+
+  // OTA固件升级
+  void HandleFirmwareDataFrame(const ProtocolFrame& frame);
+  bool upgrade_in_progress_{false};
+  uint8_t upgrade_version_high_{0};
+  uint8_t upgrade_version_low_{0};
+  uint32_t upgrade_expected_size_{0};
+  size_t upgrade_received_bytes_{0};
+  std::string upgrade_save_path_;
+  std::ofstream upgrade_file_;
 };
 
 #endif  // ROBOT_H_
