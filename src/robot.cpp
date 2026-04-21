@@ -100,8 +100,18 @@ Robot::Robot(const std::string& robot_id, uint16_t robot_number) : robot_id_(rob
 }
 
 Robot::~Robot() {
-  // 停止上报线程
+  // 停止上报线程（stop_report_ 也会通知清扫任务线程退出）
   StopReport();
+
+  // 等待清扫任务线程结束
+  if (cleaning_task_thread_.joinable()) {
+    cleaning_task_thread_.join();
+  }
+
+  // 关闭未完成的固件升级文件
+  if (upgrade_file_.is_open()) {
+    upgrade_file_.close();
+  }
 }
 
 uint64_t Robot::BeginRequestReplyTracking() {
@@ -290,8 +300,10 @@ void Robot::HandleMessage(const std::string& data) {
       LOG(INFO) << "    数据长度: " << static_cast<int>(frame.length);
       LOG(INFO) << "    数据域: " << Protocol::BytesToHexString(frame.data);
 
-      // 根据数据域的标识字段处理不同类型的命令
-      if (!frame.data.empty()) {
+      // 固件升级数据帧（控制码 0x50/0x60/0x70），数据域为原始固件字节
+      if (frame.control_code == 0x50 || frame.control_code == 0x60 || frame.control_code == 0x70) {
+        HandleFirmwareDataFrame(frame);
+      } else if (!frame.data.empty()) {  // 根据数据域的标识字段处理不同类型的命令
         uint8_t identifier = frame.data[0];  // 第一个字节是标识
         LOG(INFO) << "    标识符: 0x" << std::hex << static_cast<int>(identifier);
 
@@ -1095,6 +1107,45 @@ void Robot::HandleMessage(const std::string& data) {
             SendRestartResponse(0xBA);
             break;
 
+          case 0xFD: {  // 固件升级开始命令 (控制码 0x41, FD 70 版本高 版本低)
+            LOG(INFO) << "    命令类型: 固件升级开始命令";
+            if (frame.data.size() < 4) {
+              LOG(ERROR) << "    升级命令数据不足, 期望>=4, 实际: " << frame.data.size();
+              break;
+            }
+            if (frame.data[1] != 0x70) {
+              LOG(WARNING) << "    未知升级子命令: 0x" << std::hex << static_cast<int>(frame.data[1]);
+              break;
+            }
+            upgrade_version_high_ = frame.data[2];
+            upgrade_version_low_  = frame.data[3];
+            upgrade_received_bytes_ = 0;
+            upgrade_in_progress_  = true;
+            upgrade_save_path_ = "firmware_" + robot_id_ + ".bin";
+
+            if (upgrade_file_.is_open()) upgrade_file_.close();
+            upgrade_file_.open(upgrade_save_path_, std::ios::binary | std::ios::trunc);
+            if (!upgrade_file_.is_open()) {
+              LOG(ERROR) << "    无法创建固件文件: " << upgrade_save_path_;
+              break;
+            }
+            LOG(INFO) << "    固件升级开始 - 版本: "
+                      << static_cast<int>(upgrade_version_high_) << "."
+                      << static_cast<int>(upgrade_version_low_)
+                      << " 保存至: " << upgrade_save_path_;
+            {
+              auto mqtt_manager_ota = mqtt_manager_.lock();
+              if (!mqtt_manager_ota) break;
+              uint16_t robot_num_ota = 0;
+              try { if (!data_.robot_number.empty()) robot_num_ota = static_cast<uint16_t>(std::stoul(data_.robot_number)); } catch (...) {}
+              std::vector<uint8_t> enc = protocol_.Encode(0x81, robot_num_ota, frame.frame_count, {});
+              mqtt_manager_ota->EnqueueMessage(publish_topic_, GenerateUplinkPayload(Protocol::BytesToBase64(enc)), 1);
+              sequence_.fetch_add(1);
+              LOG(INFO) << "    升级开始响应已发送 (0x81)";
+            }
+            break;
+          }
+
           default:
             LOG(WARNING) << "    未知命令标识: 0x" << std::hex << static_cast<int>(identifier);
             break;
@@ -1106,6 +1157,100 @@ void Robot::HandleMessage(const std::string& data) {
   } catch (const std::exception& e) {
     LOG(ERROR) << "  处理消息异常: " << e.what();
   }
+}
+
+void Robot::HandleFirmwareDataFrame(const ProtocolFrame& frame) {
+  auto mqtt_manager = mqtt_manager_.lock();
+  if (!mqtt_manager) {
+    LOG(ERROR) << "[OTA] MQTT管理器未初始化";
+    return;
+  }
+
+  uint8_t ctrl = frame.control_code;
+  uint8_t resp_ctrl;
+  std::vector<uint8_t> resp_data;
+
+  uint16_t robot_num = 0;
+  try {
+    if (!data_.robot_number.empty())
+      robot_num = static_cast<uint16_t>(std::stoul(data_.robot_number));
+  } catch (...) {}
+
+  // 0x70 控制码可能是结束数据帧，也可能是升级结束命令（FD 71...）
+  if (ctrl == 0x70 && frame.data.size() >= 2
+      && frame.data[0] == 0xFD && frame.data[1] == 0x71) {
+    // 升级结束命令: FD 71 版本高 版本低 文件大小(4字节大端)
+    uint8_t ver_h = frame.data.size() > 2 ? frame.data[2] : 0;
+    uint8_t ver_l = frame.data.size() > 3 ? frame.data[3] : 0;
+    uint32_t expected_size = 0;
+    if (frame.data.size() >= 8) {
+      expected_size = (static_cast<uint32_t>(frame.data[4]) << 24)
+                    | (static_cast<uint32_t>(frame.data[5]) << 16)
+                    | (static_cast<uint32_t>(frame.data[6]) <<  8)
+                    |  frame.data[7];
+    }
+
+    if (upgrade_file_.is_open()) upgrade_file_.close();
+    upgrade_in_progress_ = false;
+
+    LOG(INFO) << "[OTA] 固件升级结束 - 版本: "
+              << static_cast<int>(ver_h) << "." << static_cast<int>(ver_l)
+              << " 期望大小: " << expected_size
+              << " 实际接收: " << upgrade_received_bytes_;
+    if (upgrade_received_bytes_ == expected_size) {
+      LOG(INFO) << "[OTA] 固件文件完整，已保存至: " << upgrade_save_path_;
+    } else {
+      LOG(WARNING) << "[OTA] 固件大小不匹配 (差 "
+                   << static_cast<int64_t>(expected_size)
+                      - static_cast<int64_t>(upgrade_received_bytes_)
+                   << " 字节)";
+    }
+
+    // 响应: 0xB2，回显收到的数据
+    resp_ctrl = 0xB2;
+    resp_data = frame.data;
+  } else {
+    // 普通固件数据帧：写入字节
+    if (!frame.data.empty()) {
+      if (upgrade_file_.is_open()) {
+        upgrade_file_.write(
+            reinterpret_cast<const char*>(frame.data.data()),
+            static_cast<std::streamsize>(frame.data.size()));
+        upgrade_received_bytes_ += frame.data.size();
+        if (ctrl == 0x70) upgrade_file_.flush();  // 结束帧时 flush
+      } else {
+        LOG(WARNING) << "[OTA] 收到数据帧但文件未打开 (ctrl=0x"
+                     << std::hex << static_cast<int>(ctrl) << ")";
+      }
+    }
+
+    if (ctrl == 0x50) {
+      LOG(INFO) << "[OTA] 起始数据帧 frame_count=" << static_cast<int>(frame.frame_count)
+                << " 写入 " << frame.data.size()
+                << " 字节, 累计 " << upgrade_received_bytes_ << " 字节";
+      resp_ctrl = 0x92;
+      resp_data = {0x00};  // 状态 OK
+    } else if (ctrl == 0x60) {
+      LOG(INFO) << "[OTA] 中间数据帧 frame_count=" << static_cast<int>(frame.frame_count)
+                << " 写入 " << frame.data.size()
+                << " 字节, 累计 " << upgrade_received_bytes_ << " 字节";
+      resp_ctrl = 0xA2;
+    } else {
+      LOG(INFO) << "[OTA] 结束数据帧 frame_count=" << static_cast<int>(frame.frame_count)
+                << " 写入 " << frame.data.size()
+                << " 字节, 累计 " << upgrade_received_bytes_ << " 字节";
+      resp_ctrl = 0xB2;
+    }
+  }
+
+  std::vector<uint8_t> encoded =
+      protocol_.Encode(resp_ctrl, robot_num, frame.frame_count, resp_data);
+  std::string base64_data = Protocol::BytesToBase64(encoded);
+  std::string payload = GenerateUplinkPayload(base64_data);
+  mqtt_manager->EnqueueMessage(publish_topic_, payload, 1);
+  sequence_.fetch_add(1);
+  LOG(INFO) << "[OTA] 应答已发送 (resp_ctrl=0x"
+            << std::hex << static_cast<int>(resp_ctrl) << ")";
 }
 
 void Robot::SetReportInterval(int interval_seconds) {
@@ -1301,6 +1446,10 @@ void Robot::ReportThreadFunc() {
   int motor_params_ticks  = -mp_offset_ticks;
   int lora_clean_ticks    = -lc_offset_ticks;
 
+  // 定时任务检查：记录上次触发的分钟，避免同一分钟重复触发
+  int schedule_check_ticks   = 0;  // 每600 ticks(60秒)检查一次
+  int last_schedule_minute   = -1; // 上次触发定时任务时的分钟数（防重复）
+
   while (!stop_report_.load()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -1310,19 +1459,74 @@ void Robot::ReportThreadFunc() {
     ++motor_params_ticks;
     ++lora_clean_ticks;
     ++position_tick_;
+    ++schedule_check_ticks;
 
     // 模拟数据更新（每 tick）
     UpdateSimulatedData();
 
-    // 位置更新：前进/后退时每秒扫描 1 个单位
-    if (position_tick_ >= 10) {
+    // 位置更新：前进/后退时每30秒清扫一个支架
+    if (position_tick_ >= 300) {
       position_tick_ = 0;
       int dir = move_direction_.load();
-      if (dir != 0) {
-        data_.position += dir;
-        if (data_.position < 0) data_.position = 0;
+      if (dir == 1) {
+        // 前进
+        data_.position += 1;
+        if (data_.position > max_bracket_count_) {
+          // 到达末端，自动切换为后退
+          LOG(INFO) << "[Robot " << robot_id_ << "] 到达支架末端 (" << max_bracket_count_
+                    << "), 自动切换为后退";
+          data_.alarm_fa &= ~static_cast<uint32_t>(AlarmFA::kForward);
+          data_.alarm_fa |=  static_cast<uint32_t>(AlarmFA::kBackward);
+          move_direction_.store(-1);
+        }
+      } else if (dir == -1) {
+        // 后退
+        data_.position -= 1;
+        if (data_.position <= 0) {
+          data_.position = 0;
+          // 返回停靠位，自动停止
+          LOG(INFO) << "[Robot " << robot_id_ << "] 返回停靠位 (0), 自动停止";
+          const uint32_t clear_mask = static_cast<uint32_t>(AlarmFA::kAutoRunning)
+                                    | static_cast<uint32_t>(AlarmFA::kForward)
+                                    | static_cast<uint32_t>(AlarmFA::kBackward);
+          data_.alarm_fa &= ~clear_mask;
+          data_.alarm_fa |=  static_cast<uint32_t>(AlarmFA::kAutoCompleted)
+                          |  static_cast<uint32_t>(AlarmFA::kStopped);
+          move_direction_.store(0);
+        }
       }
     }
+
+    // 定时任务检查（每60秒检查一次）
+    if (schedule_check_ticks >= 600) {
+      schedule_check_ticks = 0;
+      UpdateTimeFields();
+      int now_weekday = data_.local_time.weekday;
+      int now_hour    = data_.local_time.hour;
+      int now_minute  = data_.local_time.minute;
+      // 用"小时×60+分钟"作为唯一分钟标识，防止同一分钟重复触发
+      int now_min_id  = now_hour * 60 + now_minute;
+
+      if (now_min_id != last_schedule_minute) {
+        for (size_t i = 0; i < data_.schedule_tasks.size(); ++i) {
+          const auto& task = data_.schedule_tasks[i];
+          // run_count > 0 表示有效任务；weekday 0 表示每天
+          if (task.run_count > 0
+              && (task.weekday == 0 || task.weekday == now_weekday)
+              && task.hour   == now_hour
+              && task.minute == now_minute) {
+            uint8_t sid = static_cast<uint8_t>(i + 1);
+            LOG(INFO) << "[Robot " << robot_id_ << "] 定时任务 #" << static_cast<int>(sid)
+                      << " 触发 (weekday=" << task.weekday
+                      << " " << task.hour << ":" << task.minute << ")";
+            StartCleaningTask(sid);
+            last_schedule_minute = now_min_id;
+            break;  // 同一时刻只触发第一个匹配的定时任务
+          }
+        }
+      }
+    }
+
     // 每 tick 直接读成员变量，途中修改间隔立即生效
     // 机器人数据上报
     if (robot_data_ticks >= robot_data_report_interval_s_ * 10) {
@@ -2469,18 +2673,158 @@ void Robot::ControlDisable() {
 }
 
 void Robot::ControlStart() {
-  // 清除停止/前进/后退/已完成/已失败位
-  const uint32_t clear_mask = static_cast<uint32_t>(AlarmFA::kStopped)
-                            | static_cast<uint32_t>(AlarmFA::kForward)
-                            | static_cast<uint32_t>(AlarmFA::kBackward)
-                            | static_cast<uint32_t>(AlarmFA::kAutoCompleted)
-                            | static_cast<uint32_t>(AlarmFA::kAutoFailed);
-  data_.alarm_fa &= ~clear_mask;
-  // 自动运行中、前进
-  data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kAutoRunning)
-                  | static_cast<uint32_t>(AlarmFA::kForward);
-  move_direction_.store(1);
-  LOG(INFO) << "[Robot " << robot_id_ << "] 启动清扫任务";
+  // 委托给完整清扫任务流程（含F0确认、E5上报、E9完成），schedule_id=0表示手动启动
+  StartCleaningTask(0);
+}
+
+void Robot::StartCleaningTask(uint8_t schedule_id) {
+  if (cleaning_task_running_.load()) {
+    LOG(WARNING) << "[Robot " << robot_id_ << "] 清扫任务已在运行，忽略本次启动请求";
+    return;
+  }
+
+  // 等待上一次线程结束（如已结束则立即返回）
+  if (cleaning_task_thread_.joinable()) {
+    cleaning_task_thread_.join();
+  }
+
+  cleaning_task_running_.store(true);
+  cleaning_task_thread_ = std::thread(&Robot::CleaningTaskThreadFunc, this, schedule_id);
+  LOG(INFO) << "[Robot " << robot_id_ << "] 清扫任务线程已启动 (schedule_id=" << static_cast<int>(schedule_id) << ")";
+}
+
+void Robot::CleaningTaskThreadFunc(uint8_t schedule_id) {
+  LOG(INFO) << "[Robot " << robot_id_ << "] === 清扫任务开始 ===";
+
+  // Step 1: 发送F0请求，向平台确认是否允许运行
+  {
+    // 取定时任务信息（若为手动启动则使用默认值）
+    uint8_t weekday = 0, hour = 0, minute = 0, run_count = 0;
+    uint8_t sid = schedule_id;
+    if (sid >= 1 && sid <= 7 && data_.schedule_tasks.size() >= static_cast<size_t>(sid)) {
+      const auto& task = data_.schedule_tasks[sid - 1];
+      weekday   = static_cast<uint8_t>(task.weekday);
+      hour      = static_cast<uint8_t>(task.hour);
+      minute    = static_cast<uint8_t>(task.minute);
+      int rc    = task.run_count;
+      run_count = (rc < 127) ? static_cast<uint8_t>(rc / 2) : static_cast<uint8_t>(rc);
+    }
+
+    uint64_t token = BeginRequestReplyTracking();
+    SendScheduleStartRequest(sid, weekday, hour, minute, run_count);
+    LOG(INFO) << "[Robot " << robot_id_ << "] F0请求已发送，等待平台响应 (超时30秒)";
+
+    RobotData::RequestReply reply{};
+    bool received = false;
+    WaitForRequestReply(token, 30000, &reply, &received);
+
+    if (!received) {
+      // 超时未收到响应
+      LOG(WARNING) << "[Robot " << robot_id_ << "] F0请求超时，上报E6并结束任务";
+      data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kAutoRequestTimeout);
+      data_.scheduled_not_run_id     = schedule_id;
+      data_.scheduled_not_run_reason = 0x05;  // 原因：请求超时
+      data_.e6_alarm                 = data_.alarm_fa;
+      SendScheduledNotRunReport();
+      cleaning_task_running_.store(false);
+      return;
+    }
+
+    if (reply.start_flag == 0x00) {
+      // 平台不允许运行
+      LOG(WARNING) << "[Robot " << robot_id_ << "] 平台不允许运行 (start_flag=0)，上报E6并结束任务";
+      data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kPlatformNotAllowed);
+      data_.scheduled_not_run_id     = schedule_id;
+      data_.scheduled_not_run_reason = 0x01;  // 原因：平台不允许
+      data_.e6_alarm                 = data_.alarm_fa;
+      SendScheduledNotRunReport();
+      cleaning_task_running_.store(false);
+      return;
+    }
+
+    LOG(INFO) << "[Robot " << robot_id_ << "] 平台允许运行 (start_flag=0x"
+              << std::hex << static_cast<int>(reply.start_flag) << ")，开始清扫";
+  }
+
+  // Step 2: 启动清扫（设置运行状态位）
+  {
+    const uint32_t clear_mask = static_cast<uint32_t>(AlarmFA::kStopped)
+                              | static_cast<uint32_t>(AlarmFA::kForward)
+                              | static_cast<uint32_t>(AlarmFA::kBackward)
+                              | static_cast<uint32_t>(AlarmFA::kAutoCompleted)
+                              | static_cast<uint32_t>(AlarmFA::kAutoFailed)
+                              | static_cast<uint32_t>(AlarmFA::kPlatformNotAllowed)
+                              | static_cast<uint32_t>(AlarmFA::kAutoRequestTimeout);
+    data_.alarm_fa &= ~clear_mask;
+    data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kAutoRunning)
+                    | static_cast<uint32_t>(AlarmFA::kForward);
+    move_direction_.store(1);
+  }
+
+  // Step 3: 清扫期间定时上报E5电流数据，持续 clean_task_duration_min_ 分钟
+  const int total_duration_s    = clean_task_duration_min_ * 60;
+  const int report_interval_s   = clean_current_report_interval_s_;
+  int elapsed_s                 = 0;
+  int next_report_s             = report_interval_s;  // 首次上报时机
+
+  LOG(INFO) << "[Robot " << robot_id_ << "] 清扫持续时间: " << clean_task_duration_min_
+            << " 分钟, E5上报间隔: " << report_interval_s << " 秒";
+
+  while (elapsed_s < total_duration_s && !stop_report_.load()) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    ++elapsed_s;
+
+    if (elapsed_s >= next_report_s) {
+      LOG(INFO) << "[Robot " << robot_id_ << "] 清扫中，发送E5电流数据 (已用时 " << elapsed_s << "s)";
+      SendCurrentDataReport();
+      next_report_s += report_interval_s;
+    }
+  }
+
+  if (stop_report_.load()) {
+    LOG(INFO) << "[Robot " << robot_id_ << "] 清扫任务因机器人停止而中断";
+    cleaning_task_running_.store(false);
+    return;
+  }
+
+  // Step 4: 清扫完成，停止运行并上报E9清扫记录
+  LOG(INFO) << "[Robot " << robot_id_ << "] 清扫完成，停止运行并上报E9";
+  {
+    const uint32_t clear_mask = static_cast<uint32_t>(AlarmFA::kAutoRunning)
+                              | static_cast<uint32_t>(AlarmFA::kForward)
+                              | static_cast<uint32_t>(AlarmFA::kBackward);
+    data_.alarm_fa &= ~clear_mask;
+    data_.alarm_fa |= static_cast<uint32_t>(AlarmFA::kAutoCompleted)
+                    | static_cast<uint32_t>(AlarmFA::kStopped);
+    move_direction_.store(0);
+  }
+
+  // 填写最新一条清扫记录（写入 clean_records[0]，循环覆盖）
+  {
+    UpdateTimeFields();
+    RobotData::CleanRecord record;
+    record.day     = static_cast<uint8_t>(data_.local_time.day);
+    record.hour    = static_cast<uint8_t>(data_.local_time.hour);
+    record.minute  = static_cast<uint8_t>(data_.local_time.minute);
+    record.minutes = static_cast<uint16_t>(clean_task_duration_min_);
+    record.result  = 0x01;  // 成功
+    record.energy  = 0x00;  // 耗电量（暂填0）
+
+    // 向前滚动，最多保留5条
+    if (data_.clean_records.size() < 5) {
+      data_.clean_records.resize(5);
+    }
+    for (int i = 4; i > 0; --i) {
+      data_.clean_records[i] = data_.clean_records[i - 1];
+    }
+    data_.clean_records[0] = record;
+    data_.total_run_count++;
+  }
+
+  SendCleanRecordReport();
+  LOG(INFO) << "[Robot " << robot_id_ << "] === 清扫任务结束 ===";
+
+  cleaning_task_running_.store(false);
 }
 
 void Robot::ControlForward() {
