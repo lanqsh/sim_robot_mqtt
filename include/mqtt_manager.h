@@ -109,6 +109,10 @@ class MqttManager : public virtual mqtt::callback,
                                                      const std::string& direction,
                                                      size_t limit = 100);
 
+  // 全局数据模拟配置（对所有机器人通用）
+  SimConfig GetGlobalSimConfig() const;
+  void SetGlobalSimConfig(const SimConfig& config);
+
  private:
   std::string broker_;
   std::string username_;
@@ -136,6 +140,10 @@ class MqttManager : public virtual mqtt::callback,
   std::queue<ReceivedMessage> received_queue_;
   std::mutex received_queue_mutex_;
   std::condition_variable received_queue_cv_;
+
+  // 全局数据模拟配置
+  SimConfig global_sim_config_;
+  mutable std::mutex sim_config_mutex_;
 
   // 后台发送线程函数
   void SenderThreadFunc();

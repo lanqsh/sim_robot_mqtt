@@ -364,23 +364,56 @@ bool ConfigDb::UpdateRobotStatus(const std::string& robot_id, bool enabled) {
 bool ConfigDb::UpdateRobotInfo(const std::string& old_robot_id,
                                const std::string& new_robot_id,
                                const std::string& robot_name,
-                               bool enabled) {
+                               bool enabled,
+                               int bracket_count,
+                               int serial_number) {
   if (!initialized_) return false;
 
-  const char* sql =
-    "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ? WHERE robot_id = ?";
   sqlite3_stmt* stmt;
+  bool success = false;
 
-  if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-    return false;
+  bool update_bracket = (bracket_count >= 0);
+  bool update_serial  = (serial_number >= 0);
+
+  if (update_bracket && update_serial) {
+    const char* sql =
+      "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ?, bracket_count = ?, serial_number = ? WHERE robot_id = ?";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+    sqlite3_bind_int(stmt, 4, bracket_count);
+    sqlite3_bind_int(stmt, 5, serial_number);
+    sqlite3_bind_text(stmt, 6, old_robot_id.c_str(), -1, SQLITE_STATIC);
+  } else if (update_bracket) {
+    const char* sql =
+      "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ?, bracket_count = ? WHERE robot_id = ?";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+    sqlite3_bind_int(stmt, 4, bracket_count);
+    sqlite3_bind_text(stmt, 5, old_robot_id.c_str(), -1, SQLITE_STATIC);
+  } else if (update_serial) {
+    const char* sql =
+      "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ?, serial_number = ? WHERE robot_id = ?";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+    sqlite3_bind_int(stmt, 4, serial_number);
+    sqlite3_bind_text(stmt, 5, old_robot_id.c_str(), -1, SQLITE_STATIC);
+  } else {
+    const char* sql =
+      "UPDATE robots SET robot_id = ?, robot_name = ?, enabled = ? WHERE robot_id = ?";
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
+    sqlite3_bind_text(stmt, 4, old_robot_id.c_str(), -1, SQLITE_STATIC);
   }
 
-  sqlite3_bind_text(stmt, 1, new_robot_id.c_str(), -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 2, robot_name.c_str(), -1, SQLITE_STATIC);
-  sqlite3_bind_int(stmt, 3, enabled ? 1 : 0);
-  sqlite3_bind_text(stmt, 4, old_robot_id.c_str(), -1, SQLITE_STATIC);
-
-  bool success = sqlite3_step(stmt) == SQLITE_DONE;
+  success = sqlite3_step(stmt) == SQLITE_DONE;
   sqlite3_finalize(stmt);
 
   return success;
@@ -669,4 +702,12 @@ std::string ConfigDb::GetRobotDataSnapshot(const std::string& robot_id) {
 
   sqlite3_finalize(stmt);
   return snapshot;
+}
+
+bool ConfigDb::SaveGlobalSimConfig(const std::string& json) {
+  return SetValue("global_sim_config", json);
+}
+
+std::string ConfigDb::LoadGlobalSimConfig() {
+  return GetValue("global_sim_config", "");
 }

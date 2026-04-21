@@ -411,6 +411,11 @@ window.toggleFirmwareForm = async function() {
     if (wasHidden) await window.loadFirmwareList();
 };
 
+// 数据模拟配置
+window.toggleSimConfigSection = function() {
+    ui.toggleForm('simConfigSectionContent', 'simConfigCollapseIcon');
+};
+
 window.loadFirmwareList = async function() {
     const versionInput = document.getElementById('firmwareVersionInput');
     const listEl       = document.getElementById('firmwareFileList');
@@ -693,15 +698,70 @@ window.closeAlarmModal = function() {
     ui.closeAlarmModal();
 };
 
+// ── 版本信息弹窗 ─────────────────────────────────────────────────────────
+let _versionRobotId = null;
+
+window.openVersionModal = async function(robotId, robotName) {
+    _versionRobotId = robotId;
+    document.getElementById('versionModalRobotName').textContent = robotName || robotId;
+    document.getElementById('versionModalVersion').textContent   = '加载中...';
+    document.getElementById('versionModalFileList').innerHTML    = '<span style="color:#999;font-size:14px;">加载中...</span>';
+    document.getElementById('versionModal').style.display = 'flex';
+
+    try {
+        const result = await api.getRobotVersion(robotId);
+        document.getElementById('versionModalVersion').textContent = result.software_version || '-';
+        if (!result.files || result.files.length === 0) {
+            document.getElementById('versionModalFileList').innerHTML =
+                '<span style="color:#999;font-size:14px;">暂无升级包，请将 .bin 文件放入服务器 ./firmware/ 目录</span>';
+        } else {
+            document.getElementById('versionModalFileList').innerHTML = result.files.map(f => `
+                <div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #eee;font-size:14px;">
+                    <span style="flex:1;word-break:break-all;">${f.filename}</span>
+                    <span style="color:#999;white-space:nowrap;">${(f.size/1024).toFixed(1)} KB</span>
+                    <button class="btn btn-secondary btn-sm" data-fname="${f.filename}" onclick="window.downloadFirmwareFile(this.dataset.fname)">&#11015; 下载</button>
+                </div>
+            `).join('');
+        }
+    } catch (e) {
+        document.getElementById('versionModalVersion').textContent = '-';
+        document.getElementById('versionModalFileList').innerHTML =
+            `<span style="color:#c00;font-size:14px;">加载失败: ${e.message}</span>`;
+    }
+};
+
+window.closeVersionModal = function() {
+    document.getElementById('versionModal').style.display = 'none';
+    _versionRobotId = null;
+};
+
 // ── 编辑机器人 ─────────────────────────────────────────────────────────
 let _editOldRobotId = null;
 
-window.openEditModal = function(robotId, robotName, enabled) {
+window.openEditModal = async function(robotId) {
     _editOldRobotId = robotId;
-    document.getElementById('editRobotId').value    = robotId;
-    document.getElementById('editRobotName').value  = robotName;
-    document.getElementById('editRobotEnabled').value = enabled ? 'true' : 'false';
+    // 首先用占位文本，防止旧值沪进
+    document.getElementById('editSerialNumber').value  = '';
+    document.getElementById('editRobotId').value        = robotId;
+    document.getElementById('editRobotName').value      = '';
+    document.getElementById('editBracketCount').value   = 0;
+    document.getElementById('editRobotEnabled').value   = 'true';
     document.getElementById('editRobotModal').style.display = 'flex';
+
+    try {
+        const result = await api.getRobotInfo(robotId);
+        if (result.success) {
+            document.getElementById('editSerialNumber').value  = result.serial_number ?? '';
+            document.getElementById('editRobotId').value       = result.robot_id;
+            document.getElementById('editRobotName').value     = result.robot_name || '';
+            document.getElementById('editBracketCount').value  = result.bracket_count ?? 0;
+            document.getElementById('editRobotEnabled').value  = result.enabled ? 'true' : 'false';
+        } else {
+            document.getElementById('editSerialNumber').value = '';
+        }
+    } catch (e) {
+        document.getElementById('editSerialNumber').value = '';
+    }
 };
 
 window.closeEditModal = function() {
@@ -711,18 +771,23 @@ window.closeEditModal = function() {
 
 window.saveEditRobot = async function() {
     if (!_editOldRobotId) return;
-    const newId      = document.getElementById('editRobotId').value.trim();
-    const newName    = document.getElementById('editRobotName').value.trim();
-    const newEnabled = document.getElementById('editRobotEnabled').value === 'true';
+    const newId           = document.getElementById('editRobotId').value.trim();
+    const newName         = document.getElementById('editRobotName').value.trim();
+    const newEnabled      = document.getElementById('editRobotEnabled').value === 'true';
+    const newBracketCount = parseInt(document.getElementById('editBracketCount').value) || 0;
+    const snRaw           = document.getElementById('editSerialNumber').value.trim();
+    const newSerial       = snRaw !== '' ? parseInt(snRaw) : undefined;
 
-    if (!newId) { alert('机器人ID 不能为空'); return; }
+    if (!newId) { alert('机器人 ID 不能为空'); return; }
+    if (newSerial !== undefined && (isNaN(newSerial) || newSerial < 1)) {
+        alert('序号必须为正整数'); return;
+    }
+
+    const payload = { robot_id: newId, robot_name: newName, enabled: newEnabled, bracket_count: newBracketCount };
+    if (newSerial !== undefined) payload.serial_number = newSerial;
 
     try {
-        const result = await api.updateRobot(_editOldRobotId, {
-            robot_id:    newId,
-            robot_name:  newName,
-            enabled:     newEnabled
-        });
+        const result = await api.updateRobot(_editOldRobotId, payload);
         if (result.success) {
             window.closeEditModal();
             loadRobots();
@@ -1516,8 +1581,8 @@ const _simSetRadio = (name, isRandom) => {
     });
 };
 
-async function _loadMotorSimData(robotId) {
-    const result = await api.getMotorSimConfig(robotId);
+async function _loadMotorSimData() {
+    const result = await api.getMotorSimConfig();
     if (result.success && result.motor_sim) {
         const s = result.motor_sim;
         const simEnabledEl = document.getElementById('simEnabled');
@@ -1556,8 +1621,8 @@ async function _loadMotorSimData(robotId) {
     }
 }
 
-async function _loadAlarmSimData(robotId) {
-    const result = await api.getAlarmSimConfig(robotId);
+async function _loadAlarmSimData() {
+    const result = await api.getAlarmSimConfig();
     if (result.success && result.alarm_sim) {
         const alm = result.alarm_sim;
         const alarmEn = document.getElementById('alarmSimEnabled');
@@ -1565,19 +1630,16 @@ async function _loadAlarmSimData(robotId) {
         _simSetField('alarmDurationMin', alm.duration_min ?? 5);
         _simSetField('alarmDurationMax', alm.duration_max ?? 10);
         _simSetField('alarmFrequency', alm.frequency ?? 2);
-        const fcMask = alm.fc_bits_mask >>> 0 || 0;
         for (let b = 0; b < 32; b++) {
             const cb = document.getElementById(`fcBit${b}`);
-            if (cb) cb.checked = !!(fcMask & (1 << b));
+            if (cb) cb.checked = alm[`fc_bit_${b}`] ?? false;
         }
     }
 }
 
-window.openSimConfigModal = async function(robotId) {
-    _simRobotId = robotId;
+window.openSimConfigModal = async function(/*robotId*/) {
     _simTabLoaded.motorData = false;
     _simTabLoaded.alarmSim = false;
-    document.getElementById('simConfigModalRobotId').textContent = robotId;
     document.getElementById('simConfigModal').style.display = 'flex';
     // 切换到第一个 tab，并触发首次加载
     window.switchSimTab('motorData');
@@ -1585,7 +1647,6 @@ window.openSimConfigModal = async function(robotId) {
 
 window.closeSimConfigModal = function() {
     document.getElementById('simConfigModal').style.display = 'none';
-    _simRobotId = null;
 };
 
 window.switchSimTab = async function(tab) {
@@ -1600,12 +1661,12 @@ window.switchSimTab = async function(tab) {
     document.querySelectorAll('.sim-tab-panel').forEach(panel => {
         panel.style.display = panel.dataset.tab === tab ? 'block' : 'none';
     });
-    if (!_simRobotId || _simTabLoaded[tab]) return;
+    if (_simTabLoaded[tab]) return;
     try {
         if (tab === 'motorData') {
-            await _loadMotorSimData(_simRobotId);
+            await _loadMotorSimData();
         } else if (tab === 'alarmSim') {
-            await _loadAlarmSimData(_simRobotId);
+            await _loadAlarmSimData();
         }
         _simTabLoaded[tab] = true;
     } catch (e) {
@@ -1614,7 +1675,6 @@ window.switchSimTab = async function(tab) {
 };
 
 window.saveSimConfig = async function() {
-    if (!_simRobotId) return;
     const getFloat = (id) => parseFloat(document.getElementById(id)?.value) || 0;
     const getRadio = (name) => {
         const el = document.querySelector(`input[name="${name}"]:checked`);
@@ -1656,26 +1716,24 @@ window.saveSimConfig = async function() {
                 battery_temp_max:       getFloat('batteryTempMax'),
                 battery_temp_fixed:     getFloat('batteryTempFixed'),
             };
-            const result = await api.saveMotorSimConfig(_simRobotId, motorConfig);
+            const result = await api.saveMotorSimConfig(motorConfig);
             if (result.success) {
                 alert('✓ 电机模拟配置已保存');
             } else {
                 alert('保存失败: ' + (result.error || '未知错误'));
             }
         } else if (_simCurrentTab === 'alarmSim') {
-            let fc_bits_mask = 0;
-            for (let b = 0; b < 32; b++) {
-                const cb = document.getElementById(`fcBit${b}`);
-                if (cb && cb.checked) fc_bits_mask |= (1 << b);
-            }
             const alarmData = {
                 enabled:      document.getElementById('alarmSimEnabled')?.checked ?? false,
                 duration_min: parseInt(document.getElementById('alarmDurationMin')?.value) || 5,
                 duration_max: parseInt(document.getElementById('alarmDurationMax')?.value) || 10,
                 frequency:    parseInt(document.getElementById('alarmFrequency')?.value) || 2,
-                fc_bits_mask: fc_bits_mask >>> 0,
             };
-            const result = await api.saveAlarmSimConfig(_simRobotId, alarmData);
+            for (let b = 0; b < 32; b++) {
+                const cb = document.getElementById(`fcBit${b}`);
+                alarmData[`fc_bit_${b}`] = !!(cb && cb.checked);
+            }
+            const result = await api.saveAlarmSimConfig(alarmData);
             if (result.success) {
                 alert('✓ 告警模拟配置已保存');
             } else {

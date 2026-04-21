@@ -336,6 +336,23 @@
             </div>
         </div>
 
+        <!-- 数据模拟配置 -->
+        <div class="add-robot-form">
+            <div class="collapsible-header" onclick="toggleSimConfigSection()">
+                <h2>数据模拟配置</h2>
+                <span class="collapse-icon" id="simConfigCollapseIcon">▼</span>
+            </div>
+            <div id="simConfigSectionContent" style="display: none;">
+                <div class="inline-form" style="padding: 12px 16px;">
+                    <span style="color: var(--color-text-secondary); align-self: center; font-size: 14px;">
+                        数据模拟对所有机器人全局生效，可配置电机电流、电压、温度等模拟参数及随机告警。
+                    </span>
+                    <div class="form-spacer"></div>
+                    <button type="button" class="btn btn-warning" onclick="openSimConfigModal()">配置数据模拟</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 机器人列表 -->
         <div class="robots-container">
             <!-- 统计信息 -->
@@ -623,6 +640,31 @@
         </div>
     </div>
 
+    <!-- 版本信息模态框 -->
+    <div id="versionModal" class="modal" style="display:none; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width:500px; width:95%;">
+            <div class="modal-header">
+                <h2>版本信息 &mdash; <span id="versionModalRobotName" style="font-size:0.85em;color:#555;"></span></h2>
+                <span class="close-btn" onclick="closeVersionModal()">&times;</span>
+            </div>
+            <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:13px; color:#555; white-space:nowrap;">当前版本：</span>
+                    <span id="versionModalVersion" style="font-size:15px; font-weight:600; color:#222;">-</span>
+                </div>
+                <div>
+                    <div style="font-size:13px; color:#555; margin-bottom:8px;">可用升级包（.bin）：</div>
+                    <div id="versionModalFileList" style="min-height:40px;">
+                        <span style="color:#999; font-size:14px;">加载中...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeVersionModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 编辑机器人模态框 -->
     <div id="editRobotModal" class="modal" style="display:none; align-items:center; justify-content:center;">
         <div class="modal-content" style="max-width:460px; width:95%;">
@@ -632,12 +674,20 @@
             </div>
             <div style="padding:20px; display:flex; flex-direction:column; gap:14px;">
                 <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">序号</label>
+                    <input type="number" id="editSerialNumber" min="1" style="width:100%; box-sizing:border-box;" placeholder="序号">
+                </div>
+                <div>
                     <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">机器人名称</label>
                     <input type="text" id="editRobotName" style="width:100%; box-sizing:border-box;" placeholder="机器人名称">
                 </div>
                 <div>
                     <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">机器人ID</label>
                     <input type="text" id="editRobotId" style="width:100%; box-sizing:border-box;" placeholder="机器人ID">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">支架数量</label>
+                    <input type="number" id="editBracketCount" min="0" style="width:100%; box-sizing:border-box;" placeholder="支架数量">
                 </div>
                 <div>
                     <label style="display:block; margin-bottom:4px; font-size:13px; color:#555;">启用状态</label>
@@ -886,8 +936,7 @@
                 <h2>数据模拟配置</h2>
                 <span class="close-btn" onclick="closeSimConfigModal()">&times;</span>
             </div>
-            <div style="padding:8px 20px 4px; font-size:13px; color:#666; display:flex; align-items:center; justify-content:space-between;">
-                <span>机器人 ID：<strong id="simConfigModalRobotId"></strong></span>
+            <div style="padding:8px 20px 4px; font-size:13px; color:#666; display:flex; align-items:center; justify-content:flex-end;">
                 <label style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; cursor:pointer; color:#2980b9;">
                     <input type="checkbox" id="simEnabled" style="width:16px; height:16px;">
                     启用数据模拟

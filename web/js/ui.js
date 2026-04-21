@@ -64,7 +64,7 @@ export function renderRobots(robots) {
             </div>
             <div class="robot-actions">
                 <div class="robot-actions-row">
-                    <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}'  , ${robot.enabled})">
+                    <button class="btn btn-sm btn-secondary" onclick="window.openEditModal('${robot.robot_id}')">
                         编辑
                     </button>
                     <button class="btn btn-sm btn-primary" onclick="window.viewRobotData('${robot.robot_id}')">
@@ -87,11 +87,13 @@ export function renderRobots(robots) {
                     <button class="btn btn-sm btn-info" onclick="window.openAlarmSettings('${robot.robot_id}', ${robot.serial_number})">
                         告警设置
                     </button>
+                    <button class="btn btn-sm btn-info" onclick="window.openVersionModal('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
+                        版本信息
+                    </button>
                     <button class="btn btn-sm btn-primary" onclick="window.openMqttMessages('${robot.robot_id}', '${(robot.robot_name||'').replace(/'/g, "\\'")}')">
                         通信记录
-                    </button>                    <button class="btn btn-sm btn-warning" onclick="window.openSimConfigModal('${robot.robot_id}')">
-                        数据模拟
-                    </button>                    <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="window.deleteRobot('${robot.robot_id}')">
                         删除
                     </button>
                 </div>

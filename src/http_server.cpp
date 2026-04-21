@@ -311,6 +311,7 @@ void HttpServer::ServerThreadFunc() {
         robot_json["robot_id"] = robot.robot_id;
         robot_json["robot_name"] = robot.robot_name;
         robot_json["serial_number"] = robot.serial_number;
+        robot_json["bracket_count"] = robot.bracket_count;
         robot_json["enabled"] = robot.enabled;
         {
           auto live = mqtt_manager_->GetRobot(robot.robot_id);
@@ -476,7 +477,40 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // API: 编辑机器人信息（名称/ID/启用状态）
+  // API: 获取单个机器人信息（用于编辑表单回填）
+  svr.Get("/api/v1/robots/update", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      if (robot_id.empty()) {
+        json error; error["success"] = false; error["error"] = "缺少 robot_id 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      auto all = config_db_->GetAllRobots();
+      for (const auto& r : all) {
+        if (r.robot_id == robot_id) {
+          json response;
+          response["success"]       = true;
+          response["serial_number"] = r.serial_number;
+          response["robot_id"]      = r.robot_id;
+          response["robot_name"]    = r.robot_name;
+          response["bracket_count"] = r.bracket_count;
+          response["enabled"]       = r.enabled;
+          res.set_content(response.dump(), "application/json");
+          return;
+        }
+      }
+
+      json error; error["success"] = false; error["error"] = "机器人不存在";
+      res.status = 404; res.set_content(error.dump(), "application/json");
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "获取机器人信息失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // API: 编辑机器人信息（名称/ID/启用状态/支架数量）
   svr.Post("/api/v1/robots/update", [this](const httplib::Request& req, httplib::Response& res) {
     try {
       std::string old_robot_id = req.get_param_value("robot_id");
@@ -486,11 +520,13 @@ void HttpServer::ServerThreadFunc() {
       }
 
       json body = json::parse(req.body);
-      std::string new_robot_id  = body.value("robot_id",    old_robot_id);
-      std::string new_robot_name = body.value("robot_name", "");
-      bool new_enabled           = body.value("enabled",    true);
+      std::string new_robot_id   = body.value("robot_id",      old_robot_id);
+      std::string new_robot_name = body.value("robot_name",    "");
+      bool new_enabled           = body.value("enabled",       true);
+      int  new_bracket_count     = body.contains("bracket_count") ? body["bracket_count"].get<int>() : -1;
+      int  new_serial_number     = body.contains("serial_number") ? body["serial_number"].get<int>() : -1;
 
-      // 如果 robot_id 要改变，检查新 ID 是否干冲
+      // 如果 robot_id 要改变，检查新 ID 是否冲突
       if (new_robot_id != old_robot_id) {
         auto all = config_db_->GetAllRobots();
         for (const auto& r : all) {
@@ -502,7 +538,17 @@ void HttpServer::ServerThreadFunc() {
         }
       }
 
-      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled);
+      // 如果序号要改变，检查新序号是否冲突
+      if (new_serial_number >= 0) {
+        auto sn_owner = config_db_->GetRobotIdBySerial(new_serial_number);
+        if (!sn_owner.empty() && sn_owner != old_robot_id) {
+          json error; error["success"] = false;
+          error["error"] = "序号 " + std::to_string(new_serial_number) + " 已存在";
+          res.status = 400; res.set_content(error.dump(), "application/json"); return;
+        }
+      }
+
+      bool success = config_db_->UpdateRobotInfo(old_robot_id, new_robot_id, new_robot_name, new_enabled, new_bracket_count, new_serial_number);
       if (!success) {
         json error; error["success"] = false; error["error"] = "数据库更新失败";
         res.status = 500; res.set_content(error.dump(), "application/json"); return;
@@ -510,7 +556,6 @@ void HttpServer::ServerThreadFunc() {
 
       // 同步 MqttManager
       if (new_robot_id != old_robot_id) {
-        // ID 改变：移除旧的，如果启用则添加新的
         mqtt_manager_->RemoveRobot(old_robot_id);
         if (new_enabled) mqtt_manager_->AddRobot(new_robot_id);
       } else if (new_enabled) {
@@ -520,11 +565,13 @@ void HttpServer::ServerThreadFunc() {
       }
 
       json response;
-      response["success"]    = true;
-      response["message"]    = "机器人信息已更新";
-      response["robot_id"]   = new_robot_id;
-      response["robot_name"] = new_robot_name;
-      response["enabled"]    = new_enabled;
+      response["success"]       = true;
+      response["message"]       = "机器人信息已更新";
+      response["robot_id"]      = new_robot_id;
+      response["robot_name"]    = new_robot_name;
+      response["enabled"]       = new_enabled;
+      if (new_bracket_count >= 0) response["bracket_count"] = new_bracket_count;
+      if (new_serial_number  >= 0) response["serial_number"] = new_serial_number;
       res.set_content(response.dump(), "application/json");
       LOG(INFO) << "API: 编辑机器人 - " << old_robot_id << " -> " << new_robot_id;
     } catch (const std::exception& e) {
@@ -788,6 +835,128 @@ void HttpServer::ServerThreadFunc() {
       error["error"] = e.what();
       res.status = 500;
       res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/version?robot_id=xxx
+  // 返回指定机器人当前版本号及可用升级文件列表
+  svr.Get("/api/v1/robots/version", [this](const httplib::Request& req, httplib::Response& res) {
+    namespace fs = std::filesystem;
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      if (robot_id.empty()) {
+        json error; error["success"] = false; error["error"] = "缺少 robot_id 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 获取软件版本：优先从运行中的机器人获取，否则读快照
+      std::string software_version;
+      bool robot_found = false;
+      auto live = mqtt_manager_->GetRobot(robot_id);
+      if (live) {
+        software_version = live->GetData().software_version;
+        robot_found = true;
+      } else {
+        auto all = config_db_->GetAllRobots();
+        for (const auto& r : all) {
+          if (r.robot_id == robot_id) { robot_found = true; break; }
+        }
+        if (robot_found) {
+          std::string snapshot = config_db_->GetRobotDataSnapshot(robot_id);
+          try {
+            if (!snapshot.empty())
+              software_version = json::parse(snapshot).value("software_version", "");
+          } catch (...) {}
+        }
+      }
+
+      if (!robot_found) {
+        json error; error["success"] = false; error["error"] = "机器人不存在";
+        res.status = 404; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 扫描固件目录
+      std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+      json files_arr = json::array();
+      try {
+        if (!fs::exists(firmware_dir)) fs::create_directories(firmware_dir);
+        if (fs::is_directory(firmware_dir)) {
+          for (const auto& entry : fs::directory_iterator(firmware_dir)) {
+            if (!entry.is_regular_file()) continue;
+            if (entry.path().extension().string() != ".bin") continue;
+            json item;
+            item["filename"] = entry.path().filename().string();
+            item["size"]     = static_cast<uint64_t>(entry.file_size());
+            files_arr.push_back(item);
+          }
+        }
+      } catch (const std::exception& e) {
+        LOG(WARNING) << "扫描固件目录失败: " << e.what();
+      }
+
+      json response;
+      response["success"]          = true;
+      response["robot_id"]         = robot_id;
+      response["software_version"] = software_version;
+      response["files"]            = files_arr;
+      res.set_content(response.dump(), "application/json");
+      LOG(INFO) << "API: 查询机器人版本 - " << robot_id << " v" << software_version;
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "查询机器人版本失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
+    }
+  });
+
+  // GET /api/v1/robots/version/download?robot_id=xxx&filename=xxx
+  // 下载指定机器人的升级文件
+  svr.Get("/api/v1/robots/version/download", [this](const httplib::Request& req, httplib::Response& res) {
+    try {
+      std::string robot_id = req.get_param_value("robot_id");
+      std::string filename  = req.get_param_value("filename");
+
+      if (robot_id.empty() || filename.empty()) {
+        json error; error["success"] = false; error["error"] = "需要 robot_id 和 filename 参数";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 安全检查：防止路径穿越
+      if (filename.find("..") != std::string::npos ||
+          filename.find('/') != std::string::npos  ||
+          filename.find('\\') != std::string::npos) {
+        json error; error["success"] = false; error["error"] = "非法文件名";
+        res.status = 400; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      // 验证机器人存在
+      bool robot_found = (mqtt_manager_->GetRobot(robot_id) != nullptr);
+      if (!robot_found) {
+        auto all = config_db_->GetAllRobots();
+        for (const auto& r : all) { if (r.robot_id == robot_id) { robot_found = true; break; } }
+      }
+      if (!robot_found) {
+        json error; error["success"] = false; error["error"] = "机器人不存在";
+        res.status = 404; res.set_content(error.dump(), "application/json"); return;
+      }
+
+      std::string firmware_dir = config_db_->GetValue("firmware_dir", "./firmware");
+      std::string filepath = firmware_dir + "/" + filename;
+      std::ifstream ifs(filepath, std::ios::binary | std::ios::ate);
+      if (!ifs.is_open()) {
+        json error; error["success"] = false; error["error"] = "文件不存在: " + filename;
+        res.status = 404; res.set_content(error.dump(), "application/json"); return;
+      }
+      auto sz = ifs.tellg();
+      ifs.seekg(0, std::ios::beg);
+      std::string content(static_cast<size_t>(sz), '\0');
+      ifs.read(content.data(), sz);
+      res.set_header("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+      res.set_content(content, "application/octet-stream");
+      LOG(INFO) << "API: 机器人固件下载 - robot=" << robot_id << " file=" << filename << " (" << sz << " bytes)";
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "机器人固件下载失败: " << e.what();
+      json error; error["success"] = false; error["error"] = e.what();
+      res.status = 500; res.set_content(error.dump(), "application/json");
     }
   });
 
@@ -2395,19 +2564,12 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // GET /api/v1/robots/sim_config/motor - 获取电机模拟配置
-  svr.Get("/api/v1/robots/sim_config/motor", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string robot_id = req.get_param_value("robot_id");
+  // GET /api/v1/robots/sim_config/motor - 获取电机模拟配置（全局）
+  svr.Get("/api/v1/robots/sim_config/motor", [this](const httplib::Request& /*req*/, httplib::Response& res) {
     try {
-      auto robot = mqtt_manager_->GetRobot(robot_id);
-      if (!robot) {
-        json error; error["success"] = false; error["error"] = "机器人不存在或未运行";
-        res.status = 404; res.set_content(error.dump(), "application/json"); return;
-      }
-      const auto& s = robot->GetData().sim_config;
+      const SimConfig s = mqtt_manager_->GetGlobalSimConfig();
       json response;
       response["success"] = true;
-      response["robot_id"] = robot_id;
       response["motor_sim"] = {
         {"enabled",               s.enabled},
         {"main_current_random",    s.main_current_random},
@@ -2449,17 +2611,11 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/v1/robots/sim_config/motor - 保存电机模拟配置
+  // POST /api/v1/robots/sim_config/motor - 保存电机模拟配置（全局）
   svr.Post("/api/v1/robots/sim_config/motor", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string robot_id = req.get_param_value("robot_id");
     try {
       json body = json::parse(req.body);
-      auto robot = mqtt_manager_->GetRobot(robot_id);
-      if (!robot) {
-        json error; error["success"] = false; error["error"] = "机器人不存在或未运行";
-        res.status = 404; res.set_content(error.dump(), "application/json"); return;
-      }
-      auto& s = robot->GetData().sim_config;
+      SimConfig s = mqtt_manager_->GetGlobalSimConfig();
       if (body.contains("enabled"))                s.enabled                = body["enabled"].get<bool>();
       if (body.contains("main_current_random"))    s.main_current_random    = body["main_current_random"].get<bool>();
       if (body.contains("main_current_min"))       s.main_current_min       = body["main_current_min"].get<float>();
@@ -2492,39 +2648,80 @@ void HttpServer::ServerThreadFunc() {
       if (body.contains("battery_temp_min"))       s.battery_temp_min       = body["battery_temp_min"].get<float>();
       if (body.contains("battery_temp_max"))       s.battery_temp_max       = body["battery_temp_max"].get<float>();
       if (body.contains("battery_temp_fixed"))     s.battery_temp_fixed     = body["battery_temp_fixed"].get<float>();
-      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      mqtt_manager_->SetGlobalSimConfig(s);
+      // 持久化到数据库
+      json persist = body; // 只需把完整 motor 字段写入，alarm_sim 保留原值
+      // 重建全量 JSON 以便合并 alarm_sim
+      SimConfig cur = mqtt_manager_->GetGlobalSimConfig();
+      json full;
+      full["enabled"]               = cur.enabled;
+      full["main_current_random"]    = cur.main_current_random;
+      full["main_current_min"]       = cur.main_current_min;
+      full["main_current_max"]       = cur.main_current_max;
+      full["main_current_fixed"]     = cur.main_current_fixed;
+      full["slave_current_random"]   = cur.slave_current_random;
+      full["slave_current_min"]      = cur.slave_current_min;
+      full["slave_current_max"]      = cur.slave_current_max;
+      full["slave_current_fixed"]    = cur.slave_current_fixed;
+      full["solar_voltage_random"]   = cur.solar_voltage_random;
+      full["solar_voltage_min"]      = cur.solar_voltage_min;
+      full["solar_voltage_max"]      = cur.solar_voltage_max;
+      full["solar_voltage_fixed"]    = cur.solar_voltage_fixed;
+      full["solar_current_random"]   = cur.solar_current_random;
+      full["solar_current_min"]      = cur.solar_current_min;
+      full["solar_current_max"]      = cur.solar_current_max;
+      full["solar_current_fixed"]    = cur.solar_current_fixed;
+      full["board_temp_random"]      = cur.board_temp_random;
+      full["board_temp_min"]         = cur.board_temp_min;
+      full["board_temp_max"]         = cur.board_temp_max;
+      full["board_temp_fixed"]       = cur.board_temp_fixed;
+      full["battery_voltage_random"] = cur.battery_voltage_random;
+      full["battery_voltage_min"]    = cur.battery_voltage_min;
+      full["battery_voltage_max"]    = cur.battery_voltage_max;
+      full["battery_voltage_fixed"]  = cur.battery_voltage_fixed;
+      full["battery_discharge_run"]  = cur.battery_discharge_run;
+      full["battery_discharge_stop"] = cur.battery_discharge_stop;
+      full["battery_charge_rate"]    = cur.battery_charge_rate;
+      full["battery_temp_random"]    = cur.battery_temp_random;
+      full["battery_temp_min"]       = cur.battery_temp_min;
+      full["battery_temp_max"]       = cur.battery_temp_max;
+      full["battery_temp_fixed"]     = cur.battery_temp_fixed;
+      full["alarm_sim"] = {
+        {"enabled",      cur.alarm_sim.enabled},
+        {"duration_min", cur.alarm_sim.duration_min},
+        {"duration_max", cur.alarm_sim.duration_max},
+        {"frequency",    cur.alarm_sim.frequency},
+        {"fc_bits_mask", cur.alarm_sim.fc_bits_mask}
+      };
+      config_db_->SaveGlobalSimConfig(full.dump());
       json response;
       response["success"] = true;
       response["message"] = "电机模拟配置已保存";
-      response["robot_id"] = robot_id;
       res.set_content(response.dump(), "application/json");
-      LOG(INFO) << "API: 保存电机模拟配置 - 机器人: " << robot_id;
+      LOG(INFO) << "API: 保存全局电机模拟配置";
     } catch (const std::exception& e) {
       json error; error["success"] = false; error["error"] = e.what();
       res.status = 500; res.set_content(error.dump(), "application/json");
     }
   });
 
-  // GET /api/v1/robots/sim_config/alarm - 获取告警模拟配置
-  svr.Get("/api/v1/robots/sim_config/alarm", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string robot_id = req.get_param_value("robot_id");
+  // GET /api/v1/robots/sim_config/alarm - 获取告警模拟配置（全局）
+  svr.Get("/api/v1/robots/sim_config/alarm", [this](const httplib::Request& /*req*/, httplib::Response& res) {
     try {
-      auto robot = mqtt_manager_->GetRobot(robot_id);
-      if (!robot) {
-        json error; error["success"] = false; error["error"] = "机器人不存在或未运行";
-        res.status = 404; res.set_content(error.dump(), "application/json"); return;
-      }
-      const auto& a = robot->GetData().sim_config.alarm_sim;
-      json response;
-      response["success"] = true;
-      response["robot_id"] = robot_id;
-      response["alarm_sim"] = {
+      const SimConfig s = mqtt_manager_->GetGlobalSimConfig();
+      const auto& a = s.alarm_sim;
+      json alarm_json = {
         {"enabled",      a.enabled},
         {"duration_min", a.duration_min},
         {"duration_max", a.duration_max},
-        {"frequency",    a.frequency},
-        {"fc_bits_mask", a.fc_bits_mask}
+        {"frequency",    a.frequency}
       };
+      for (int b = 0; b < 32; b++) {
+        alarm_json["fc_bit_" + std::to_string(b)] = (a.fc_bits_mask & (1u << b)) != 0;
+      }
+      json response;
+      response["success"] = true;
+      response["alarm_sim"] = alarm_json;
       res.set_content(response.dump(), "application/json");
     } catch (const std::exception& e) {
       json error; error["success"] = false; error["error"] = e.what();
@@ -2532,29 +2729,79 @@ void HttpServer::ServerThreadFunc() {
     }
   });
 
-  // POST /api/v1/robots/sim_config/alarm - 保存告警模拟配置
+  // POST /api/v1/robots/sim_config/alarm - 保存告警模拟配置（全局）
   svr.Post("/api/v1/robots/sim_config/alarm", [this](const httplib::Request& req, httplib::Response& res) {
-    std::string robot_id = req.get_param_value("robot_id");
     try {
       json body = json::parse(req.body);
-      auto robot = mqtt_manager_->GetRobot(robot_id);
-      if (!robot) {
-        json error; error["success"] = false; error["error"] = "机器人不存在或未运行";
-        res.status = 404; res.set_content(error.dump(), "application/json"); return;
-      }
-      auto& a = robot->GetData().sim_config.alarm_sim;
+      SimConfig s = mqtt_manager_->GetGlobalSimConfig();
+      auto& a = s.alarm_sim;
       if (body.contains("enabled"))      a.enabled      = body["enabled"].get<bool>();
       if (body.contains("duration_min")) a.duration_min = body["duration_min"].get<int>();
       if (body.contains("duration_max")) a.duration_max = body["duration_max"].get<int>();
       if (body.contains("frequency"))    a.frequency    = body["frequency"].get<int>();
-      if (body.contains("fc_bits_mask")) a.fc_bits_mask = body["fc_bits_mask"].get<uint32_t>();
-      config_db_->UpdateRobotDataSnapshot(robot_id, robot->SerializeDataSnapshot());
+      {
+        bool has_fc_bits = false;
+        for (int b = 0; b < 32 && !has_fc_bits; b++) {
+          if (body.contains("fc_bit_" + std::to_string(b))) has_fc_bits = true;
+        }
+        if (has_fc_bits) {
+          uint32_t mask = 0;
+          for (int b = 0; b < 32; b++) {
+            std::string k = "fc_bit_" + std::to_string(b);
+            if (body.contains(k) && body[k].get<bool>()) mask |= (1u << b);
+          }
+          a.fc_bits_mask = mask;
+        }
+      }
+      mqtt_manager_->SetGlobalSimConfig(s);
+      // 持久化
+      SimConfig cur = mqtt_manager_->GetGlobalSimConfig();
+      json full;
+      full["enabled"]               = cur.enabled;
+      full["main_current_random"]    = cur.main_current_random;
+      full["main_current_min"]       = cur.main_current_min;
+      full["main_current_max"]       = cur.main_current_max;
+      full["main_current_fixed"]     = cur.main_current_fixed;
+      full["slave_current_random"]   = cur.slave_current_random;
+      full["slave_current_min"]      = cur.slave_current_min;
+      full["slave_current_max"]      = cur.slave_current_max;
+      full["slave_current_fixed"]    = cur.slave_current_fixed;
+      full["solar_voltage_random"]   = cur.solar_voltage_random;
+      full["solar_voltage_min"]      = cur.solar_voltage_min;
+      full["solar_voltage_max"]      = cur.solar_voltage_max;
+      full["solar_voltage_fixed"]    = cur.solar_voltage_fixed;
+      full["solar_current_random"]   = cur.solar_current_random;
+      full["solar_current_min"]      = cur.solar_current_min;
+      full["solar_current_max"]      = cur.solar_current_max;
+      full["solar_current_fixed"]    = cur.solar_current_fixed;
+      full["board_temp_random"]      = cur.board_temp_random;
+      full["board_temp_min"]         = cur.board_temp_min;
+      full["board_temp_max"]         = cur.board_temp_max;
+      full["board_temp_fixed"]       = cur.board_temp_fixed;
+      full["battery_voltage_random"] = cur.battery_voltage_random;
+      full["battery_voltage_min"]    = cur.battery_voltage_min;
+      full["battery_voltage_max"]    = cur.battery_voltage_max;
+      full["battery_voltage_fixed"]  = cur.battery_voltage_fixed;
+      full["battery_discharge_run"]  = cur.battery_discharge_run;
+      full["battery_discharge_stop"] = cur.battery_discharge_stop;
+      full["battery_charge_rate"]    = cur.battery_charge_rate;
+      full["battery_temp_random"]    = cur.battery_temp_random;
+      full["battery_temp_min"]       = cur.battery_temp_min;
+      full["battery_temp_max"]       = cur.battery_temp_max;
+      full["battery_temp_fixed"]     = cur.battery_temp_fixed;
+      full["alarm_sim"] = {
+        {"enabled",      cur.alarm_sim.enabled},
+        {"duration_min", cur.alarm_sim.duration_min},
+        {"duration_max", cur.alarm_sim.duration_max},
+        {"frequency",    cur.alarm_sim.frequency},
+        {"fc_bits_mask", cur.alarm_sim.fc_bits_mask}
+      };
+      config_db_->SaveGlobalSimConfig(full.dump());
       json response;
       response["success"] = true;
       response["message"] = "告警模拟配置已保存";
-      response["robot_id"] = robot_id;
       res.set_content(response.dump(), "application/json");
-      LOG(INFO) << "API: 保存告警模拟配置 - 机器人: " << robot_id;
+      LOG(INFO) << "API: 保存全局告警模拟配置";
     } catch (const std::exception& e) {
       json error; error["success"] = false; error["error"] = e.what();
       res.status = 500; res.set_content(error.dump(), "application/json");

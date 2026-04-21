@@ -45,7 +45,9 @@ class ConfigDb {
   bool UpdateRobotInfo(const std::string& old_robot_id,              // 编辑机器人基本信息
                        const std::string& new_robot_id,
                        const std::string& robot_name,
-                       bool enabled);
+                       bool enabled,
+                       int bracket_count = -1,   // -1 表示不修改支架数量
+                       int serial_number = -1);  // -1 表示不修改序号
   bool IsSerialNumberExists(int serial_number);  // 检查序号是否已存在
   int GetMaxSerialNumber();  // 获取当前最大序号
   std::string GetRobotIdBySerial(int serial_number);  // 通过序号获取机器人ID
@@ -69,6 +71,10 @@ class ConfigDb {
   bool UpdateRobotDataSnapshot(const std::string& robot_id,
                                const std::string& data_json);
   std::string GetRobotDataSnapshot(const std::string& robot_id);
+
+  // 全局数据模拟配置（JSON）
+  bool SaveGlobalSimConfig(const std::string& json);
+  std::string LoadGlobalSimConfig();
 };
 
 #endif  // CONFIG_DB_H_

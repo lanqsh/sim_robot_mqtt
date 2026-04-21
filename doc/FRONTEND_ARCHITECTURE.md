@@ -7,8 +7,13 @@ web/
 ├── html/
 │   └── index.html     # HTML 主页面
 ├── css/               # 样式文件目录
-│   ├── layout.css     # 布局样式
-│   └── components.css # 组件样式
+│   ├── variables.css  # CSS 变量（色彩、间距等）
+│   ├── base.css       # 基础样式（reset、通用元素）
+│   ├── layout.css     # 布局样式（header、容器）
+│   ├── components.css # 组件样式（按钮、卡片、模态框）
+│   ├── tables.css     # 表格样式
+│   ├── pages.css      # 页面特定样式
+│   └── utils.css      # 工具类（辅助样式）
 └── js/                # JavaScript 模块目录
     ├── app.js         # 主入口文件（协调各模块）
     ├── config.js      # 配置常量（API地址、字段映射等）
@@ -29,18 +34,22 @@ web/
 
 ### 2. api.js - API 调用模块
 封装所有后端 API 调用：
-- `fetchRobots(page, pageSize)` - 获取机器人列表
-- `addRobot(robotName, serialNumber)` - 添加机器人
+- `fetchRobots(filters)` - 获取机器人列表（支持 robot_id/robot_name/enabled 过滤参数）
+- `addRobot(robotData)` - 添加机器人
+- `updateRobot(robotData)` - 编辑机器人信息
 - `deleteRobot(robotId)` - 删除机器人
-- `updateRobotStatus(robotId, enabled)` - 更新状态
-- `fetchRobotData(robotId)` - 获取详细数据
+- `fetchRobotData(robotId)` - 获取实时数据
 - `batchAddRobots(robots)` - 批量添加
 - `batchDeleteRobots(robotIds)` - 批量删除
 - `sendScheduleStartRequest()` - 定时启动请求
-- `sendStartRequest()` - 启动请求
+- `sendStartRequest()` - 立即启动请求
 - `sendTimeSyncRequest()` - 校时请求
-- `getRobotAlarms(identifier, type)` - 获取机器人告警配置
-- `setRobotAlarms(identifier, type, alarmData)` - 设置机器人告警
+- `getRobotAlarms(robotId)` - 获取机器人告警配置
+- `setRobotAlarms(robotId, alarmData)` - 设置机器人告警
+- `getSimConfigMotor(robotId)` - 获取电机电流模拟配置
+- `setSimConfigMotor(robotId, config)` - 设置电机电流模拟配置
+- `getSimConfigAlarm(robotId)` - 获取随机告警模拟配置
+- `setSimConfigAlarm(robotId, config)` - 设置随机告警模拟配置
 
 ### 3. ui.js - UI 渲染模块
 负责所有UI更新和渲染：
@@ -65,9 +74,11 @@ web/
 
 ### 5. robot-operations.js - 机器人操作模块
 机器人管理相关操作：
-- `toggleRobotStatus()` - 切换启用/禁用
 - `addRobot()` - 添加单个机器人
 - `deleteRobot()` - 删除机器人
+- `openEditModal(robotId)` - 打开编辑机器人模态框
+- `closeEditModal()` - 关闭编辑模态框
+- `saveEditRobot()` - 保存编辑结果（调用 updateRobot API）
 - `viewRobotData()` - 查看详细数据
 - `batchAdd()` - 批量添加
 - `batchDelete()` - 批量删除
@@ -88,10 +99,19 @@ web/
 - 定时刷新任务
 
 **全局函数：**
-- `window.openAlarmSettings(robotId, serialNumber)` - 打开告警设置模态框
+- `window.searchRobots()` - 按条件搜索机器人
+- `window.clearSearch()` - 清除搜索条件
+- `window.openAlarmSettings(robotId)` - 打开告警设置模态框
 - `window.saveAlarmSettings()` - 保存告警配置
 - `window.closeAlarmModal()` - 关闭告警模态框
-- `window.switchAlarmTab(type)` - 切换告警标签页
+- `window.switchAlarmTab(type)` - 切换告警标签页（FA/FB/FC/FD）
+- `window.openEditModal(robotId)` - 打开编辑机器人模态框
+- `window.closeEditModal()` - 关闭编辑模态框
+- `window.saveEditRobot()` - 保存编辑结果
+- `window.openSimConfigModal(robotId)` - 打开模拟配置模态框
+- `window.closeSimConfigModal()` - 关闭模拟配置模态框
+- `window.saveSimConfig()` - 保存模拟配置
+- `window.switchSimTab(tab)` - 切换模拟标签页（motor/alarm）
 - 其他机器人操作和命令发送函数
 
 ## 模块依赖关系

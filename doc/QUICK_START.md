@@ -39,9 +39,24 @@ cd ..
 
 ```
 web/
-├── index.html    # HTML结构
-├── style.css     # CSS样式
-└── app.js        # JavaScript逻辑
+├── html/
+│   └── index.html         # HTML结构
+├── css/
+│   ├── variables.css      # CSS变量
+│   ├── base.css           # 基础样式
+│   ├── layout.css         # 布局样式
+│   ├── components.css     # 组件样式
+│   ├── tables.css         # 表格样式
+│   ├── pages.css          # 页面样式
+│   └── utils.css          # 工具样式
+└── js/
+    ├── app.js             # 主应用入口
+    ├── api.js             # API封装
+    ├── ui.js              # UI工具函数
+    ├── config.js          # 配置常量
+    ├── pagination.js      # 分页逻辑
+    ├── robot-operations.js # 机器人操作
+    └── commands.js        # 控制命令
 ```
 
 **重要**: 运行程序时，确保 `web/` 文件夹在可执行文件的同一目录！
@@ -127,35 +142,33 @@ HTTP服务器地址: http://localhost:8080
 ### 7.2 API测试（使用curl）
 
 ```bash
-# 1. 获取所有机器人
-curl http://localhost:8080/api/robots
+# 1. 获取机器人列表（支持 robot_id/robot_name/enabled 过滤 + 分页）
+curl "http://localhost:8080/api/v1/robots/get"
+curl "http://localhost:8080/api/v1/robots/get?robot_id=test_robot_001"
 
 # 2. 添加新机器人
-curl -X POST http://localhost:8080/api/robots \
+curl -X POST http://localhost:8080/api/v1/robots/add \
   -H "Content-Type: application/json" \
-  -d '{
-    "robot_id": "test_robot_001",
-    "robot_name": "测试机器人"
-  }'
+  -d '{"robot_id": "test_robot_001", "robot_name": "测试机器人"}'
 
-# 3. 查看机器人详细数据
-curl http://localhost:8080/api/robots/test_robot_001/data
+# 3. 查看机器人实时数据
+curl "http://localhost:8080/api/v1/robots/data?robot_id=test_robot_001"
 
 # 4. 获取机器人告警配置
-curl "http://localhost:8080/api/robots/test_robot_001/alarms?type=id"
+curl "http://localhost:8080/api/v1/robots/get_alarms?robot_id=test_robot_001"
 
 # 5. 设置机器人告警
-curl -X PATCH "http://localhost:8080/api/robots/test_robot_001/alarms?type=id" \
+curl -X POST http://localhost:8080/api/v1/robots/set_alarms \
   -H "Content-Type: application/json" \
-  -d '{
-    "alarm_fa": 134217727,
-    "alarm_fb": 2047,
-    "alarm_fc": 2147483647,
-    "alarm_fd": 31
-  }'
+  -d '{"robot_id": "test_robot_001", "alarm_fa": 134217727, "alarm_fb": 2047, "alarm_fc": 2147483647, "alarm_fd": 31}'
 
 # 6. 删除机器人
-curl -X DELETE http://localhost:8080/api/robots/test_robot_001
+curl -X POST http://localhost:8080/api/v1/robots/delete \
+  -H "Content-Type: application/json" \
+  -d '{"robot_id": "test_robot_001"}'
+
+# 7. 查看系统版本
+curl "http://localhost:8080/api/v1/system/version"
 ```
 
 ### 7.3 观察日志输出
@@ -179,24 +192,14 @@ I... 程序运行中，按 Ctrl+C 退出...
 I... HTTP服务器地址: http://localhost:8080
 ```
 
-## 8. 动态测试功能
-
-程序包含一个自动测试线程，会在启动后：
-
-- 30秒后自动添加一个测试机器人（ID: `303930306350729g`）
-- 再60秒后（共90秒）删除该测试机器人
-
-观察日志可以看到完整的添加和删除过程。
-
-## 9. 常见问题
+## 8. 常见问题
 
 ### 问题1: 编译时找不到httplib.h
 
 **解决方法**:
 ```bash
-# 下载到include目录
-cd include/
-wget https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
+# httplib.h 已内置于 third_party/httplib.h，CMakeLists.txt 已配置好 include 路径
+# 若仍报错，检查 CMakeLists.txt 中 include_directories 是否包含 third_party/
 ```
 
 ### 问题2: 端口8080被占用
@@ -214,20 +217,19 @@ rm config.db
 
 ### 问题3: 浏览器显示404 Not Found
 
-**原因**: web文件夹不在可执行文件同一目录
+**原因**: web文件夹不在可执行文件同一目录，或前端文件路径不正确
 
 **解决方法**:
 ```bash
-# 确保web文件夹在运行目录
-ls -l web/
+# 确保 web/html/index.html 存在
+ls -l web/html/
 
-# 如果不在web文件夹，复制到build目录
-cp -r web build/
-cd build
-./robot
-
-# 或者在项目根目录运行
+# 若找不到，从项目根目录运行
 ./build/robot
+
+# 或复制整个 web 文件夹到 build 目录后再运行
+cp -r web build/
+cd build && ./robot
 ```
 
 ### 问题4: MQTT连接失败
@@ -259,7 +261,7 @@ ldconfig -p | grep glog
 sudo apt install --reinstall libpaho-mqttpp-dev libsqlite3-dev libgoogle-glog-dev
 ```
 
-## 10. 验证成功运行的标志
+## 9. 验证成功运行的标志
 
 ✅ **编译成功**:
 ```
@@ -288,11 +290,11 @@ I... 消息已发送到主题: application/.../device/303930306350729d/event/up
 ```
 I... API: 获取机器人列表, 数量: 2
 I... API: 添加机器人成功 - test_robot_001 (测试机器人)
-I... API: 获取机器人告警 - test_robot_001
-I... API: 设置机器人告警 - test_robot_001
+I... API: 获取机器人告警配置 - test_robot_001
+I... API: 设置机器人告警配置 - test_robot_001
 ```
 
-## 11. 下一步
+## 10. 下一步
 
 现在您可以：
 
